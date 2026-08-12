@@ -1,0 +1,19 @@
+# Dependencies and build output
+node_modules/
+.pnpm-store/
+dist/
+.next/
+coverage/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Tooling and operating-system files
+*.tsbuildinfo
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

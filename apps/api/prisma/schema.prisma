@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum BillingCycle {
+  MONTHLY
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentProvider {
+  STRIPE
+  MANUAL
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id              String           @id @default(uuid()) @db.Uuid
+  email           String           @unique @db.VarChar(320)
+  passwordHash    String           @db.VarChar(255)
+  role            Role             @default(CUSTOMER)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  customer        Customer?
+  refreshSessions RefreshSession[]
+  auditLogs       AuditLog[]       @relation("AuditActor")
+}
+
+model Customer {
+  id             String            @id @default(uuid()) @db.Uuid
+  userId         String?           @unique @db.Uuid
+  customerNumber String            @unique @db.VarChar(32)
+  firstName      String            @db.VarChar(100)
+  lastName       String            @db.VarChar(100)
+  email          String            @unique @db.VarChar(320)
+  phone          String            @db.VarChar(32)
+  addressLine1   String            @db.VarChar(255)
+  addressLine2   String?           @db.VarChar(255)
+  suburb         String            @db.VarChar(100)
+  state          String            @db.VarChar(3)
+  postcode       String            @db.VarChar(10)
+  status         CustomerStatus    @default(ACTIVE)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  user           User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  subscriptions  Subscription[]
+  invoices       Invoice[]
+  payments       Payment[]
+
+  @@index([lastName, firstName])
+  @@index([status])
+}
+
+model InternetPlan {
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String         @unique @db.VarChar(150)
+  description   String?        @db.Text
+  downloadMbps  Int
+  uploadMbps    Int
+  monthlyCents  Int
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+
+  @@index([isActive])
+}
+
+model Subscription {
+  id           String             @id @default(uuid()) @db.Uuid
+  customerId   String             @db.Uuid
+  planId       String             @db.Uuid
+  status       SubscriptionStatus @default(PENDING)
+  startDate    DateTime           @db.Date
+  endDate      DateTime?          @db.Date
+  billingCycle BillingCycle       @default(MONTHLY)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  customer     Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  plan         InternetPlan       @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices     Invoice[]
+
+  @@index([customerId, status])
+  @@index([planId])
+}
+
+model Invoice {
+  id             String        @id @default(uuid()) @db.Uuid
+  invoiceNumber  String        @unique @db.VarChar(32)
+  customerId     String        @db.Uuid
+  subscriptionId String?       @db.Uuid
+  issueDate      DateTime      @db.Date
+  dueDate        DateTime      @db.Date
+  subtotalCents  Int
+  taxCents       Int
+  totalCents     Int
+  currency       String        @default("AUD") @db.Char(3)
+  status         InvoiceStatus @default(DRAFT)
+  pdfUrl         String?       @db.VarChar(2048)
+  issuedAt       DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  customer       Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  items          InvoiceItem[]
+  payments       Payment[]
+
+  @@index([customerId, status])
+  @@index([dueDate, status])
+  @@index([subscriptionId])
+}
+
+model InvoiceItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  invoiceId      String  @db.Uuid
+  description    String  @db.VarChar(500)
+  quantity       Int
+  unitPriceCents Int
+  amountCents    Int
+  invoice        Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id                String          @id @default(uuid()) @db.Uuid
+  invoiceId         String          @db.Uuid
+  customerId        String          @db.Uuid
+  provider          PaymentProvider
+  providerPaymentId String?         @db.VarChar(255)
+  amountCents       Int
+  currency          String          @default("AUD") @db.Char(3)
+  status            PaymentStatus   @default(PENDING)
+  paidAt            DateTime?
+  createdAt         DateTime        @default(now())
+  invoice           Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  customer          Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, providerPaymentId])
+  @@index([invoiceId, status])
+  @@index([customerId])
+}
+
+model RefreshSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique @db.VarChar(255)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String?  @db.Uuid
+  action      String   @db.VarChar(100)
+  entityType  String   @db.VarChar(100)
+  entityId    String   @db.VarChar(100)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actor       User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorUserId, createdAt])
+}
