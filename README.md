@@ -29,7 +29,8 @@ authentication, authorisation, business rules, and database access.
 4. Run both applications with `pnpm dev`.
 
 The web app is available at `http://localhost:3000`; the API foundation is available at
-`http://localhost:3001`.
+`http://localhost:3001/api/v1/health`. Interactive API documentation is available at
+`http://localhost:3001/api/docs`.
 
 ## Verification commands
 
