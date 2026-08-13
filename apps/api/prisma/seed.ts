@@ -8,6 +8,7 @@ async function main(): Promise<void> {
   const passwordHash = await hash(demoPassword, 12);
 
   await prisma.$transaction([
+    prisma.paymentWebhookEvent.deleteMany(),
     prisma.payment.deleteMany(),
     prisma.invoiceItem.deleteMany(),
     prisma.invoice.deleteMany(),
@@ -248,8 +249,7 @@ async function main(): Promise<void> {
 
   console.log(
     `Seeded ${userCount} users, ${customerCount} customers, ${planCount} internet plans, ` +
-      `${subscriptionCount} subscriptions, ${invoiceCount} invoices, and ${paymentCount} payment. ` +
-      `Demo password: ${demoPassword}`,
+      `${subscriptionCount} subscriptions, ${invoiceCount} invoices, and ${paymentCount} payment.`,
   );
 }
 

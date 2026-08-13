@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
@@ -10,13 +11,14 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { createValidationPipe } from './common/pipes/create-validation-pipe';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService<AppConfig, true>);
   const appConfig = configService.getOrThrow('app');
   const { frontendUrl, port } = appConfig;
 
   app.useLogger(['error', 'warn', 'log']);
   app.enableShutdownHooks();
+  app.use(cookieParser());
   app.use(helmet());
   app.enableCors({
     origin: frontendUrl,

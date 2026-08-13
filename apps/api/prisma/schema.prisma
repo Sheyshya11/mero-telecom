@@ -146,6 +146,7 @@ model Invoice {
   @@index([customerId, status])
   @@index([dueDate, status])
   @@index([subscriptionId])
+  @@unique([subscriptionId, issueDate])
 }
 
 model InvoiceItem {
@@ -166,6 +167,7 @@ model Payment {
   customerId        String          @db.Uuid
   provider          PaymentProvider
   providerPaymentId String?         @db.VarChar(255)
+  providerSessionId String?         @unique @db.VarChar(255)
   amountCents       Int
   currency          String          @default("AUD") @db.Char(3)
   status            PaymentStatus   @default(PENDING)
@@ -173,10 +175,23 @@ model Payment {
   createdAt         DateTime        @default(now())
   invoice           Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   customer          Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  webhookEvents     PaymentWebhookEvent[]
 
   @@unique([provider, providerPaymentId])
   @@index([invoiceId, status])
   @@index([customerId])
+}
+
+model PaymentWebhookEvent {
+  id              String          @id @default(uuid()) @db.Uuid
+  provider        PaymentProvider
+  providerEventId String          @unique @db.VarChar(255)
+  eventType       String          @db.VarChar(100)
+  paymentId       String?         @db.Uuid
+  processedAt     DateTime        @default(now())
+  payment         Payment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
 }
 
 model RefreshSession {

@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  DATABASE_URL: postgresql://mero_telecom:mero_telecom_ci@localhost:5432/mero_telecom
+  REDIS_URL: redis://localhost:6379
+  FRONTEND_URL: http://localhost:3000
+  NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+  NEXT_TELEMETRY_DISABLED: 1
+  JWT_ACCESS_SECRET: ci-access-secret-at-least-thirty-two-characters
+  JWT_REFRESH_SECRET: ci-refresh-secret-at-least-thirty-two-characters
+  STRIPE_SECRET_KEY: sk_test_ci
+  STRIPE_WEBHOOK_SECRET: whsec_ci
+  EMAIL_FROM: Mero Telecom CI <ci@merotelecom.test>
+  EMAIL_DEV_RECIPIENT: ci@merotelecom.test
+  SMTP_HOST: localhost
+  SMTP_PORT: 1025
+  SMTP_SECURE: false
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.16.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Validate Prisma schema
+        run: pnpm --filter @mero-telecom/api exec prisma validate
+
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high
