@@ -4,6 +4,29 @@ The production target is a Vercel frontend and a Render backend in the Singapore
 Render Blueprint provisions the NestJS API, managed PostgreSQL, and managed Redis (Render Key
 Value). A separate private S3-compatible bucket stores invoice documents.
 
+## Development/production separation
+
+The current Stripe Projects environment is named `development` and writes local configuration to
+`.env`. It is intentionally limited to Stripe test-mode credentials, the Resend shared development
+sender, localhost URLs, and development-only external resources. Do not deploy that generated file
+or reuse its provider credentials for a public environment.
+
+When production deployment is explicitly approved:
+
+1. Keep `development` unchanged and create a separate Stripe Projects environment with
+   `stripe projects env create production --output .env.production`.
+2. Provision or attach a separate private production bucket and bucket-scoped credentials. Do not
+   reuse the development invoice bucket or its access token.
+3. Verify a domain owned by Mero Telecom in the production SMTP provider, create a separate API
+   key, and replace the `onboarding@resend.dev` sender. The production environment must not set a
+   development-recipient redirect.
+4. Create separate Stripe credentials and a webhook endpoint for the deployed API URL. This
+   prototype currently rejects live Stripe keys, so accepting real payments requires an explicit
+   go-live code/configuration review before any `*_live_*` credential is introduced.
+5. Put backend secrets only in Render's protected environment and expose only
+   `NEXT_PUBLIC_API_URL` to Vercel. Run the production smoke test in this document before serving
+   users.
+
 ## Topology
 
 | Component         | Provider               | Production configuration                                       |

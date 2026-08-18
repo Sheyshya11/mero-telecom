@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "project": {
+    "catalog": "prod",
+    "initializedAt": "2026-08-18T08:53:02.844Z",
+    "merchantDisplayName": "MeroTelecom",
+    "merchantId": "acct_1U3sAmHhns07ScIH",
+    "projectId": "project_61VF6isWMYWOWvnVm16VDG88Eq8SZj0tOzAtrbJyK4qe",
+    "projectName": "MeroTelecom"
+  },
+  "providers": {
+    "cloudflare": {
+      "accountRequestId": "fprvcnn_61VF72MccYyEVCywP16VDG88Eq8SZj0tOzAtrbJyKT0a",
+      "configuration": {},
+      "linkedAt": "2026-08-18T09:13:10.614Z",
+      "providerId": "prvdr_61UQRSWMdrciFdBNs5Ipc",
+      "providerName": "Cloudflare",
+      "redirectUrl": null,
+      "requestedAt": "2026-08-18T09:13:10.614Z",
+      "status": "complete"
+    }
+  },
+  "resources": {
+    "invoice-storage": {
+      "configuration": {
+        "name": "mero-telecom-invoices",
+        "location_hint": "apac"
+      },
+      "createdAt": "2026-08-18T09:20:30.616Z",
+      "lastRevealedAt": "2026-08-18T09:20:31.046Z",
+      "lastStatus": "complete",
+      "name": "invoice-storage",
+      "providerId": "prvdr_61UQRSWMdrciFdBNs5Ipc",
+      "providerName": "Cloudflare",
+      "resourceId": "fres_61VF78r21mReqEXDH16VDG88Eq8SZj0tOzAtrbJyK1Ie",
+      "serviceId": "r2:bucket"
+    }
+  },
+  "managedProjectVariableEnvKeys": {
+    ".env": [
+      "EMAIL_DEV_RECIPIENT",
+      "EMAIL_FROM",
+      "FRONTEND_URL",
+      "NODE_ENV",
+      "S3_FORCE_PATH_STYLE",
+      "S3_REGION",
+      "SMTP_HOST",
+      "SMTP_PASS",
+      "SMTP_PORT",
+      "SMTP_SECURE",
+      "SMTP_USER"
+    ]
+  },
+  "activeEnvironment": "development"
+}

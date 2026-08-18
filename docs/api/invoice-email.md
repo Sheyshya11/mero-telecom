@@ -27,3 +27,22 @@ Mailpit captures development mail locally without delivering it to the public in
 
 SMTP usernames and passwords are optional for local Mailpit but should be injected as private
 environment variables for hosted providers. They must never be committed or returned by the API.
+
+## Resend development SMTP
+
+Resend can exercise the hosted SMTP path before a custom domain exists. Keep `NODE_ENV=development`
+so the backend redirects every invoice to `EMAIL_DEV_RECIPIENT`, then configure:
+
+```text
+EMAIL_FROM=Mero Telecom Billing <onboarding@resend.dev>
+EMAIL_DEV_RECIPIENT=<the email address that owns the Resend account>
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=resend
+SMTP_PASS=<development Resend API key>
+```
+
+The shared `resend.dev` sender can deliver only to the email address associated with the Resend
+account. It is therefore suitable for local acceptance tests but not staging or production. Store
+the API key through Stripe Projects project variables; do not hand-edit the CLI-managed `.env`.

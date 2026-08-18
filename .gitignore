@@ -10,9 +10,6 @@ dist/
 /apps/web/coverage/
 
 # Environment files and secrets
-.env
-.env.*
-!.env.example
 
 # Tooling and operating-system files
 *.tsbuildinfo
@@ -21,3 +18,11 @@ dist/
 Thumbs.db
 .idea/
 .vscode/
+
+.projects/cache
+.projects/vault
+.projects/state.test.json
+.projects/state.local.test.json
+.env
+.env.*
+!.env.example
