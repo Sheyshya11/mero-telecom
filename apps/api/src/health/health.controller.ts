@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger';
 
-import { HealthService } from './health.service';
+import { HealthService, type HealthResponse, type ReadinessResponse } from './health.service';
 
 @ApiTags('health')
 @Controller('health')
@@ -10,7 +10,14 @@ export class HealthController {
 
   @Get()
   @ApiOkResponse({ description: 'Reports whether the API is running.' })
-  getHealth(): { status: string; timestamp: string } {
+  getHealth(): HealthResponse {
     return this.healthService.getHealth();
+  }
+
+  @Get('ready')
+  @ApiOkResponse({ description: 'Reports whether PostgreSQL and Redis are ready.' })
+  @ApiServiceUnavailableResponse({ description: 'A required managed service is unavailable.' })
+  getReadiness(): Promise<ReadinessResponse> {
+    return this.healthService.getReadiness();
   }
 }

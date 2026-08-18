@@ -6,6 +6,7 @@ interface ErrorResponseBody {
   code?: string;
   message?: string | string[];
   error?: string;
+  errors?: Record<string, unknown>;
 }
 
 @Catch()
@@ -42,7 +43,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode,
       code: error.code ?? (validationMessages ? 'VALIDATION_ERROR' : this.getErrorCode(statusCode)),
       message: validationMessages ? 'Invalid request.' : (error.message ?? exception.message),
-      errors: validationMessages ? { messages: validationMessages } : {},
+      errors: validationMessages ? { messages: validationMessages } : (error.errors ?? {}),
       timestamp: new Date().toISOString(),
       path,
     };

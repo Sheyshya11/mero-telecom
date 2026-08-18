@@ -1,0 +1,72 @@
+services:
+  - type: web
+    name: mero-telecom-api
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @mero-telecom/api prisma:generate && pnpm --filter @mero-telecom/api build
+    preDeployCommand: pnpm --filter @mero-telecom/api exec prisma migrate deploy
+    startCommand: pnpm --filter @mero-telecom/api start
+    healthCheckPath: /api/v1/health/ready
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: FRONTEND_URL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mero-telecom-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: mero-telecom-redis
+          property: connectionString
+      - key: ADMIN_DASHBOARD_CACHE_TTL_SECONDS
+        value: 60
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+
+  - type: keyvalue
+    name: mero-telecom-redis
+    plan: starter
+    region: singapore
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+    persistenceMode: 'off'
+
+databases:
+  - name: mero-telecom-postgres
+    plan: basic-256mb
+    region: singapore
+    postgresMajorVersion: '17'
+    databaseName: mero_telecom
+    user: mero_telecom
+    ipAllowList: []
+    connectionPool: none

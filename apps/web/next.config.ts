@@ -1,6 +1,22 @@
 import type { NextConfig } from 'next';
 
-const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1').origin;
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
+const isVercelBuild = process.env.VERCEL === '1';
+
+if (isVercelBuild && !configuredApiUrl) {
+  throw new Error('NEXT_PUBLIC_API_URL is required for Vercel builds.');
+}
+
+const apiUrl = new URL(configuredApiUrl ?? 'http://localhost:3001/api/v1');
+if (
+  isVercelBuild &&
+  apiUrl.protocol !== 'https:' &&
+  !['localhost', '127.0.0.1'].includes(apiUrl.hostname)
+) {
+  throw new Error('NEXT_PUBLIC_API_URL must use HTTPS for Vercel deployments.');
+}
+
+const apiOrigin = apiUrl.origin;
 const contentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",

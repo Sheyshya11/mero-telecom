@@ -125,6 +125,15 @@ GitHub Actions runs the verification suite for every pull request and every push
 workflow uses a frozen pnpm lockfile and checks formatting, linting, types, tests, production
 builds, the Prisma schema, and high-severity dependency advisories.
 
+## Deployment
+
+Production deployment is prepared for a Vercel Next.js frontend and a Render Blueprint containing
+the NestJS API, managed PostgreSQL, and managed Redis. Render applies Prisma migrations before a
+release and gates traffic on dependency-aware readiness checks. Vercel receives only the public API
+URL; all datastore, JWT, Stripe, and SMTP secrets remain server-side. The complete provisioning,
+environment, custom-domain, CORS, authentication, smoke-test, and rollback procedure is in
+`docs/deployment.md`.
+
 ## Database setup
 
 After copying `.env.example` to `.env` and starting the local services, run the following from the
@@ -144,6 +153,8 @@ demonstration accounts, each with password `ChangeMe123!`:
 
 ## Current scope
 
-Phase 17 provides the core customer, plan, subscription, invoice, PDF, dashboards, Stripe sandbox
-payment, development invoice-email, Redis admin-dashboard cache, system hardening, and CI
-workflows. Deployment preparation and final documentation remain later phases.
+Phase 18 provides the core customer, plan, subscription, invoice, PDF, dashboards, Stripe sandbox
+payment, development invoice-email, Redis admin-dashboard cache, system hardening, CI workflows,
+and production deployment preparation. Provider-side deployment requires a remote Git repository
+and the project owner's Vercel, Render, DNS, email, and Stripe accounts. Final consolidated
+documentation remains Phase 19.

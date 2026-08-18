@@ -7,6 +7,7 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import type { AppConfig } from './config/configuration';
+import { createCorsOptions } from './config/cors';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { createValidationPipe } from './common/pipes/create-validation-pipe';
 
@@ -20,10 +21,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
   app.use(cookieParser());
   app.use(helmet());
-  app.enableCors({
-    origin: frontendUrl,
-    credentials: true,
-  });
+  app.enableCors(createCorsOptions(frontendUrl));
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new AllExceptionsFilter());
@@ -39,8 +37,8 @@ async function bootstrap(): Promise<void> {
     jsonDocumentUrl: 'api/docs-json',
   });
 
-  await app.listen(port);
-  Logger.log(`API listening on http://localhost:${port}/api/v1`, 'Bootstrap');
+  await app.listen(port, '0.0.0.0');
+  Logger.log(`API listening on port ${port}`, 'Bootstrap');
 }
 
 void bootstrap();

@@ -82,6 +82,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async ping(): Promise<boolean> {
+    if (!this.client.isReady) return false;
+    try {
+      return (await this.client.ping()) === 'PONG';
+    } catch {
+      this.warnUnavailable();
+      return false;
+    }
+  }
+
   private warnUnavailable(): void {
     if (this.unavailableWarningLogged) return;
     this.unavailableWarningLogged = true;
