@@ -5,7 +5,9 @@ node_modules/
 .playwright-cli/
 dist/
 .next/
-coverage/
+/coverage/
+/apps/api/coverage/
+/apps/web/coverage/
 
 # Environment files and secrets
 .env
