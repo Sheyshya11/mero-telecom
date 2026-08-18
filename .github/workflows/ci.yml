@@ -26,7 +26,7 @@ env:
   STRIPE_SECRET_KEY: sk_test_ci
   STRIPE_WEBHOOK_SECRET: whsec_ci
   EMAIL_FROM: Mero Telecom CI <ci@merotelecom.test>
-  EMAIL_DEV_RECIPIENT: ci@merotelecom.test
+  EMAIL_DEV_RECIPIENT: ci@example.com
   SMTP_HOST: localhost
   SMTP_PORT: 1025
   SMTP_SECURE: false
