@@ -6,6 +6,7 @@ settings:
 
 overrides:
   ajv@>=7.0.0-alpha.0 <8.18.0: 8.18.0
+  deepmerge-ts@<8.0.0: 8.0.0
   esbuild@>=0.27.3 <0.28.1: 0.28.1
   js-yaml@>=5.0.0 <=5.2.1: 5.2.2
   picomatch@>=4.0.0 <4.0.4: 4.0.5
@@ -3832,10 +3833,10 @@ packages:
         integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==,
       }
 
-  deepmerge-ts@7.1.5:
+  deepmerge-ts@8.0.0:
     resolution:
       {
-        integrity: sha512-HOJkrhaYsweh+W+e74Yn7YStZOilkoPb6fycpwNLKzSPtruFs48nYis0zy5yJz1+ktUhHxoRDJ27RQAWLIJVJw==,
+        integrity: sha512-ICNjaP0ML+eSdEpJYQC46XiAn/UjAdwbEl0dE8p85ZTeNDinN4Kd4+9jS4OSAuH7st6eC7rQhsqTF5zIDaUm2g==,
       }
     engines: { node: '>=16.0.0' }
 
@@ -8301,7 +8302,7 @@ snapshots:
   '@prisma/config@6.19.3':
     dependencies:
       c12: 3.1.0
-      deepmerge-ts: 7.1.5
+      deepmerge-ts: 8.0.0
       effect: 3.21.0
       empathic: 2.0.0
     transitivePeerDependencies:
@@ -9336,7 +9337,7 @@ snapshots:
 
   deep-is@0.1.4: {}
 
-  deepmerge-ts@7.1.5: {}
+  deepmerge-ts@8.0.0: {}
 
   deepmerge@4.3.1: {}
 
