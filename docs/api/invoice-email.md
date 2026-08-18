@@ -4,7 +4,7 @@
 is restricted to administrators and staff; customers cannot choose a recipient or provide email
 content. Draft and cancelled invoices are rejected.
 
-The backend renders the PDF from stored invoice data, builds both plain-text and HTML email bodies,
+The backend obtains the authoritative private PDF, builds both plain-text and HTML email bodies,
 and sends through the configured SMTP provider. In non-production environments every message is
 redirected to `EMAIL_DEV_RECIPIENT`, regardless of the customer's address. Production uses the
 customer email stored by the backend.

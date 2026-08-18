@@ -9,7 +9,8 @@ export default function HomePage() {
           ISP management, built to grow with the business.
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-700">
-          Customer, plan, and subscription management are ready for the next billing phase.
+          Manage customers, plans, subscriptions, billing, payments, and service availability in one
+          secure platform.
         </p>
         <div className="mt-7 flex gap-3">
           <Link className="button-primary inline-flex" href="/login">
@@ -17,6 +18,9 @@ export default function HomePage() {
           </Link>
           <Link className="button-secondary inline-flex" href="/plans">
             View plans
+          </Link>
+          <Link className="button-secondary inline-flex" href="/coverage">
+            Check coverage
           </Link>
         </div>
       </section>

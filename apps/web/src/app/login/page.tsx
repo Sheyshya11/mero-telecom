@@ -34,7 +34,7 @@ export default function LoginPage() {
         user.role === 'CUSTOMER'
           ? '/customer/dashboard'
           : user.role === 'STAFF'
-            ? '/admin/subscriptions'
+            ? '/staff/customers'
             : '/admin/dashboard',
       );
     } catch (reason) {

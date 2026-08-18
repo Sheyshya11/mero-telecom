@@ -1,10 +1,13 @@
 # API foundation
 
-The API exposes versioned routes below `/api/v1`. The initial health endpoint is:
+The API exposes versioned routes below `/api/v1`. Process liveness is available at:
 
 ```text
 GET /api/v1/health
 ```
+
+Dependency readiness is available at `GET /api/v1/health/ready` and reports PostgreSQL and Redis
+independently. Production traffic should use readiness as its health gate.
 
 Interactive OpenAPI documentation is available locally at `/api/docs`; its JSON document is
 available at `/api/docs-json`.

@@ -7,10 +7,11 @@ import { InvoicesController } from './invoices.controller';
 import { InvoiceEmailService } from './invoice-email.service';
 import { InvoicePdfService } from './invoice-pdf.service';
 import { InvoicesService } from './invoices.service';
+import { InvoiceDocumentService } from './invoice-document.service';
 
 @Module({
   imports: [AuthModule, AuthorizationModule, BillingModule, NotificationsModule],
   controllers: [InvoicesController],
-  providers: [InvoicesService, InvoicePdfService, InvoiceEmailService],
+  providers: [InvoicesService, InvoicePdfService, InvoiceDocumentService, InvoiceEmailService],
 })
 export class InvoicesModule {}

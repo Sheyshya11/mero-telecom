@@ -2,8 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useState } from 'react';
 
-import { apiRequest } from '../../lib/api/client';
+import { apiDownload, apiRequest } from '../../lib/api/client';
 import { useAuth } from '../auth/auth-provider';
 import { StripeCheckoutButton } from '../payments/stripe-checkout-button';
 import type { CustomerDashboard, CustomerInvoice } from './customer-dashboard.types';
@@ -61,6 +62,9 @@ export function CustomerDashboardView() {
           </Link>
           <Link className="button-secondary" href="/customer/invoices">
             Invoice history
+          </Link>
+          <Link className="button-secondary" href="/customer/profile">
+            My profile
           </Link>
           <button className="button-primary" onClick={() => void logout()} type="button">
             Sign out
@@ -181,6 +185,7 @@ export function CustomerDashboardView() {
                   <th className="px-6 py-3">Invoice status</th>
                   <th className="px-6 py-3">Payment status</th>
                   <th className="px-6 py-3 text-right">Total</th>
+                  <th className="px-6 py-3 text-right">Document</th>
                 </tr>
               </thead>
               <tbody>
@@ -199,6 +204,19 @@ export function CustomerDashboardView() {
 }
 
 export function InvoiceRow({ invoice }: Readonly<{ invoice: CustomerInvoice }>) {
+  const { accessToken } = useAuth();
+  const [downloadError, setDownloadError] = useState(false);
+
+  async function download() {
+    if (!accessToken) return;
+    setDownloadError(false);
+    try {
+      await apiDownload(`/invoices/${invoice.id}/pdf`, accessToken, `${invoice.invoiceNumber}.pdf`);
+    } catch {
+      setDownloadError(true);
+    }
+  }
+
   return (
     <tr className="border-b border-slate-100 last:border-0">
       <td className="px-6 py-4 font-medium text-slate-900">{invoice.invoiceNumber}</td>
@@ -209,6 +227,11 @@ export function InvoiceRow({ invoice }: Readonly<{ invoice: CustomerInvoice }>) 
       <td className="px-6 py-4 text-slate-600">{invoice.paymentStatus ?? 'No payment recorded'}</td>
       <td className="px-6 py-4 text-right font-medium text-slate-900">
         {formatMoney(invoice.totalCents)}
+      </td>
+      <td className="px-6 py-4 text-right">
+        <button className="button-secondary" onClick={() => void download()} type="button">
+          {downloadError ? 'Retry PDF' : 'Download PDF'}
+        </button>
       </td>
     </tr>
   );

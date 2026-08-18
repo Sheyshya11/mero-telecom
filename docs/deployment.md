@@ -1,20 +1,34 @@
 # Production deployment
 
-Phase 18 targets a Vercel frontend and a Render backend in the Singapore region. The Render
-Blueprint provisions the NestJS API, managed PostgreSQL, and managed Redis (Render Key Value).
+The production target is a Vercel frontend and a Render backend in the Singapore region. The
+Render Blueprint provisions the NestJS API, managed PostgreSQL, and managed Redis (Render Key
+Value). A separate private S3-compatible bucket stores invoice documents.
 
 ## Topology
 
-| Component        | Provider           | Production configuration                                       |
-| ---------------- | ------------------ | -------------------------------------------------------------- |
-| Next.js frontend | Vercel             | Project root `apps/web`                                        |
-| NestJS API       | Render web service | Root `render.yaml`; health path `/api/v1/health/ready`         |
-| PostgreSQL       | Render Postgres    | Private connection string injected into the API                |
-| Redis cache      | Render Key Value   | Private connection string; `allkeys-lru`; persistence disabled |
+| Component         | Provider               | Production configuration                                       |
+| ----------------- | ---------------------- | -------------------------------------------------------------- |
+| Next.js frontend  | Vercel                 | Project root `apps/web`                                        |
+| NestJS API        | Render web service     | Root `render.yaml`; health path `/api/v1/health/ready`         |
+| PostgreSQL        | Render Postgres        | Private connection string injected into the API                |
+| Redis cache       | Render Key Value       | Private connection string; `allkeys-lru`; persistence disabled |
+| Invoice documents | S3-compatible provider | Private bucket; no anonymous read/list access                  |
 
 Use sibling custom domains such as `app.example.com` and `api.example.com` when possible. This
 keeps the refresh cookie same-site and avoids browser policies that can block third-party cookies
 between `vercel.app` and `onrender.com` domains.
+
+## Production prerequisites and approvals
+
+The version-controlled Blueprint selects paid Render plans (`starter` web/key-value and
+`basic-256mb` PostgreSQL). The project owner must approve provider billing before creating it.
+Deployment also requires signed-in Vercel and Render accounts, an S3-compatible bucket, SMTP
+credentials, Stripe test-mode credentials, and either final custom domains or accepted provider
+domains. Never paste credentials into source, CI logs, screenshots, or pull-request text.
+
+Provider deployment is complete only when all resources exist, environment validation succeeds,
+migrations finish, GitHub checks are green, and the smoke tests below pass. A committed Blueprint
+by itself is deployment preparation, not evidence of a live release.
 
 ## Before deployment
 
@@ -22,9 +36,11 @@ between `vercel.app` and `onrender.com` domains.
 2. Decide the final frontend origin and API URL. `FRONTEND_URL` is an origin such as
    `https://app.example.com`; `NEXT_PUBLIC_API_URL` includes the API prefix, such as
    `https://api.example.com/api/v1`.
-3. Keep PostgreSQL, Redis, JWT, Stripe, and SMTP credentials out of Vercel. They belong only in
+3. Create a private S3-compatible bucket and access key limited to get/put operations for that
+   bucket. Block public ACLs/policies and enable provider-side encryption and lifecycle controls.
+4. Keep PostgreSQL, Redis, JWT, Stripe, SMTP, and S3 credentials out of Vercel. They belong only in
    the Render service environment.
-4. Use Stripe sandbox credentials. This prototype intentionally rejects live Stripe secret keys.
+5. Use Stripe sandbox credentials. This prototype intentionally rejects live Stripe secret keys.
 
 ## Deploy the API and managed services on Render
 
@@ -46,9 +62,14 @@ Render prompts for every variable marked `sync: false`:
 | `SMTP_SECURE`           | `true` for implicit TLS (usually port 465), otherwise `false`           |
 | `SMTP_USER`             | SMTP username, or an empty value if the provider does not require one   |
 | `SMTP_PASS`             | SMTP password, or an empty value if the provider does not require one   |
+| `S3_ENDPOINT`           | S3-compatible HTTPS endpoint; empty only for native AWS S3              |
+| `S3_BUCKET`             | Private invoice-document bucket name                                    |
+| `S3_ACCESS_KEY_ID`      | Bucket-scoped access-key ID                                             |
+| `S3_SECRET_ACCESS_KEY`  | Bucket-scoped secret                                                    |
 
-The Blueprint generates independent JWT secrets and injects managed datastore connection strings.
-It runs the following release sequence automatically:
+Set `S3_REGION` and `S3_FORCE_PATH_STYLE` in `render.yaml` to match the chosen provider before
+provisioning. The Blueprint generates independent JWT secrets and injects managed datastore
+connection strings. It runs the following release sequence automatically:
 
 ```text
 install -> Prisma client generation -> API build -> prisma migrate deploy -> API start
@@ -57,6 +78,9 @@ install -> Prisma client generation -> API build -> prisma migrate deploy -> API
 Do not run the development seed against production. After the API deploys, create a Stripe test
 webhook for `https://api.example.com/api/v1/payments/webhook`, subscribe to
 `checkout.session.completed`, set its signing secret in Render, and redeploy.
+
+After the first successful document download, verify that the object is private, its key begins
+with `invoices/`, and an `InvoiceDocument` row exists. Do not enable a public bucket URL.
 
 ## Deploy the frontend on Vercel
 
@@ -79,6 +103,11 @@ Set the final Vercel origin as `FRONTEND_URL` in Render and redeploy the API if 
 from the value entered during Blueprint creation. CORS and the trusted-origin guard accept that
 single normalized origin and send credentialed responses.
 
+For the initial two-provider bootstrap, use the intended Vercel production origin as
+`FRONTEND_URL` when creating the Render Blueprint, then put the resulting Render API URL into
+Vercel. If either provider assigns a different final URL, update both variables and redeploy both
+services before testing authentication.
+
 ## Production smoke test
 
 Run these checks against the deployed URLs:
@@ -97,6 +126,13 @@ Run these checks against the deployed URLs:
    environment contract. Inspect the browser network panel and verify no secret value is returned.
 7. Confirm the Render deploy log shows `prisma migrate deploy` completed before the new API version
    became healthy.
+8. As an authorized admin and customer, download an invoice PDF. Confirm the response is a PDF,
+   an unauthorized/other-customer request is rejected, and the backing object has no public URL.
+9. Complete one Stripe test Checkout and verify that only the signed webhook changes the payment
+   and invoice to succeeded/paid. Re-deliver the same event and confirm no duplicate payment is
+   created.
+10. Send one invoice email to a controlled test mailbox and confirm no customer or production
+    recipient was used during the smoke test.
 
 Render treats readiness responses outside the 2xx/3xx range as unhealthy, so a release with an
 unreachable PostgreSQL or Redis instance will not receive traffic. The liveness endpoint remains a

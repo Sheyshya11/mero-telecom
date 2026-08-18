@@ -69,3 +69,34 @@ export async function apiRequest<T>(
 
   return body as T;
 }
+
+export async function apiDownload(
+  path: string,
+  accessToken: string,
+  suggestedFilename: string,
+  retryUnauthorized = true,
+): Promise<void> {
+  const response = await fetch(`/api${path}`, {
+    headers: { Accept: 'application/pdf', Authorization: `Bearer ${accessToken}` },
+    credentials: 'include',
+  });
+
+  if (response.status === 401 && retryUnauthorized && refreshAccessToken) {
+    const renewedToken = await refreshAccessToken();
+    if (renewedToken) return apiDownload(path, renewedToken, suggestedFilename, false);
+  }
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => undefined)) as { message?: string } | undefined;
+    throw new ApiError(body?.message ?? 'The file could not be downloaded.', response.status);
+  }
+
+  const blobUrl = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement('a');
+  anchor.href = blobUrl;
+  anchor.download = suggestedFilename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(blobUrl);
+}

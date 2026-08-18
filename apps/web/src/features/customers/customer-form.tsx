@@ -9,6 +9,8 @@ import type { Customer } from './customer.types';
 
 interface CustomerFormProps {
   customer?: Customer | null;
+  canEditIdentity?: boolean;
+  canManageStatus?: boolean;
   isSubmitting: boolean;
   onCancel: () => void;
   onSubmit: (values: CustomerFormValues) => Promise<void>;
@@ -26,7 +28,14 @@ const emptyValues: CustomerFormValues = {
   postcode: '',
 };
 
-export function CustomerForm({ customer, isSubmitting, onCancel, onSubmit }: CustomerFormProps) {
+export function CustomerForm({
+  customer,
+  canEditIdentity = true,
+  canManageStatus = true,
+  isSubmitting,
+  onCancel,
+  onSubmit,
+}: CustomerFormProps) {
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
     defaultValues: emptyValues,
@@ -55,15 +64,20 @@ export function CustomerForm({ customer, isSubmitting, onCancel, onSubmit }: Cus
     <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="First name" error={form.formState.errors.firstName?.message}>
-          <input className="field" {...form.register('firstName')} />
+          <input className="field" readOnly={!canEditIdentity} {...form.register('firstName')} />
         </Field>
         <Field label="Last name" error={form.formState.errors.lastName?.message}>
-          <input className="field" {...form.register('lastName')} />
+          <input className="field" readOnly={!canEditIdentity} {...form.register('lastName')} />
         </Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Email" error={form.formState.errors.email?.message}>
-          <input className="field" type="email" {...form.register('email')} />
+          <input
+            className="field"
+            readOnly={!canEditIdentity}
+            type="email"
+            {...form.register('email')}
+          />
         </Field>
         <Field label="Mobile" error={form.formState.errors.phone?.message}>
           <input className="field" placeholder="0400 000 000" {...form.register('phone')} />
@@ -86,7 +100,7 @@ export function CustomerForm({ customer, isSubmitting, onCancel, onSubmit }: Cus
           <input className="field" inputMode="numeric" {...form.register('postcode')} />
         </Field>
       </div>
-      {customer ? (
+      {customer && canManageStatus ? (
         <Field label="Account status" error={form.formState.errors.status?.message}>
           <select className="field" {...form.register('status')}>
             <option value="ACTIVE">Active</option>

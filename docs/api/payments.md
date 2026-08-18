@@ -1,6 +1,6 @@
 # Stripe sandbox payments
 
-Phase 13 uses Stripe-hosted Checkout in **test mode** for a single Mero Telecom invoice. The
+The payment workflow uses Stripe-hosted Checkout in **test mode** for a single Mero Telecom invoice. The
 browser supplies only an invoice ID; the API resolves ownership, price, currency, and customer email
 from the database before creating a Checkout Session.
 
