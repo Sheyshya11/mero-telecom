@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { resolve } from 'node:path';
 
 import { AuthorizationModule } from './common/authorization.module';
@@ -17,6 +19,11 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { HealthModule } from './health/health.module';
+import { CoverageModule } from './modules/coverage/coverage.module';
+import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
+import { AdministrativeAuditInterceptor } from './common/interceptors/administrative-audit.interceptor';
+import { ConfigService } from '@nestjs/config';
+import type { AppConfig } from './config/configuration';
 
 @Module({
   imports: [
@@ -37,6 +44,13 @@ import { HealthModule } from './health/health.module';
         abortEarly: false,
       },
     }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<AppConfig, true>) => {
+        const security = config.getOrThrow('security');
+        return [{ ttl: security.throttleTtlMilliseconds, limit: security.throttleLimit }];
+      },
+    }),
     DatabaseModule,
     CacheModule,
     AuthorizationModule,
@@ -49,7 +63,13 @@ import { HealthModule } from './health/health.module';
     InvoicesModule,
     DashboardModule,
     PaymentsModule,
+    CoverageModule,
     HealthModule,
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: RequestLoggingInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: AdministrativeAuditInterceptor },
   ],
 })
 export class AppModule {}

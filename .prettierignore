@@ -4,3 +4,9 @@ dist/
 coverage/
 apps/web/next-env.d.ts
 .playwright-cli/
+.agents/
+.claude/
+.cursor/
+.projects/
+AGENTS.md
+CLAUDE.md

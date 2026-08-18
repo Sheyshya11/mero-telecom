@@ -9,7 +9,7 @@ import { InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { NotificationService } from '../notifications/notification.service';
-import { InvoicePdfService, type InvoicePdfData } from './invoice-pdf.service';
+import { InvoiceDocumentService, type StoredInvoicePdfData } from './invoice-document.service';
 
 export interface InvoiceEmailDeliveryResult {
   invoiceId: string;
@@ -25,7 +25,7 @@ export class InvoiceEmailService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly invoicePdf: InvoicePdfService,
+    private readonly invoiceDocuments: InvoiceDocumentService,
     private readonly notifications: NotificationService,
   ) {}
 
@@ -82,7 +82,7 @@ export class InvoiceEmailService {
       };
     }
 
-    const pdf = await this.invoicePdf.render(invoice as InvoicePdfData);
+    const pdf = await this.invoiceDocuments.getOrCreate(invoice as StoredInvoicePdfData);
     let delivery: { recipient: string; messageId: string };
     try {
       delivery = await this.notifications.sendInvoice(invoice, pdf);

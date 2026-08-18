@@ -63,6 +63,7 @@ export function CustomerInvoiceHistory() {
                   <th className="px-6 py-3">Invoice status</th>
                   <th className="px-6 py-3">Payment status</th>
                   <th className="px-6 py-3 text-right">Total</th>
+                  <th className="px-6 py-3 text-right">Document</th>
                 </tr>
               </thead>
               <tbody>

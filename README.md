@@ -1,160 +1,136 @@
 # Mero Telecom ISP Management Platform
 
-Mero Telecom is an academic capstone prototype for managing ISP customers, internet plans,
-subscriptions, billing, invoices, and service dashboards.
+Mero Telecom is an academic full-stack prototype for operating a small Australian internet
+service provider. It centralises customer records, plan and subscription administration,
+GST-inclusive invoicing, private invoice documents, test-mode payments, invoice email, coverage
+checks, and role-specific dashboards.
+
+## Delivered scope
+
+- Public plan catalogue and postcode coverage checker.
+- Short-lived JWT access tokens, rotating HTTP-only refresh cookies, and server-side revocation.
+- Backend-enforced `ADMIN`, `STAFF`, and `CUSTOMER` permissions with customer ownership checks.
+- Customer, internet-plan, and subscription management.
+- Deterministic monthly billing in integer cents, with GST-inclusive invoice calculations.
+- Authoritative invoice PDFs stored privately in production and streamed only after authorization.
+- Stripe test-mode Checkout with signature-verified, idempotent webhook processing.
+- Invoice email through SMTP, with development messages redirected to Mailpit.
+- Admin and customer dashboards, Redis caching, readiness checks, throttling, structured request
+  logs, and administrative audit records.
+
+The prototype does not provision network services, perform credit checks, collect production
+payments, or replace an accounting platform. See [limitations](docs/limitations.md).
 
 ## Architecture
 
-The repository is a pnpm workspace modular monolith:
+This repository is a pnpm workspace and modular monolith:
 
-- `apps/web` — Next.js frontend using the App Router and Tailwind CSS.
-- `apps/api` — NestJS REST API.
-- `packages/tsconfig` — shared strict TypeScript base configuration.
-- `infrastructure` — reserved for infrastructure assets as the platform grows.
+- `apps/web` — Next.js App Router frontend and narrow same-origin PDF proxy.
+- `apps/api` — NestJS REST API and all authorization/business rules.
+- `apps/api/prisma` — PostgreSQL schema and forward-only migrations.
+- `packages/tsconfig` — shared strict TypeScript configuration.
+- `docs` — architecture, API, database, testing, and deployment runbooks.
 
-The browser will communicate only with the API; the API will be the future authority for
-authentication, authorisation, business rules, and database access.
+PostgreSQL is authoritative. Redis is used only for short-lived dashboard caching. Stripe, SMTP,
+and S3-compatible object storage are accessed only by the API. See the
+[system architecture](docs/architecture/system-architecture.md) and [database ERD](docs/database/erd.md).
 
 ## Prerequisites
 
 - Node.js 22 or later
 - pnpm 11 or later
-- Docker Desktop (for PostgreSQL, Redis, and local email capture)
+- Docker Desktop
+- Stripe test-mode secret and webhook signing secret
 
 ## Local development
 
-1. Copy `.env.example` to `.env` and replace development secrets before using authentication.
-2. Install workspace dependencies with `pnpm install`.
+1. Copy `.env.example` to `.env` and replace every placeholder secret.
+2. Install dependencies with `pnpm install`.
 3. Start PostgreSQL, Redis, and Mailpit with `pnpm services:up`.
-4. Run both applications with `pnpm dev`.
+4. Apply migrations and seed safe demonstration data:
 
-The web app is available at `http://localhost:3000`; the API foundation is available at
-`http://localhost:3001/api/v1/health`. Interactive API documentation is available at
-`http://localhost:3001/api/docs`.
+   ```text
+   pnpm --filter @mero-telecom/api exec prisma migrate deploy
+   pnpm --filter @mero-telecom/api prisma:seed
+   ```
 
-## Authentication (development)
+5. Start both applications with `pnpm dev`.
 
-The API issues a short-lived access token in the login response and a rotated, HTTP-only
-`refresh_token` cookie. Send the access token as `Authorization: Bearer <token>` for protected
-requests. The development seed accounts and password are listed in the database setup section.
+The frontend is at `http://localhost:3000`, the API health endpoint is at
+`http://localhost:3001/api/v1/health`, Swagger UI is at `http://localhost:3001/api/docs`, and
+Mailpit is at `http://localhost:8025`.
 
-## Role-based access control
+Local object storage is optional: when S3 settings are empty outside production, PDFs are rendered
+on demand without persistence. Production configuration requires private S3-compatible storage.
 
-The API recognises `ADMIN`, `STAFF`, and `CUSTOMER` roles. Authorization is enforced by backend
-guards, not frontend routing. The Phase 5 access-control contract is documented in
-`docs/api/authorization.md`; business endpoints added in later phases reuse these guards.
+## Demonstration accounts
 
-## Customer management
-
-Customer management is available through the secured `/api/v1/customers` endpoints, with search
-and pagination. The endpoint contract and role restrictions are documented in
-`docs/api/customers.md`.
-
-## Internet plan management
-
-Administrators can create, edit, activate, and deactivate catalogue plans from `/admin/plans`.
-The public `/plans` page shows active offerings only. Endpoint access and request details are in
-`docs/api/plans.md`.
-
-## Subscription management
-
-Operations staff can assign and manage subscriptions at `/admin/subscriptions`; customers can view
-their own subscription history at `/customer/subscription`. The API contract is in
-`docs/api/subscriptions.md`.
-
-## Billing and invoices
-
-Administrators and staff can generate a monthly invoice for an active subscription through the
-secured invoices API. Amounts are calculated in integer cents from GST-inclusive plan prices; the
-invoice API contract and status rules are documented in `docs/api/invoices.md`.
-
-## Invoice PDFs
-
-Users with permission can download invoice PDFs generated from authoritative invoice data. The PDF
-delivery endpoint and current storage limitation are documented in `docs/api/invoice-pdf.md`.
-
-## Admin dashboard
-
-Administrators can view current operational metrics at `/admin/dashboard`. The backend aggregation
-contract is documented in `docs/api/dashboard.md`.
-
-## Customer dashboard
-
-Customers are taken to `/customer/dashboard` after sign-in. The page shows their own account
-details, current plan and subscription, outstanding balance, latest invoice/payment status, and
-invoice history. Its server-side summary is ownership-scoped via the authenticated customer account.
-
-## Stripe sandbox payments
-
-Customers can initiate payment for their own issued or overdue invoice from the customer dashboard.
-The server creates a Stripe test-mode Checkout Session using authoritative invoice totals. Only a
-signature-verified Stripe webhook can persist a successful payment and mark an invoice paid. Add
-`STRIPE_SECRET_KEY` (`sk_test_...`) and `STRIPE_WEBHOOK_SECRET` (`whsec_...`) to the API environment
-before starting the app; live Stripe keys are rejected at startup.
-The local test workflow is documented in `docs/api/payments.md`.
-
-## Invoice email
-
-Administrators and staff can send an invoice PDF through the secured invoice API. Development
-messages are redirected to `EMAIL_DEV_RECIPIENT` and captured by Mailpit at
-`http://localhost:8025`; they are never sent to seeded customer addresses. SMTP is accessed through
-a provider abstraction, and successful delivery attempts are audited and protected against
-duplicate sends. Configuration and the acceptance flow are documented in
-`docs/api/invoice-email.md`.
-
-## Redis dashboard cache
-
-The admin dashboard summary is cached in Redis with a configurable short TTL. Cache misses run the
-authoritative PostgreSQL aggregations, while cache hits avoid repeating those queries. Redis
-failures fall back to the database, and cached values expire automatically. The behavior and key
-convention are documented in `docs/api/dashboard.md`.
-
-## Verification commands
-
-```text
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm format:check
-```
-
-## Continuous integration
-
-GitHub Actions runs the verification suite for every pull request and every push to `main`. The
-workflow uses a frozen pnpm lockfile and checks formatting, linting, types, tests, production
-builds, the Prisma schema, and high-severity dependency advisories.
-
-## Deployment
-
-Production deployment is prepared for a Vercel Next.js frontend and a Render Blueprint containing
-the NestJS API, managed PostgreSQL, and managed Redis. Render applies Prisma migrations before a
-release and gates traffic on dependency-aware readiness checks. Vercel receives only the public API
-URL; all datastore, JWT, Stripe, and SMTP secrets remain server-side. The complete provisioning,
-environment, custom-domain, CORS, authentication, smoke-test, and rollback procedure is in
-`docs/deployment.md`.
-
-## Database setup
-
-After copying `.env.example` to `.env` and starting the local services, run the following from the
-repository root:
-
-```text
-pnpm --filter @mero-telecom/api prisma:migrate --name init
-pnpm --filter @mero-telecom/api prisma:seed
-```
-
-The development seed is repeatable and replaces the development data. It provisions the following
-demonstration accounts, each with password `ChangeMe123!`:
+The repeatable development seed creates these accounts with password `ChangeMe123!`:
 
 - `admin@merotelecom.test`
 - `staff@merotelecom.test`
 - `customer@merotelecom.test`
 
-## Current scope
+Never run the development seed or reuse these credentials in production.
 
-Phase 18 provides the core customer, plan, subscription, invoice, PDF, dashboards, Stripe sandbox
-payment, development invoice-email, Redis admin-dashboard cache, system hardening, CI workflows,
-and production deployment preparation. Provider-side deployment requires a remote Git repository
-and the project owner's Vercel, Render, DNS, email, and Stripe accounts. Final consolidated
-documentation remains Phase 19.
+## Main application routes
+
+| Audience | Routes                                                                                            |
+| -------- | ------------------------------------------------------------------------------------------------- |
+| Public   | `/`, `/plans`, `/coverage`, `/login`                                                              |
+| Admin    | `/admin/dashboard`, `/admin/customers`, `/admin/plans`, `/admin/subscriptions`, `/admin/invoices` |
+| Staff    | `/staff/customers`                                                                                |
+| Customer | `/customer/dashboard`, `/customer/profile`, `/customer/subscription`, `/customer/invoices`        |
+
+The browser UI is a convenience boundary only; NestJS guards and ownership-scoped queries enforce
+all access decisions.
+
+## Billing and Stripe flow
+
+An admin or staff member assigns an active plan and generates one invoice per subscription and
+issue date. The API derives the amount from the stored plan, extracts the GST component using
+integer arithmetic, and persists the invoice and line item in one transaction. Customers can
+start Stripe Checkout only for their own issued or overdue invoices. A valid
+`checkout.session.completed` webhook creates or updates the payment and marks the invoice paid;
+the browser cannot mark an invoice paid directly.
+
+Stripe is deliberately restricted to test keys (`sk_test_...` or `rk_test_...`). Full details are
+in [payments](docs/api/payments.md).
+
+## Verification
+
+Run the isolated PostgreSQL and Redis test services before the end-to-end suite:
+
+```text
+pnpm services:test:up
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:e2e
+pnpm build
+pnpm --filter @mero-telecom/api prisma:validate
+pnpm audit --audit-level=high
+pnpm services:test:down
+```
+
+The [testing strategy](docs/testing/testing-strategy.md) describes test isolation and the covered
+security and business workflows. GitHub Actions repeats this verification with clean PostgreSQL
+and Redis services on pull requests and pushes to `main`.
+
+## Deployment
+
+The prepared production topology uses Vercel for the Next.js frontend and a Render Blueprint for
+the API, PostgreSQL, and Redis. Render runs migrations before traffic reaches a new release, and
+the API readiness endpoint checks both datastores. Private S3-compatible storage, SMTP, Stripe
+test-mode credentials, provider sign-in, and billing approval must be supplied by the project
+owner. Follow the [deployment runbook](docs/deployment.md); do not run the seed in production.
+
+## Documentation index
+
+- [System architecture](docs/architecture/system-architecture.md)
+- [API overview and RBAC matrix](docs/api/README.md)
+- [Database design and ERD](docs/database/erd.md)
+- [Testing strategy](docs/testing/testing-strategy.md)
+- [Deployment and rollback](docs/deployment.md)
+- [Limitations and future improvements](docs/limitations.md)

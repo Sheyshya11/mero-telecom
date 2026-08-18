@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "providers": {
+    "cloudflare": {
+      "name": "Cloudflare"
+    }
+  },
+  "resources": {
+    "invoice-storage": {
+      "name": "invoice-storage",
+      "providerName": "Cloudflare",
+      "serviceId": "r2:bucket"
+    }
+  },
+  "environments": {
+    "development": {
+      "output": ".env",
+      "resources": [
+        {
+          "resourceName": "invoice-storage"
+        }
+      ],
+      "variables": [
+        {
+          "variableName": "email-dev-recipient",
+          "envKey": "EMAIL_DEV_RECIPIENT"
+        },
+        {
+          "variableName": "email-from",
+          "envKey": "EMAIL_FROM"
+        },
+        {
+          "variableName": "frontend-url",
+          "envKey": "FRONTEND_URL"
+        },
+        {
+          "variableName": "node-env",
+          "envKey": "NODE_ENV"
+        },
+        {
+          "variableName": "s3-force-path-style",
+          "envKey": "S3_FORCE_PATH_STYLE"
+        },
+        {
+          "variableName": "s3-region",
+          "envKey": "S3_REGION"
+        },
+        {
+          "variableName": "smtp-host",
+          "envKey": "SMTP_HOST"
+        },
+        {
+          "variableName": "smtp-pass",
+          "envKey": "SMTP_PASS"
+        },
+        {
+          "variableName": "smtp-port",
+          "envKey": "SMTP_PORT"
+        },
+        {
+          "variableName": "smtp-secure",
+          "envKey": "SMTP_SECURE"
+        },
+        {
+          "variableName": "smtp-user",
+          "envKey": "SMTP_USER"
+        }
+      ]
+    }
+  },
+  "variables": {
+    "email-dev-recipient": {
+      "name": "email-dev-recipient",
+      "backendId": "fprjvar_61VF9baErIdEbPCn216VDG88Eq8SZj0tOzAtrbJyKNFA"
+    },
+    "email-from": {
+      "name": "email-from",
+      "backendId": "fprjvar_61VF8nTwZMknMaqhi16VDG88Eq8SZj0tOzAtrbJyKSA4"
+    },
+    "frontend-url": {
+      "name": "frontend-url",
+      "backendId": "fprjvar_61VF8xKqoaXb8ni7p16VDG88Eq8SZj0tOzAtrbJyKGkS"
+    },
+    "node-env": {
+      "name": "node-env",
+      "backendId": "fprjvar_61VF8xDP2atx8lBiS16VDG88Eq8SZj0tOzAtrbJyKTtA"
+    },
+    "s3-force-path-style": {
+      "name": "s3-force-path-style",
+      "backendId": "fprjvar_61VF8y9yQiuih6z9A16VDG88Eq8SZj0tOzAtrbJyKXpw"
+    },
+    "s3-region": {
+      "name": "s3-region",
+      "backendId": "fprjvar_61VF8y0fiD63vQsuH16VDG88Eq8SZj0tOzAtrbJyKRVA"
+    },
+    "smtp-host": {
+      "name": "smtp-host",
+      "backendId": "fprjvar_61VF8n2MwL7xBwyou16VDG88Eq8SZj0tOzAtrbJyKHGK"
+    },
+    "smtp-pass": {
+      "name": "smtp-pass",
+      "backendId": "fprjvar_61VF8q04XA2p2R22i16VDG88Eq8SZj0tOzAtrbJyKRKC"
+    },
+    "smtp-port": {
+      "name": "smtp-port",
+      "backendId": "fprjvar_61VF8n8Vlw1B5b70I16VDG88Eq8SZj0tOzAtrbJyKCWu"
+    },
+    "smtp-secure": {
+      "name": "smtp-secure",
+      "backendId": "fprjvar_61VF8nDlJzeAXrWh716VDG88Eq8SZj0tOzAtrbJyKTQm"
+    },
+    "smtp-user": {
+      "name": "smtp-user",
+      "backendId": "fprjvar_61VF8nIIOm00TZb6z16VDG88Eq8SZj0tOzAtrbJyKKQS"
+    }
+  }
+}

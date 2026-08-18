@@ -10,6 +10,8 @@ export const validationSchema = Joi.object({
     .uri({ scheme: ['redis', 'rediss'] })
     .required(),
   ADMIN_DASHBOARD_CACHE_TTL_SECONDS: Joi.number().integer().min(5).max(3600).default(60),
+  THROTTLE_TTL_MS: Joi.number().integer().min(1000).max(3600000).default(60000),
+  THROTTLE_LIMIT: Joi.number().integer().min(10).max(10000).default(120),
   FRONTEND_URL: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string()
@@ -46,4 +48,25 @@ export const validationSchema = Joi.object({
   SMTP_SECURE: Joi.boolean().truthy('true').falsy('false').default(false),
   SMTP_USER: Joi.string().allow('').default(''),
   SMTP_PASS: Joi.string().allow('').default(''),
+  S3_ENDPOINT: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .allow('')
+    .default(''),
+  S3_REGION: Joi.string().min(2).default('ap-southeast-2'),
+  S3_BUCKET: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(3).required(),
+    otherwise: Joi.string().allow('').default(''),
+  }),
+  S3_ACCESS_KEY_ID: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(3).required(),
+    otherwise: Joi.string().allow('').default(''),
+  }),
+  S3_SECRET_ACCESS_KEY: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(8).required(),
+    otherwise: Joi.string().allow('').default(''),
+  }),
+  S3_FORCE_PATH_STYLE: Joi.boolean().truthy('true').falsy('false').default(false),
 });

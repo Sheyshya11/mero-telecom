@@ -13,6 +13,10 @@ export interface AppConfig {
   cache: {
     adminDashboardTtlSeconds: number;
   };
+  security: {
+    throttleTtlMilliseconds: number;
+    throttleLimit: number;
+  };
   jwt: {
     accessSecret: string;
     refreshSecret: string;
@@ -34,6 +38,15 @@ export interface AppConfig {
       pass: string;
     };
   };
+  storage: {
+    enabled: boolean;
+    endpoint: string;
+    region: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    forcePathStyle: boolean;
+  };
 }
 
 export default (): AppConfig => ({
@@ -50,6 +63,10 @@ export default (): AppConfig => ({
   },
   cache: {
     adminDashboardTtlSeconds: Number(process.env.ADMIN_DASHBOARD_CACHE_TTL_SECONDS ?? 60),
+  },
+  security: {
+    throttleTtlMilliseconds: Number(process.env.THROTTLE_TTL_MS ?? 60_000),
+    throttleLimit: Number(process.env.THROTTLE_LIMIT ?? 120),
   },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET ?? '',
@@ -71,5 +88,16 @@ export default (): AppConfig => ({
       user: process.env.SMTP_USER ?? '',
       pass: process.env.SMTP_PASS ?? '',
     },
+  },
+  storage: {
+    enabled: Boolean(
+      process.env.S3_BUCKET && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY,
+    ),
+    endpoint: process.env.S3_ENDPOINT ?? '',
+    region: process.env.S3_REGION ?? 'ap-southeast-2',
+    bucket: process.env.S3_BUCKET ?? '',
+    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
+    forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
   },
 });

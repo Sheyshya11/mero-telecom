@@ -11,6 +11,9 @@ const validEnvironment = {
   STRIPE_WEBHOOK_SECRET: 'whsec_example',
   EMAIL_FROM: 'billing@example.com',
   SMTP_HOST: 'smtp.example.com',
+  S3_BUCKET: 'mero-telecom-invoices',
+  S3_ACCESS_KEY_ID: 'test-access-key',
+  S3_SECRET_ACCESS_KEY: 'test-secret-access-key',
 };
 
 describe('environment validation', () => {

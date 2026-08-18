@@ -21,6 +21,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { CookieOptions, Request, Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AppConfig } from '../../config/configuration';
@@ -46,6 +47,7 @@ export class AuthController {
   ) {}
 
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(TrustedOriginGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authenticate and issue an access token and refresh cookie.' })
@@ -64,6 +66,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseGuards(TrustedOriginGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rotate a valid refresh cookie and issue a new access token.' })
@@ -73,8 +76,9 @@ export class AuthController {
   async refresh(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<AuthResponse> {
+  ): Promise<AuthResponse | undefined> {
     const refreshToken = request.cookies?.[this.refreshCookieName] ?? '';
+    if (!refreshToken) return undefined;
     const { tokens, user } = await this.authService.refresh(refreshToken);
 
     response.cookie(this.refreshCookieName, tokens.refreshToken, this.getRefreshCookieOptions());
