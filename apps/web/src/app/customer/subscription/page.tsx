@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useAuth } from '../../../features/auth/auth-provider';
+import { PlanCheckoutButton } from '../../../features/payments/stripe-checkout-button';
 import { apiRequest } from '../../../lib/api/client';
 type Subscription = {
   id: string;
@@ -9,11 +10,17 @@ type Subscription = {
   startDate: string;
   plan: { name: string; downloadMbps: number; uploadMbps: number; monthlyCents: number };
 };
+type Plan = Subscription['plan'] & { id: string; description: string | null };
 export default function CustomerSubscriptionPage() {
   const { accessToken, isLoading, user } = useAuth();
   const query = useQuery({
     queryKey: ['my-subscriptions'],
     queryFn: () => apiRequest<Subscription[]>('/subscriptions/me', {}, accessToken),
+    enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
+  });
+  const plans = useQuery({
+    queryKey: ['public-plans'],
+    queryFn: () => apiRequest<Plan[]>('/plans/public'),
     enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
   });
   if (isLoading)
@@ -28,6 +35,9 @@ export default function CustomerSubscriptionPage() {
         Customer access is required.
       </main>
     );
+  const hasCurrentSubscription = query.data?.some((subscription) =>
+    ['ACTIVE', 'SUSPENDED'].includes(subscription.status),
+  );
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-6 py-10">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-6">
@@ -70,9 +80,57 @@ export default function CustomerSubscriptionPage() {
           </article>
         ))}
       </div>
-      {query.data?.length === 0 && (
-        <p className="mt-6 text-slate-600">You do not have a subscription yet.</p>
+      {query.data && !hasCurrentSubscription && (
+        <p className="mt-6 text-slate-600">
+          Choose a plan below. Your service activates automatically after successful payment.
+        </p>
       )}
+      {!query.isPending && !query.isError && query.data && !hasCurrentSubscription ? (
+        <section className="mt-10">
+          <div>
+            <p className="text-sm font-semibold tracking-wide text-sky-700">AVAILABLE PLANS</p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-950">Choose your internet plan</h2>
+            <p className="mt-2 text-slate-600">
+              Payment securely confirms your selection—no staff approval is needed.
+            </p>
+          </div>
+          {plans.isPending ? <p className="mt-6 text-slate-600">Loading plans…</p> : null}
+          {plans.isError ? (
+            <div className="mt-6 flex items-center gap-3 text-rose-700">
+              <p>Unable to load available plans.</p>
+              <button
+                className="button-secondary"
+                onClick={() => void plans.refetch()}
+                type="button"
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+          <div className="mt-6 grid gap-5 md:grid-cols-2">
+            {plans.data?.map((plan) => (
+              <article
+                className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+                key={plan.id}
+              >
+                <h3 className="text-xl font-bold text-slate-950">{plan.name}</h3>
+                <p className="mt-3 min-h-12 text-slate-600">{plan.description}</p>
+                <p className="mt-4 text-sm text-slate-600">
+                  {plan.downloadMbps}/{plan.uploadMbps} Mbps
+                </p>
+                <p className="mt-2 text-2xl font-bold text-slate-950">
+                  ${(plan.monthlyCents / 100).toFixed(2)}
+                  <span className="text-sm font-normal text-slate-500">/month, GST included</span>
+                </p>
+                <PlanCheckoutButton planId={plan.id} />
+              </article>
+            ))}
+          </div>
+          {plans.data?.length === 0 ? (
+            <p className="mt-6 text-slate-600">No plans are currently available.</p>
+          ) : null}
+        </section>
+      ) : null}
     </main>
   );
 }

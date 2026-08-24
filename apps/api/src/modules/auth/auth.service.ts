@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import type { Prisma, User } from '@prisma/client';
+import { UserStatus, type Prisma, type User } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
 import { randomUUID } from 'crypto';
 
@@ -30,7 +30,13 @@ export class AuthService {
       where: { email: loginDto.email.toLowerCase() },
     });
 
-    if (!user || !user.isActive || !(await compare(loginDto.password, user.passwordHash))) {
+    if (
+      !user ||
+      !user.isActive ||
+      user.status !== UserStatus.ACTIVE ||
+      !user.passwordHash ||
+      !(await compare(loginDto.password, user.passwordHash))
+    ) {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
@@ -51,6 +57,7 @@ export class AuthService {
       !session ||
       session.userId !== payload.sub ||
       !session.user.isActive ||
+      session.user.status !== UserStatus.ACTIVE ||
       session.revokedAt ||
       session.expiresAt <= new Date() ||
       !(await compare(refreshToken, session.tokenHash))
@@ -105,7 +112,7 @@ export class AuthService {
 
   async getAuthenticatedUser(userId: string): Promise<AuthenticatedUser> {
     const user = await this.prisma.user.findFirst({
-      where: { id: userId, isActive: true },
+      where: { id: userId, isActive: true, status: UserStatus.ACTIVE },
       select: { id: true, email: true, role: true },
     });
 

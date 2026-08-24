@@ -5,7 +5,7 @@ import type { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import type { NotificationService } from '../notifications/notification.service';
 import { InvoiceEmailService } from './invoice-email.service';
-import type { InvoicePdfService } from './invoice-pdf.service';
+import type { InvoiceDocumentService } from './invoice-document.service';
 
 const actor: AuthenticatedUser = {
   id: '24ebce68-aa71-47eb-854b-25471c63ce47',
@@ -42,7 +42,7 @@ function createService(options?: {
       create: jest.fn().mockResolvedValue({ createdAt: sentAt }),
     },
   };
-  const invoicePdf = { render: jest.fn().mockResolvedValue(Buffer.from('%PDF')) };
+  const invoiceDocuments = { getOrCreate: jest.fn().mockResolvedValue(Buffer.from('%PDF')) };
   const notifications = {
     invoiceRecipient: jest.fn().mockReturnValue('phase14@merotelecom.test'),
     sendInvoice: options?.sendError
@@ -55,18 +55,18 @@ function createService(options?: {
   return {
     service: new InvoiceEmailService(
       prisma as unknown as PrismaService,
-      invoicePdf as unknown as InvoicePdfService,
+      invoiceDocuments as unknown as InvoiceDocumentService,
       notifications as unknown as NotificationService,
     ),
     prisma,
-    invoicePdf,
+    invoiceDocuments,
     notifications,
   };
 }
 
 describe('InvoiceEmailService', () => {
   it('sends an invoice once and records an auditable delivery', async () => {
-    const { service, prisma, invoicePdf, notifications } = createService();
+    const { service, prisma, invoiceDocuments, notifications } = createService();
 
     await expect(service.send(invoice.id, actor)).resolves.toEqual({
       invoiceId: invoice.id,
@@ -75,7 +75,9 @@ describe('InvoiceEmailService', () => {
       status: 'sent',
       sentAt,
     });
-    expect(invoicePdf.render).toHaveBeenCalledWith(expect.objectContaining({ id: invoice.id }));
+    expect(invoiceDocuments.getOrCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: invoice.id }),
+    );
     expect(notifications.sendInvoice).toHaveBeenCalledTimes(1);
     expect(prisma.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -89,7 +91,7 @@ describe('InvoiceEmailService', () => {
   });
 
   it('returns the recorded delivery instead of sending the same invoice twice', async () => {
-    const { service, notifications, invoicePdf } = createService({
+    const { service, notifications, invoiceDocuments } = createService({
       previousDelivery: { createdAt: sentAt },
     });
 
@@ -97,7 +99,7 @@ describe('InvoiceEmailService', () => {
       expect.objectContaining({ status: 'already_sent', sentAt }),
     );
     expect(notifications.sendInvoice).not.toHaveBeenCalled();
-    expect(invoicePdf.render).not.toHaveBeenCalled();
+    expect(invoiceDocuments.getOrCreate).not.toHaveBeenCalled();
   });
 
   it('does not email draft or cancelled invoices', async () => {

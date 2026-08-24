@@ -9,6 +9,8 @@ async function main(): Promise<void> {
 
   await prisma.$transaction([
     prisma.paymentWebhookEvent.deleteMany(),
+    prisma.accountInvitation.deleteMany(),
+    prisma.checkoutApplication.deleteMany(),
     prisma.payment.deleteMany(),
     prisma.invoiceItem.deleteMany(),
     prisma.invoice.deleteMany(),
@@ -16,16 +18,24 @@ async function main(): Promise<void> {
     prisma.internetPlan.deleteMany(),
     prisma.refreshSession.deleteMany(),
     prisma.auditLog.deleteMany(),
+    prisma.customerAddress.deleteMany(),
     prisma.customer.deleteMany(),
     prisma.user.deleteMany(),
   ]);
 
-  const [admin, staff, customerUser] = await Promise.all([
+  const [admin, newCustomerUser, staff, customerUser] = await Promise.all([
     prisma.user.create({
       data: {
         email: 'admin@merotelecom.test',
         passwordHash,
         role: 'ADMIN',
+      },
+    }),
+    prisma.user.create({
+      data: {
+        email: 'newcustomer@merotelecom.test',
+        passwordHash,
+        role: 'CUSTOMER',
       },
     }),
     prisma.user.create({
@@ -52,6 +62,7 @@ async function main(): Promise<void> {
         downloadMbps: 50,
         uploadMbps: 20,
         monthlyCents: 6900,
+        tierRank: 1,
       },
     }),
     prisma.internetPlan.create({
@@ -61,6 +72,7 @@ async function main(): Promise<void> {
         downloadMbps: 100,
         uploadMbps: 20,
         monthlyCents: 7900,
+        tierRank: 2,
       },
     }),
     prisma.internetPlan.create({
@@ -70,6 +82,7 @@ async function main(): Promise<void> {
         downloadMbps: 250,
         uploadMbps: 25,
         monthlyCents: 10900,
+        tierRank: 3,
       },
     }),
   ]);
@@ -116,6 +129,21 @@ async function main(): Promise<void> {
       },
     }),
   ]);
+
+  await prisma.customer.create({
+    data: {
+      userId: newCustomerUser.id,
+      customerNumber: 'CUST-000004',
+      firstName: 'Maya',
+      lastName: 'Patel',
+      email: newCustomerUser.email,
+      phone: '0400 000 004',
+      addressLine1: '21 Market Street',
+      suburb: 'Sydney',
+      state: 'NSW',
+      postcode: '2000',
+    },
+  });
 
   const [anikaSubscription, noahSubscription] = await Promise.all([
     prisma.subscription.create({

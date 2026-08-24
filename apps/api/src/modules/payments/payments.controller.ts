@@ -2,13 +2,16 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import type { Request } from 'express';
 
@@ -17,7 +20,13 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
+import { TrustedOriginGuard } from '../auth/trusted-origin.guard';
+import {
+  CreateCheckoutSessionDto,
+  CreatePlanCheckoutSessionDto,
+  CreatePublicPlanCheckoutSessionDto,
+  PublicCheckoutStatusQueryDto,
+} from './dto/create-checkout-session.dto';
 import { PaymentsService } from './payments.service';
 
 type StripeRawBodyRequest = Request & { rawBody?: Buffer };
@@ -38,6 +47,19 @@ export class PaymentsController {
     return { received: true };
   }
 
+  @Post('public-plan-checkout-session')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseGuards(TrustedOriginGuard)
+  createPublicPlanCheckoutSession(@Body() input: CreatePublicPlanCheckoutSessionDto) {
+    return this.payments.createPublicPlanCheckoutSession(input);
+  }
+
+  @Get('public-checkout-status')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  getPublicCheckoutStatus(@Query() query: PublicCheckoutStatusQueryDto) {
+    return this.payments.getPublicCheckoutStatus(query.sessionId);
+  }
+
   @Post('checkout-session')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -47,5 +69,16 @@ export class PaymentsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.payments.createCheckoutSession(input.invoiceId, user);
+  }
+
+  @Post('plan-checkout-session')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  createPlanCheckoutSession(
+    @Body() input: CreatePlanCheckoutSessionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.payments.createPlanCheckoutSession(input.planId, user);
   }
 }

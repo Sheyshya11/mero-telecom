@@ -10,7 +10,7 @@ import { BillingService } from '../billing/billing.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import { GenerateInvoiceDto, InvoiceQueryDto, UpdateInvoiceStatusDto } from './dto/invoice.dto';
-import { InvoicePdfService, type InvoicePdfData } from './invoice-pdf.service';
+import { InvoiceDocumentService, type StoredInvoicePdfData } from './invoice-document.service';
 
 const invoiceInclude = {
   customer: true,
@@ -26,7 +26,7 @@ export class InvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly billing: BillingService,
-    private readonly invoicePdf: InvoicePdfService,
+    private readonly invoiceDocuments: InvoiceDocumentService,
     private readonly dashboardCache: AdminDashboardCacheService,
   ) {}
 
@@ -154,7 +154,7 @@ export class InvoicesService {
   ): Promise<{ pdf: Buffer; invoiceNumber: string }> {
     const invoice = await this.findOne(id, actor);
     return {
-      pdf: await this.invoicePdf.render(invoice as InvoicePdfData),
+      pdf: await this.invoiceDocuments.getOrCreate(invoice as StoredInvoicePdfData),
       invoiceNumber: invoice.invoiceNumber,
     };
   }

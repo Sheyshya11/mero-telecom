@@ -45,7 +45,10 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     if (refreshPromise.current) return refreshPromise.current;
     refreshPromise.current = (async () => {
       try {
-        const session = await apiRequest<AuthResponse>('/auth/refresh', { method: 'POST' });
+        const session = await apiRequest<AuthResponse | undefined>('/auth/refresh', {
+          method: 'POST',
+        });
+        if (!session) return null;
         setAccessToken(session.accessToken);
         setUser(session.user);
         return session.accessToken;

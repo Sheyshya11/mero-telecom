@@ -26,16 +26,41 @@ env:
   STRIPE_SECRET_KEY: sk_test_ci
   STRIPE_WEBHOOK_SECRET: whsec_ci
   EMAIL_FROM: Mero Telecom CI <ci@merotelecom.test>
-  EMAIL_DEV_RECIPIENT: ci@merotelecom.test
+  EMAIL_DEV_RECIPIENT: ci@example.com
   SMTP_HOST: localhost
   SMTP_PORT: 1025
   SMTP_SECURE: false
+  NODE_ENV: test
+  THROTTLE_LIMIT: 10000
 
 jobs:
   verify:
     name: Verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: mero_telecom
+          POSTGRES_USER: mero_telecom
+          POSTGRES_PASSWORD: mero_telecom_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mero_telecom -d mero_telecom"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Check out repository
@@ -73,6 +98,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: End-to-end test
+        run: pnpm --filter @mero-telecom/api test:e2e
 
       - name: Build
         run: pnpm build

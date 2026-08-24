@@ -1,12 +1,14 @@
 # Authorization and ownership
 
-Phase 5 establishes reusable backend authorization controls:
+Reusable backend authorization controls protect every business resource:
 
 - `@Roles(...)` declares which authenticated roles may access a route; `RolesGuard` enforces it.
 - `@CustomerOwnership(...)` marks the route parameter that identifies a customer. For a CUSTOMER
   user, `CustomerOwnershipGuard` verifies that the database customer record belongs to the
   authenticated user. ADMIN and STAFF users are allowed according to their operational duties.
 
-The temporary `/api/v1/access-control` endpoints verify the authorization contract during the
-foundation phase. They return only access confirmation and no customer data. Future business
-controllers apply the same guards before querying or returning a customer resource.
+The `/api/v1/access-control` endpoints remain as small authorization diagnostics, while customer,
+subscription, invoice, payment, and dashboard controllers apply the same guards to real records.
+Customer-facing queries also filter by the authenticated user's customer ID, so a guessed UUID
+cannot cross the ownership boundary. DTO whitelisting rejects attempts to change protected fields
+such as status, role, identifiers, or billing data through self-service routes.

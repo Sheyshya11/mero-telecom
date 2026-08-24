@@ -11,4 +11,5 @@ The plan catalogue uses integer cents for `monthlyCents` so monetary values rema
 | `PATCH /api/v1/plans/:planId`  | Admin        | Updates a plan or sets `isActive` to activate/deactivate it. |
 | `DELETE /api/v1/plans/:planId` | Admin        | Deletes a plan with no subscription history.                 |
 
-Plans are deactivated instead of deleted. This preserves a stable catalogue record for subscriptions and invoices introduced in later phases.
+Plans are deactivated instead of deleted. This preserves a stable catalogue record for existing
+subscriptions and invoices.

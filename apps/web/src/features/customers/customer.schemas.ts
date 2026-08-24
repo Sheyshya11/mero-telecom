@@ -10,7 +10,7 @@ export const customerSchema = z.object({
   suburb: z.string().min(1, 'Suburb is required.').max(100),
   state: z.string().min(2).max(3),
   postcode: z.string().regex(/^\d{4}$/, 'Enter a four-digit postcode.'),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).optional(),
+  status: z.enum(['INVITATION_PENDING', 'ACTIVE', 'INACTIVE', 'SUSPENDED']).optional(),
 });
 
 export type CustomerFormValues = z.infer<typeof customerSchema>;

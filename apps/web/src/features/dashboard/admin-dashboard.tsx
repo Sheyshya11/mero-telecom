@@ -77,6 +77,9 @@ export function AdminDashboardView() {
           <Link className="button-secondary" href="/admin/subscriptions">
             Subscriptions
           </Link>
+          <Link className="button-secondary" href="/admin/invoices">
+            Invoices
+          </Link>
           <button className="button-primary" onClick={() => void logout()} type="button">
             Sign out
           </button>

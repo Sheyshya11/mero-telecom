@@ -16,16 +16,20 @@ Generation accepts only `subscriptionId` and an optional `issueDate`; clients ne
 
 ## Stripe sandbox payments
 
-| Endpoint                                 | Access   | Purpose                                                                  |
-| ---------------------------------------- | -------- | ------------------------------------------------------------------------ |
-| `POST /api/v1/payments/checkout-session` | Customer | Creates or resumes Checkout for an owned issued/overdue invoice.         |
-| `POST /api/v1/payments/stripe/webhook`   | Stripe   | Verifies Stripe's raw-body signature and records trusted payment events. |
+| Endpoint                                      | Access   | Purpose                                                                  |
+| --------------------------------------------- | -------- | ------------------------------------------------------------------------ |
+| `POST /api/v1/payments/checkout-session`      | Customer | Creates or resumes Checkout for an owned issued/overdue invoice.         |
+| `POST /api/v1/payments/plan-checkout-session` | Customer | Creates or resumes Checkout for a customer-selected active plan.         |
+| `POST /api/v1/payments/stripe/webhook`        | Stripe   | Verifies Stripe's raw-body signature and records trusted payment events. |
 
 The checkout endpoint accepts only an `invoiceId`; the server retrieves the invoice's amount and
 currency itself and sends the customer to Stripe-hosted Checkout. An invoice becomes `PAID` only
-after a verified `checkout.session.completed` event reports `payment_status: paid`. Payment records
-persist the Checkout Session and PaymentIntent identifiers, while provider event IDs make webhook
-processing idempotent.
+after a verified immediate or asynchronous Checkout success event reports `payment_status: paid`.
+Payment records persist the Checkout Session and PaymentIntent identifiers, while provider event
+IDs make webhook processing idempotent.
+
+The plan-checkout endpoint accepts only a `planId`. It creates the initial invoice from the stored
+plan price but creates no subscription until the verified paid webhook succeeds.
 
 ## Invoice email
 

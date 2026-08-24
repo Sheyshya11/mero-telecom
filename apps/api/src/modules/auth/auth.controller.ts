@@ -21,11 +21,18 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { CookieOptions, Request, Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AppConfig } from '../../config/configuration';
 import type { AuthenticatedUser } from './auth.types';
 import { AuthService } from './auth.service';
+import { AccountInvitationsService } from './account-invitations.service';
+import {
+  ActivateAccountDto,
+  ResendAccountInvitationDto,
+  VerifyAccountActivationDto,
+} from './dto/account-activation.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { TrustedOriginGuard } from './trusted-origin.guard';
@@ -42,10 +49,39 @@ export class AuthController {
 
   constructor(
     private readonly authService: AuthService,
+    private readonly invitations: AccountInvitationsService,
     private readonly configService: ConfigService<AppConfig, true>,
   ) {}
 
+  @Post('activation/verify')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @UseGuards(TrustedOriginGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Validate a customer account activation token.' })
+  verifyActivation(@Body() input: VerifyAccountActivationDto): Promise<{ valid: boolean }> {
+    return this.invitations.verify(input.token);
+  }
+
+  @Post('activation')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseGuards(TrustedOriginGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Use a single-use invitation to create a customer password.' })
+  async activate(@Body() input: ActivateAccountDto): Promise<void> {
+    await this.invitations.activate(input.token, input.password);
+  }
+
+  @Post('activation/resend')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @UseGuards(TrustedOriginGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Request a replacement customer activation email.' })
+  async resendActivation(@Body() input: ResendAccountInvitationDto): Promise<void> {
+    await this.invitations.resendByEmail(input.email);
+  }
+
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(TrustedOriginGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authenticate and issue an access token and refresh cookie.' })
@@ -64,6 +100,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseGuards(TrustedOriginGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rotate a valid refresh cookie and issue a new access token.' })
@@ -73,8 +110,9 @@ export class AuthController {
   async refresh(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<AuthResponse> {
+  ): Promise<AuthResponse | undefined> {
     const refreshToken = request.cookies?.[this.refreshCookieName] ?? '';
+    if (!refreshToken) return undefined;
     const { tokens, user } = await this.authService.refresh(refreshToken);
 
     response.cookie(this.refreshCookieName, tokens.refreshToken, this.getRefreshCookieOptions());

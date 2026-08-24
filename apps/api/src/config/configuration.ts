@@ -13,6 +13,11 @@ export interface AppConfig {
   cache: {
     adminDashboardTtlSeconds: number;
   };
+  security: {
+    throttleTtlMilliseconds: number;
+    throttleLimit: number;
+    accountInvitationTtlHours: number;
+  };
   jwt: {
     accessSecret: string;
     refreshSecret: string;
@@ -25,7 +30,15 @@ export interface AppConfig {
   };
   email: {
     from: string;
+    deliveryMode: 'redirect' | 'direct';
     developmentRecipient: string;
+    queue: {
+      name: string;
+      attempts: number;
+      backoffMilliseconds: number;
+      concurrency: number;
+      encryptionKey: string;
+    };
     smtp: {
       host: string;
       port: number;
@@ -33,6 +46,15 @@ export interface AppConfig {
       user: string;
       pass: string;
     };
+  };
+  storage: {
+    enabled: boolean;
+    endpoint: string;
+    region: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    forcePathStyle: boolean;
   };
 }
 
@@ -51,6 +73,11 @@ export default (): AppConfig => ({
   cache: {
     adminDashboardTtlSeconds: Number(process.env.ADMIN_DASHBOARD_CACHE_TTL_SECONDS ?? 60),
   },
+  security: {
+    throttleTtlMilliseconds: Number(process.env.THROTTLE_TTL_MS ?? 60_000),
+    throttleLimit: Number(process.env.THROTTLE_LIMIT ?? 120),
+    accountInvitationTtlHours: Number(process.env.ACCOUNT_INVITATION_TTL_HOURS ?? 24),
+  },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET ?? '',
     refreshSecret: process.env.JWT_REFRESH_SECRET ?? '',
@@ -63,7 +90,18 @@ export default (): AppConfig => ({
   },
   email: {
     from: process.env.EMAIL_FROM ?? '',
+    deliveryMode:
+      process.env.EMAIL_DELIVERY_MODE === 'direct' || process.env.NODE_ENV === 'production'
+        ? 'direct'
+        : 'redirect',
     developmentRecipient: process.env.EMAIL_DEV_RECIPIENT ?? '',
+    queue: {
+      name: 'mero-telecom-email',
+      attempts: Number(process.env.EMAIL_QUEUE_ATTEMPTS ?? 3),
+      backoffMilliseconds: Number(process.env.EMAIL_QUEUE_BACKOFF_MS ?? 3_000),
+      concurrency: Number(process.env.EMAIL_QUEUE_CONCURRENCY ?? 3),
+      encryptionKey: process.env.EMAIL_QUEUE_ENCRYPTION_KEY ?? '',
+    },
     smtp: {
       host: process.env.SMTP_HOST ?? '',
       port: Number(process.env.SMTP_PORT ?? 1025),
@@ -71,5 +109,16 @@ export default (): AppConfig => ({
       user: process.env.SMTP_USER ?? '',
       pass: process.env.SMTP_PASS ?? '',
     },
+  },
+  storage: {
+    enabled: Boolean(
+      process.env.S3_BUCKET && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY,
+    ),
+    endpoint: process.env.S3_ENDPOINT ?? '',
+    region: process.env.S3_REGION ?? 'ap-southeast-2',
+    bucket: process.env.S3_BUCKET ?? '',
+    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
+    forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
   },
 });

@@ -12,14 +12,18 @@
     "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
+    "test:e2e": "cross-env DATABASE_URL=postgresql://mero_telecom:mero_telecom_test_password@localhost:5433/mero_telecom_test REDIS_URL=redis://localhost:6380 pnpm --filter @mero-telecom/api test:e2e",
     "build": "pnpm -r --if-present build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "services:up": "docker compose up -d",
-    "services:down": "docker compose down"
+    "services:down": "docker compose down",
+    "services:test:up": "docker compose --profile test up -d postgres-test redis-test",
+    "services:test:down": "docker compose --profile test stop postgres-test redis-test"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",
+    "cross-env": "^10.1.0",
     "eslint": "9.39.1",
     "eslint-config-prettier": "10.1.8",
     "globals": "16.5.0",

@@ -1,10 +1,20 @@
-import type { Customer, CustomerStatus, SubscriptionStatus } from '@prisma/client';
+import type {
+  AccountInvitationStatus,
+  Customer,
+  CustomerStatus,
+  SubscriptionStatus,
+  UserStatus,
+} from '@prisma/client';
 
 interface CustomerWithSubscriptions extends Customer {
   subscriptions?: Array<{
     status: SubscriptionStatus;
     plan: { id: string; name: string };
   }>;
+  user?: {
+    status: UserStatus;
+    invitations?: Array<{ status: AccountInvitationStatus; expiresAt: Date }>;
+  } | null;
 }
 
 export interface CustomerResponse {
@@ -20,6 +30,8 @@ export interface CustomerResponse {
   state: string;
   postcode: string;
   status: CustomerStatus;
+  accountStatus: UserStatus | null;
+  invitationStatus: AccountInvitationStatus | null;
   currentSubscription: {
     status: SubscriptionStatus;
     plan: { id: string; name: string };
@@ -39,6 +51,7 @@ export interface PaginatedCustomersResponse {
 }
 
 export function toCustomerResponse(customer: CustomerWithSubscriptions): CustomerResponse {
+  const invitation = customer.user?.invitations?.[0];
   return {
     id: customer.id,
     customerNumber: customer.customerNumber,
@@ -52,6 +65,11 @@ export function toCustomerResponse(customer: CustomerWithSubscriptions): Custome
     state: customer.state,
     postcode: customer.postcode,
     status: customer.status,
+    accountStatus: customer.user?.status ?? null,
+    invitationStatus:
+      invitation?.status === 'PENDING' && invitation.expiresAt <= new Date()
+        ? 'EXPIRED'
+        : (invitation?.status ?? null),
     currentSubscription: customer.subscriptions?.[0] ?? null,
     createdAt: customer.createdAt,
     updatedAt: customer.updatedAt,

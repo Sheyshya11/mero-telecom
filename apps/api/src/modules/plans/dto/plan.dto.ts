@@ -7,6 +7,9 @@ export class CreatePlanDto {
   @Type(() => Number) @IsInt() @Min(1) downloadMbps!: number;
   @Type(() => Number) @IsInt() @Min(1) uploadMbps!: number;
   @Type(() => Number) @IsInt() @Min(1) monthlyCents!: number;
+  @IsOptional() @IsBoolean() isPublic?: boolean;
+  @IsOptional() @IsBoolean() isAvailable?: boolean;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) tierRank?: number;
 }
 
 export class UpdatePlanDto {
@@ -16,4 +19,7 @@ export class UpdatePlanDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) uploadMbps?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) monthlyCents?: number;
   @IsOptional() @IsBoolean() isActive?: boolean;
+  @IsOptional() @IsBoolean() isPublic?: boolean;
+  @IsOptional() @IsBoolean() isAvailable?: boolean;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) tierRank?: number;
 }

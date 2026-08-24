@@ -6,7 +6,12 @@ import Link from 'next/link';
 
 import { useAuth } from '../auth/auth-provider';
 import { ApiError } from '../../lib/api/client';
-import { createCustomer, getCustomers, updateCustomer } from './customer.api';
+import {
+  createCustomer,
+  getCustomers,
+  resendCustomerInvitation,
+  updateCustomer,
+} from './customer.api';
 import { CustomerForm } from './customer-form';
 import type { CustomerFormValues } from './customer.schemas';
 import type { Customer } from './customer.types';
@@ -26,7 +31,7 @@ export function CustomerManagement() {
   const customersQuery = useQuery({
     queryKey,
     queryFn: () => getCustomers(accessToken ?? '', page, search),
-    enabled: Boolean(accessToken && user?.role === 'ADMIN'),
+    enabled: Boolean(accessToken && (user?.role === 'ADMIN' || user?.role === 'STAFF')),
   });
 
   const createMutation = useMutation({
@@ -43,6 +48,14 @@ export function CustomerManagement() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['customers'] });
       closeForm();
+    },
+    onError: showError,
+  });
+  const resendMutation = useMutation({
+    mutationFn: (customerId: string) => resendCustomerInvitation(accessToken ?? '', customerId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setError(null);
     },
     onError: showError,
   });
@@ -74,8 +87,8 @@ export function CustomerManagement() {
     return <StatusMessage message="Sign in with the seeded admin account to manage customers." />;
   }
 
-  if (user.role !== 'ADMIN') {
-    return <StatusMessage message="Customer management is restricted to administrators." />;
+  if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
+    return <StatusMessage message="Customer management requires staff access." />;
   }
 
   const result = customersQuery.data;
@@ -84,34 +97,44 @@ export function CustomerManagement() {
     <main className="mx-auto min-h-screen max-w-7xl px-6 py-10">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM · ADMIN</p>
+          <p className="text-sm font-semibold tracking-wide text-sky-700">
+            MERO TELECOM · {user.role === 'ADMIN' ? 'ADMIN' : 'STAFF'}
+          </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Customers</h1>
           <p className="mt-2 text-slate-600">
-            Search, create, and update customer account records.
+            Search and update customer account records
+            {user.role === 'ADMIN' ? ', or create a new customer.' : '.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="hidden text-sm text-slate-500 sm:inline">{user.email}</span>
-          <Link className="button-secondary" href="/admin/dashboard">
-            Dashboard
-          </Link>
+          {user.role === 'ADMIN' ? (
+            <Link className="button-secondary" href="/admin/dashboard">
+              Dashboard
+            </Link>
+          ) : null}
           <button className="button-secondary" onClick={() => void logout()} type="button">
             Sign out
           </button>
           <Link className="button-secondary" href="/admin/subscriptions">
             Subscriptions
           </Link>
-          <button
-            className="button-primary"
-            onClick={() => {
-              setEditingCustomer(null);
-              setError(null);
-              setIsFormOpen(true);
-            }}
-            type="button"
-          >
-            New customer
-          </button>
+          <Link className="button-secondary" href="/admin/invoices">
+            Invoices
+          </Link>
+          {user.role === 'ADMIN' ? (
+            <button
+              className="button-primary"
+              onClick={() => {
+                setEditingCustomer(null);
+                setError(null);
+                setIsFormOpen(true);
+              }}
+              type="button"
+            >
+              New customer
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -160,7 +183,7 @@ export function CustomerManagement() {
                     <th className="px-3 py-3">Contact</th>
                     <th className="px-3 py-3">Address</th>
                     <th className="px-3 py-3">Subscription</th>
-                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3">Account</th>
                     <th className="px-3 py-3" aria-label="Actions" />
                   </tr>
                 </thead>
@@ -193,7 +216,12 @@ export function CustomerManagement() {
                         )}
                       </td>
                       <td className="px-3 py-4">
-                        <StatusBadge status={customer.status} />
+                        <StatusBadge status={customer.accountStatus ?? customer.status} />
+                        {customer.invitationStatus ? (
+                          <p className="mt-1 text-xs text-slate-500">
+                            Invitation {customer.invitationStatus.toLowerCase()}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-3 py-4 text-right">
                         <div className="flex justify-end gap-2">
@@ -215,6 +243,17 @@ export function CustomerManagement() {
                           >
                             Edit
                           </button>
+                          {user.role === 'ADMIN' &&
+                          customer.accountStatus === 'INVITATION_PENDING' ? (
+                            <button
+                              className="button-secondary"
+                              disabled={resendMutation.isPending}
+                              onClick={() => resendMutation.mutate(customer.id)}
+                              type="button"
+                            >
+                              Resend invitation
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -274,6 +313,8 @@ export function CustomerManagement() {
             <div className="mt-5">
               <CustomerForm
                 customer={editingCustomer}
+                canEditIdentity={user.role === 'ADMIN'}
+                canManageStatus={user.role === 'ADMIN'}
                 isSubmitting={createMutation.isPending || updateMutation.isPending}
                 onCancel={closeForm}
                 onSubmit={submitForm}
@@ -298,7 +339,7 @@ export function CustomerManagement() {
                   {selectedCustomer.firstName} {selectedCustomer.lastName}
                 </h2>
               </div>
-              <StatusBadge status={selectedCustomer.status} />
+              <StatusBadge status={selectedCustomer.accountStatus ?? selectedCustomer.status} />
             </div>
             <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
               <Detail label="Email" value={selectedCustomer.email} />
@@ -344,11 +385,15 @@ export function CustomerManagement() {
   );
 }
 
-function StatusBadge({ status }: Readonly<{ status: Customer['status'] }>) {
+function StatusBadge({
+  status,
+}: Readonly<{ status: Customer['status'] | NonNullable<Customer['accountStatus']> }>) {
   const colors = {
+    INVITATION_PENDING: 'bg-sky-100 text-sky-800',
     ACTIVE: 'bg-emerald-100 text-emerald-800',
     INACTIVE: 'bg-slate-100 text-slate-700',
     SUSPENDED: 'bg-amber-100 text-amber-800',
+    DEACTIVATED: 'bg-slate-200 text-slate-700',
   };
 
   return (

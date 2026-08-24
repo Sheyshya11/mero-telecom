@@ -1,4 +1,5 @@
-export type CustomerStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+export type CustomerStatus = 'INVITATION_PENDING' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+export type AccountStatus = 'INVITATION_PENDING' | 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED';
 
 export interface Customer {
   id: string;
@@ -13,6 +14,8 @@ export interface Customer {
   state: string;
   postcode: string;
   status: CustomerStatus;
+  accountStatus: AccountStatus | null;
+  invitationStatus: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED' | null;
   currentSubscription: {
     status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
     plan: { id: string; name: string };

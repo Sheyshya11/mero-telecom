@@ -35,6 +35,9 @@ export class NodemailerEmailProvider implements EmailProvider {
       from: this.from,
       ...message,
     });
+    if (result.accepted.length === 0 || result.rejected.length > 0) {
+      throw new Error('SMTP provider rejected the email recipient.');
+    }
     return { messageId: result.messageId };
   }
 }

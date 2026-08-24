@@ -105,11 +105,7 @@ export class DashboardService {
         where: {
           customer: { userId: user.id },
           status: {
-            in: [
-              SubscriptionStatus.ACTIVE,
-              SubscriptionStatus.PENDING,
-              SubscriptionStatus.SUSPENDED,
-            ],
+            in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.SUSPENDED],
           },
         },
         include: { plan: true },

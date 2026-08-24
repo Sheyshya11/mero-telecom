@@ -42,6 +42,38 @@ services:
     volumes:
       - mailpit_data:/data
 
+  postgres-test:
+    profiles: ['test']
+    image: postgres:17-alpine
+    container_name: mero-telecom-postgres-test
+    environment:
+      POSTGRES_DB: mero_telecom_test
+      POSTGRES_USER: mero_telecom
+      POSTGRES_PASSWORD: mero_telecom_test_password
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mero_telecom -d mero_telecom_test']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  redis-test:
+    profiles: ['test']
+    image: redis:7-alpine
+    container_name: mero-telecom-redis-test
+    ports:
+      - '6380:6379'
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
 volumes:
   postgres_data:
   redis_data:

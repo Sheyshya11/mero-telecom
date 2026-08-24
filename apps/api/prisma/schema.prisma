@@ -14,9 +14,45 @@ enum Role {
 }
 
 enum CustomerStatus {
+  INVITATION_PENDING
   ACTIVE
   INACTIVE
   SUSPENDED
+}
+
+enum UserStatus {
+  INVITATION_PENDING
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum AddressType {
+  RESIDENTIAL
+  SERVICE
+  BILLING
+}
+
+enum AccountInvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum AccountInvitationReason {
+  ONLINE_PURCHASE
+  ADMIN_CREATED
+  RESEND
+}
+
+enum CheckoutApplicationStatus {
+  PENDING_PAYMENT
+  PAYMENT_PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+  REQUIRES_REVIEW
 }
 
 enum SubscriptionStatus {
@@ -51,102 +87,151 @@ enum PaymentStatus {
 }
 
 model User {
-  id              String           @id @default(uuid()) @db.Uuid
-  email           String           @unique @db.VarChar(320)
-  passwordHash    String           @db.VarChar(255)
-  role            Role             @default(CUSTOMER)
-  isActive        Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  customer        Customer?
-  refreshSessions RefreshSession[]
-  auditLogs       AuditLog[]       @relation("AuditActor")
+  id                String              @id @default(uuid()) @db.Uuid
+  email             String              @unique @db.VarChar(320)
+  passwordHash      String?             @db.VarChar(255)
+  role              Role                @default(CUSTOMER)
+  isActive          Boolean             @default(true)
+  status            UserStatus          @default(ACTIVE)
+  emailVerifiedAt   DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  customer          Customer?
+  refreshSessions   RefreshSession[]
+  auditLogs         AuditLog[]          @relation("AuditActor")
+  invitations       AccountInvitation[] @relation("InvitationUser")
+  issuedInvitations AccountInvitation[] @relation("InvitationIssuer")
 }
 
 model Customer {
-  id             String            @id @default(uuid()) @db.Uuid
-  userId         String?           @unique @db.Uuid
-  customerNumber String            @unique @db.VarChar(32)
-  firstName      String            @db.VarChar(100)
-  lastName       String            @db.VarChar(100)
-  email          String            @unique @db.VarChar(320)
-  phone          String            @db.VarChar(32)
-  addressLine1   String            @db.VarChar(255)
-  addressLine2   String?           @db.VarChar(255)
-  suburb         String            @db.VarChar(100)
-  state          String            @db.VarChar(3)
-  postcode       String            @db.VarChar(10)
-  status         CustomerStatus    @default(ACTIVE)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  user           User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
-  subscriptions  Subscription[]
-  invoices       Invoice[]
-  payments       Payment[]
+  id                   String                @id @default(uuid()) @db.Uuid
+  userId               String?               @unique @db.Uuid
+  stripeCustomerId     String?               @unique @db.VarChar(255)
+  customerNumber       String                @unique @db.VarChar(32)
+  firstName            String                @db.VarChar(100)
+  lastName             String                @db.VarChar(100)
+  email                String                @unique @db.VarChar(320)
+  phone                String                @db.VarChar(32)
+  addressLine1         String                @db.VarChar(255)
+  addressLine2         String?               @db.VarChar(255)
+  suburb               String                @db.VarChar(100)
+  state                String                @db.VarChar(3)
+  postcode             String                @db.VarChar(10)
+  status               CustomerStatus        @default(ACTIVE)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  user                 User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  subscriptions        Subscription[]
+  invoices             Invoice[]
+  payments             Payment[]
+  addresses            CustomerAddress[]
+  checkoutApplications CheckoutApplication[]
 
   @@index([lastName, firstName])
   @@index([status])
 }
 
+model CustomerAddress {
+  id           String      @id @default(uuid()) @db.Uuid
+  customerId   String      @db.Uuid
+  type         AddressType
+  addressLine1 String      @db.VarChar(255)
+  addressLine2 String?     @db.VarChar(255)
+  suburb       String      @db.VarChar(100)
+  state        String      @db.VarChar(3)
+  postcode     String      @db.VarChar(10)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  customer     Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, type])
+  @@index([postcode])
+}
+
+model InvoiceDocument {
+  id         String   @id @default(uuid()) @db.Uuid
+  invoiceId  String   @unique @db.Uuid
+  storageKey String   @unique @db.VarChar(1024)
+  mimeType   String   @db.VarChar(255)
+  sizeBytes  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+}
+
 model InternetPlan {
-  id            String         @id @default(uuid()) @db.Uuid
-  name          String         @unique @db.VarChar(150)
-  description   String?        @db.Text
-  downloadMbps  Int
-  uploadMbps    Int
-  monthlyCents  Int
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  subscriptions Subscription[]
+  id                   String                @id @default(uuid()) @db.Uuid
+  name                 String                @unique @db.VarChar(150)
+  description          String?               @db.Text
+  downloadMbps         Int
+  uploadMbps           Int
+  monthlyCents         Int
+  isActive             Boolean               @default(true)
+  isPublic             Boolean               @default(true)
+  isAvailable          Boolean               @default(true)
+  tierRank             Int                   @default(0)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  subscriptions        Subscription[]
+  purchaseInvoices     Invoice[]             @relation("InvoicePurchasePlan")
+  checkoutApplications CheckoutApplication[]
 
   @@index([isActive])
+  @@index([isPublic, isAvailable, tierRank])
 }
 
 model Subscription {
-  id           String             @id @default(uuid()) @db.Uuid
-  customerId   String             @db.Uuid
-  planId       String             @db.Uuid
-  status       SubscriptionStatus @default(PENDING)
-  startDate    DateTime           @db.Date
-  endDate      DateTime?          @db.Date
-  billingCycle BillingCycle       @default(MONTHLY)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  customer     Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  plan         InternetPlan       @relation(fields: [planId], references: [id], onDelete: Restrict)
-  invoices     Invoice[]
+  id                  String               @id @default(uuid()) @db.Uuid
+  customerId          String               @db.Uuid
+  planId              String               @db.Uuid
+  status              SubscriptionStatus   @default(PENDING)
+  startDate           DateTime             @db.Date
+  endDate             DateTime?            @db.Date
+  billingCycle        BillingCycle         @default(MONTHLY)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  customer            Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  plan                InternetPlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices            Invoice[]
+  checkoutApplication CheckoutApplication?
 
   @@index([customerId, status])
   @@index([planId])
 }
 
 model Invoice {
-  id             String        @id @default(uuid()) @db.Uuid
-  invoiceNumber  String        @unique @db.VarChar(32)
-  customerId     String        @db.Uuid
-  subscriptionId String?       @db.Uuid
-  issueDate      DateTime      @db.Date
-  dueDate        DateTime      @db.Date
-  subtotalCents  Int
-  taxCents       Int
-  totalCents     Int
-  currency       String        @default("AUD") @db.Char(3)
-  status         InvoiceStatus @default(DRAFT)
-  pdfUrl         String?       @db.VarChar(2048)
-  issuedAt       DateTime?
-  paidAt         DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  customer       Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
-  items          InvoiceItem[]
-  payments       Payment[]
+  id                  String               @id @default(uuid()) @db.Uuid
+  invoiceNumber       String               @unique @db.VarChar(32)
+  customerId          String               @db.Uuid
+  subscriptionId      String?              @db.Uuid
+  purchasePlanId      String?              @db.Uuid
+  issueDate           DateTime             @db.Date
+  dueDate             DateTime             @db.Date
+  subtotalCents       Int
+  taxCents            Int
+  totalCents          Int
+  currency            String               @default("AUD") @db.Char(3)
+  status              InvoiceStatus        @default(DRAFT)
+  pdfUrl              String?              @db.VarChar(2048)
+  issuedAt            DateTime?
+  paidAt              DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  customer            Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  subscription        Subscription?        @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  purchasePlan        InternetPlan?        @relation("InvoicePurchasePlan", fields: [purchasePlanId], references: [id], onDelete: Restrict)
+  items               InvoiceItem[]
+  payments            Payment[]
+  documents           InvoiceDocument[]
+  checkoutApplication CheckoutApplication?
 
+  @@unique([subscriptionId, issueDate])
   @@index([customerId, status])
   @@index([dueDate, status])
   @@index([subscriptionId])
-  @@unique([subscriptionId, issueDate])
+  @@index([purchasePlanId])
 }
 
 model InvoiceItem {
@@ -162,24 +247,83 @@ model InvoiceItem {
 }
 
 model Payment {
-  id                String          @id @default(uuid()) @db.Uuid
-  invoiceId         String          @db.Uuid
-  customerId        String          @db.Uuid
-  provider          PaymentProvider
-  providerPaymentId String?         @db.VarChar(255)
-  providerSessionId String?         @unique @db.VarChar(255)
-  amountCents       Int
-  currency          String          @default("AUD") @db.Char(3)
-  status            PaymentStatus   @default(PENDING)
-  paidAt            DateTime?
-  createdAt         DateTime        @default(now())
-  invoice           Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  customer          Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  webhookEvents     PaymentWebhookEvent[]
+  id                  String                @id @default(uuid()) @db.Uuid
+  invoiceId           String                @db.Uuid
+  customerId          String                @db.Uuid
+  provider            PaymentProvider
+  providerPaymentId   String?               @db.VarChar(255)
+  providerSessionId   String?               @unique @db.VarChar(255)
+  amountCents         Int
+  currency            String                @default("AUD") @db.Char(3)
+  status              PaymentStatus         @default(PENDING)
+  paidAt              DateTime?
+  createdAt           DateTime              @default(now())
+  invoice             Invoice               @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  customer            Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  webhookEvents       PaymentWebhookEvent[]
+  checkoutApplication CheckoutApplication?
 
   @@unique([provider, providerPaymentId])
   @@index([invoiceId, status])
   @@index([customerId])
+}
+
+model CheckoutApplication {
+  id                      String                    @id @default(uuid()) @db.Uuid
+  planId                  String                    @db.Uuid
+  applicantEmail          String                    @db.VarChar(320)
+  firstName               String                    @db.VarChar(100)
+  lastName                String                    @db.VarChar(100)
+  phone                   String                    @db.VarChar(32)
+  residentialAddress      Json
+  serviceAddress          Json
+  billingAddress          Json
+  termsAcceptedAt         DateTime
+  privacyAcceptedAt       DateTime
+  status                  CheckoutApplicationStatus @default(PENDING_PAYMENT)
+  amountCents             Int
+  currency                String                    @default("AUD") @db.Char(3)
+  stripeCheckoutSessionId String?                   @unique @db.VarChar(255)
+  stripePaymentIntentId   String?                   @unique @db.VarChar(255)
+  stripeCustomerId        String?                   @db.VarChar(255)
+  customerId              String?                   @unique @db.Uuid
+  invoiceId               String?                   @unique @db.Uuid
+  paymentId               String?                   @unique @db.Uuid
+  subscriptionId          String?                   @unique @db.Uuid
+  expiresAt               DateTime
+  completedAt             DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  plan                    InternetPlan              @relation(fields: [planId], references: [id], onDelete: Restrict)
+  customer                Customer?                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  invoice                 Invoice?                  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  payment                 Payment?                  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  subscription            Subscription?             @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  invitations             AccountInvitation[]
+
+  @@index([status, expiresAt])
+  @@index([applicantEmail])
+  @@index([createdAt])
+}
+
+model AccountInvitation {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  userId                String                  @db.Uuid
+  tokenHash             String                  @unique @db.Char(64)
+  status                AccountInvitationStatus @default(PENDING)
+  reason                AccountInvitationReason
+  createdByUserId       String?                 @db.Uuid
+  checkoutApplicationId String?                 @db.Uuid
+  expiresAt             DateTime
+  sentAt                DateTime?
+  acceptedAt            DateTime?
+  createdAt             DateTime                @default(now())
+  user                  User                    @relation("InvitationUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy             User?                   @relation("InvitationIssuer", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  checkoutApplication   CheckoutApplication?    @relation(fields: [checkoutApplicationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, expiresAt])
+  @@index([createdByUserId, createdAt])
 }
 
 model PaymentWebhookEvent {

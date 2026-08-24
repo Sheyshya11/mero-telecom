@@ -4,6 +4,7 @@ import type { PrismaService } from '../../database/prisma.service';
 import { CustomersService } from './customers.service';
 
 const dashboardCache = { invalidate: jest.fn().mockResolvedValue(true) };
+const invitations = { issueWithinTransaction: jest.fn(), queueDelivery: jest.fn() };
 
 describe('CustomersService', () => {
   const customer = {
@@ -24,15 +25,22 @@ describe('CustomersService', () => {
   };
 
   it('limits staff updates to approved contact and address fields', async () => {
+    const customerRepository = {
+      findUnique: jest.fn().mockResolvedValue(customer),
+      update: jest.fn().mockResolvedValue({ ...customer, phone: '+61400000009' }),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ ...customer, phone: '+61400000009' }),
+    };
+    const transaction = { customer: customerRepository };
     const prisma = {
-      customer: {
-        findUnique: jest.fn().mockResolvedValue(customer),
-        update: jest.fn().mockResolvedValue({ ...customer, phone: '+61400000009' }),
-      },
+      ...transaction,
+      $transaction: jest.fn((operation: (client: typeof transaction) => unknown) =>
+        operation(transaction),
+      ),
     };
     const service = new CustomersService(
       prisma as unknown as PrismaService,
       dashboardCache as never,
+      invitations as never,
     );
 
     await service.update(
@@ -50,15 +58,22 @@ describe('CustomersService', () => {
   });
 
   it('allows an admin to update account status', async () => {
+    const customerRepository = {
+      findUnique: jest.fn().mockResolvedValue(customer),
+      update: jest.fn().mockResolvedValue({ ...customer, status: 'SUSPENDED' }),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ ...customer, status: 'SUSPENDED' }),
+    };
+    const transaction = { customer: customerRepository };
     const prisma = {
-      customer: {
-        findUnique: jest.fn().mockResolvedValue(customer),
-        update: jest.fn().mockResolvedValue({ ...customer, status: 'SUSPENDED' }),
-      },
+      ...transaction,
+      $transaction: jest.fn((operation: (client: typeof transaction) => unknown) =>
+        operation(transaction),
+      ),
     };
     const service = new CustomersService(
       prisma as unknown as PrismaService,
       dashboardCache as never,
+      invitations as never,
     );
 
     await service.update(
@@ -87,6 +102,7 @@ describe('CustomersService', () => {
     const service = new CustomersService(
       prisma as unknown as PrismaService,
       dashboardCache as never,
+      invitations as never,
     );
 
     const result = await service.findAll({ page: 1, limit: 20 });

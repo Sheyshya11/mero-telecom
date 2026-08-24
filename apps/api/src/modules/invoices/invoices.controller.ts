@@ -50,6 +50,7 @@ export class InvoicesController {
   ): Promise<void> {
     const { pdf, invoiceNumber } = await this.invoices.renderPdf(id, user);
     response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     response.setHeader('Content-Disposition', `attachment; filename="${invoiceNumber}.pdf"`);
     response.setHeader('Content-Length', String(pdf.length));
     response.send(pdf);

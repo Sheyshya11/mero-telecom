@@ -20,7 +20,8 @@ running the aggregation queries. Expiry bounds how long dashboard data can be st
 
 Redis is an optimisation rather than a source of truth. If Redis is unavailable or contains
 malformed cached JSON, the request falls back to PostgreSQL. The customer dashboard remains
-uncached because Phase 15 intentionally starts with the broadly reused admin aggregation.
+uncached because it is already ownership-scoped and substantially less expensive than the shared
+admin aggregation.
 
 ## Customer dashboard
 
