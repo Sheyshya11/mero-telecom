@@ -181,4 +181,35 @@ describe('EmailQueueService', () => {
     ).resolves.toEqual({ messageId: 'skipped-invalid-invitation', skipped: true });
     expect(emailProvider.send).not.toHaveBeenCalled();
   });
+
+  it('records a plan-change delivery against the plan-change request', async () => {
+    const { prisma, service } = createService();
+    await service.enqueue(
+      {
+        to: 'customer@example.com',
+        subject: 'Plan changed',
+        text: 'Your new plan is active.',
+        html: '<p>Your new plan is active.</p>',
+      },
+      { purpose: 'PLAN_CHANGE_APPLIED', planChangeRequestId: 'plan-change-id' },
+      'plan-change-plan-change-id-applied',
+    );
+
+    await mockProcessor({
+      id: 'plan-change-plan-change-id-applied',
+      name: 'PLAN_CHANGE_APPLIED',
+      data: mockQueueAdd.mock.calls[0][1],
+      opts: { attempts: 3 },
+      attemptsMade: 0,
+    });
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'EMAIL_DELIVERY_SENT',
+        entityType: 'PlanChangeRequest',
+        entityId: 'plan-change-id',
+        metadata: expect.objectContaining({ purpose: 'PLAN_CHANGE_APPLIED' }),
+      }),
+    });
+  });
 });

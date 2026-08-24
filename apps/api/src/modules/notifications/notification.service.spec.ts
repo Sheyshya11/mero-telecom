@@ -16,7 +16,7 @@ function createService(
   };
   const configService = {
     getOrThrow: jest.fn((key: keyof AppConfig) => {
-      if (key === 'app') return { environment };
+      if (key === 'app') return { environment, frontendUrl: 'http://localhost:3000' };
       if (key === 'email') {
         return { deliveryMode, developmentRecipient: 'phase14@merotelecom.test' };
       }
@@ -117,5 +117,33 @@ describe('NotificationService', () => {
       'account-invitation-invitation-id',
     );
     expect(JSON.stringify(emailQueue.enqueue.mock.calls)).not.toContain('password=');
+  });
+
+  it('queues a deterministic plan-change email with billing details', async () => {
+    const { service, emailQueue } = createService('development', 'direct');
+
+    await service.sendPlanChangeNotification({
+      event: 'APPLIED',
+      planChangeRequestId: 'plan-change-id',
+      customerName: 'Maya <Patel>',
+      customerEmail: 'maya@example.com',
+      oldPlanName: 'Essential 50',
+      newPlanName: 'Family 100',
+      amountCents: 1500,
+      currency: 'AUD',
+      effectiveAt: new Date('2026-08-16T12:00:00.000Z'),
+      nextBillingAt: new Date('2026-09-01T00:00:00.000Z'),
+    });
+
+    expect(emailQueue.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'maya@example.com',
+        subject: 'Mero Telecom plan change confirmed',
+        text: expect.stringContaining('Amount paid: $15.00'),
+        html: expect.stringContaining('Maya &lt;Patel&gt;'),
+      }),
+      { purpose: 'PLAN_CHANGE_APPLIED', planChangeRequestId: 'plan-change-id' },
+      'plan-change-plan-change-id-applied',
+    );
   });
 });

@@ -4,18 +4,24 @@ import {
   AccountInvitationReason,
   AccountInvitationStatus,
   InvoiceStatus,
+  PaymentStatus,
+  PlanChangeStatus,
+  PlanChangeType,
   Role,
   SubscriptionStatus,
   UserStatus,
 } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { createHash } from 'node:crypto';
+import Stripe from 'stripe';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { configureApplication } from '../src/configure-application';
 import { PrismaService } from '../src/database/prisma.service';
 import { EmailProvider } from '../src/modules/notifications/email-provider';
+import { StripeClientService } from '../src/modules/payments/stripe-client.service';
+import { PlanChangesService } from '../src/modules/plan-changes/plan-changes.service';
 
 const password = 'ChangeMe123!';
 const customerInput = {
@@ -51,22 +57,72 @@ describe('Mero Telecom API (e2e)', () => {
   let customerAId: string;
   let customerBId: string;
   let planId: string;
+  let subscriptionAId: string;
+  let subscriptionBId: string;
+  let upgradedSubscriptionId: string;
+  let upgradedPlanId: string;
+  let cheaperPlanId: string;
   let invoiceAId: string;
   let invoiceBId: string;
   let invitedCustomerId: string;
   let invitedUserId: string;
+  const stripeSessions = new Map<string, Stripe.Checkout.Session>();
+  let stripeSessionSequence = 0;
+
+  const fakeStripeClient = {
+    client: {
+      checkout: {
+        sessions: {
+          create: jest.fn(async (input: Stripe.Checkout.SessionCreateParams) => {
+            const priceData = input.line_items?.[0] as
+              | { price_data?: { currency?: string; unit_amount?: number } }
+              | undefined;
+            const id = `cs_test_plan_change_${++stripeSessionSequence}`;
+            const session = {
+              id,
+              object: 'checkout.session',
+              client_reference_id: input.client_reference_id ?? null,
+              metadata: input.metadata ?? {},
+              amount_total: priceData?.price_data?.unit_amount ?? null,
+              currency: priceData?.price_data?.currency ?? null,
+              payment_intent: null,
+              payment_status: 'unpaid',
+              status: 'open',
+              url: `https://checkout.stripe.test/${id}`,
+            } as Stripe.Checkout.Session;
+            stripeSessions.set(id, session);
+            return session;
+          }),
+          retrieve: jest.fn(async (id: string) => {
+            const session = stripeSessions.get(id);
+            if (!session) throw new Error(`Unknown fake Stripe session: ${id}`);
+            return session;
+          }),
+        },
+      },
+      webhooks: {
+        constructEvent: jest.fn((payload: Buffer, signature: string) => {
+          if (signature !== 'e2e-valid-signature') throw new Error('Invalid signature');
+          return JSON.parse(payload.toString('utf8')) as Stripe.Event;
+        }),
+      },
+    },
+  };
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(EmailProvider)
       .useValue({ send: jest.fn().mockResolvedValue({ messageId: 'e2e-message-id' }) })
+      .overrideProvider(StripeClientService)
+      .useValue(fakeStripeClient)
       .compile();
-    app = module.createNestApplication();
+    app = module.createNestApplication({ rawBody: true });
     configureApplication(app, { logger: false, swagger: false });
     await app.init();
     prisma = app.get(PrismaService);
 
     await prisma.paymentWebhookEvent.deleteMany();
+    await prisma.planChangeRequest.deleteMany();
     await prisma.accountInvitation.deleteMany();
     await prisma.checkoutApplication.deleteMany();
     await prisma.payment.deleteMany();
@@ -341,6 +397,8 @@ describe('Mero Telecom API (e2e)', () => {
 
     const subscriptionA = await createActiveSubscription(customerAId);
     const subscriptionB = await createActiveSubscription(customerBId);
+    subscriptionAId = subscriptionA.id;
+    subscriptionBId = subscriptionB.id;
     expect(subscriptionA.status).toBe(SubscriptionStatus.ACTIVE);
 
     const invoiceA = await generateInvoice(subscriptionA.id, '2026-09-01');
@@ -402,6 +460,577 @@ describe('Mero Telecom API (e2e)', () => {
       .expect(400);
   });
 
+  it('previews and applies a paid upgrade exactly once through the verified webhook', async () => {
+    await prisma.invoice.update({
+      where: { id: invoiceAId },
+      data: { status: InvoiceStatus.PAID, paidAt: new Date() },
+    });
+    upgradedPlanId = await createPlan('E2E Family 100', 100, 40, 9900);
+    cheaperPlanId = await createPlan('E2E Starter 25', 25, 10, 4900);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscriptionBId}/plan-change/preview`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ targetPlanId: upgradedPlanId })
+      .expect(404);
+
+    const preview = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscriptionAId}/plan-change/preview`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ targetPlanId: upgradedPlanId })
+      .expect(201);
+    expect(preview.body).toEqual(
+      expect.objectContaining({
+        type: PlanChangeType.UPGRADE,
+        currentPlanPriceCents: 6900,
+        targetPlanPriceCents: 9900,
+        amountPayableCents: expect.any(Number),
+        currency: 'AUD',
+      }),
+    );
+    expect(preview.body.amountPayableCents).toBeGreaterThan(0);
+
+    const created = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscriptionAId}/plan-change`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ targetPlanId: upgradedPlanId })
+      .expect(201);
+    const requestId = created.body.planChange.id as string;
+    const sessionId = (
+      await prisma.planChangeRequest.findUniqueOrThrow({
+        where: { id: requestId },
+      })
+    ).stripeCheckoutSessionId as string;
+    expect(created.body.checkoutUrl).toBe(`https://checkout.stripe.test/${sessionId}`);
+
+    const retried = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscriptionAId}/plan-change`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ targetPlanId: upgradedPlanId })
+      .expect(201);
+    expect(retried.body.planChange.id).toBe(requestId);
+    expect(
+      await prisma.planChangeRequest.count({ where: { sourceSubscriptionId: subscriptionAId } }),
+    ).toBe(1);
+    await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscriptionAId}/plan-change`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ targetPlanId: cheaperPlanId })
+      .expect(409);
+
+    const session = stripeSessions.get(sessionId);
+    if (!session) throw new Error('Expected the fake plan-change Checkout session.');
+    const paidSession = {
+      ...session,
+      payment_status: 'paid',
+      payment_intent: 'pi_e2e_plan_change_paid',
+    } as Stripe.Checkout.Session;
+
+    await postStripeEvent(
+      stripeEvent('evt_e2e_invalid_signature', 'checkout.session.completed', paidSession),
+      'invalid-signature',
+    ).expect(400);
+    await postStripeEvent(
+      stripeEvent('evt_e2e_wrong_checkout_kind', 'checkout.session.completed', {
+        ...paidSession,
+        metadata: { ...paidSession.metadata, checkoutKind: 'plan_purchase' },
+      } as Stripe.Checkout.Session),
+    ).expect(404);
+    await postStripeEvent(
+      stripeEvent('evt_e2e_missing_metadata', 'checkout.session.completed', {
+        ...paidSession,
+        metadata: { ...paidSession.metadata, planChangeRequestId: undefined },
+      } as Stripe.Checkout.Session),
+    ).expect(400);
+    await postStripeEvent(
+      stripeEvent('evt_e2e_amount_mismatch', 'checkout.session.completed', {
+        ...paidSession,
+        amount_total: (paidSession.amount_total ?? 0) + 1,
+      } as Stripe.Checkout.Session),
+    ).expect(400);
+    await postStripeEvent(
+      stripeEvent('evt_e2e_currency_mismatch', 'checkout.session.completed', {
+        ...paidSession,
+        currency: 'usd',
+      } as Stripe.Checkout.Session),
+    ).expect(400);
+    expect(await prisma.subscription.findUniqueOrThrow({ where: { id: subscriptionAId } })).toEqual(
+      expect.objectContaining({ status: SubscriptionStatus.ACTIVE }),
+    );
+
+    const completed = stripeEvent(
+      'evt_e2e_plan_change_paid',
+      'checkout.session.completed',
+      paidSession,
+    );
+    const completedResponse = await postStripeEvent(completed);
+    if (completedResponse.status !== 200) {
+      throw new Error(`Paid plan-change webhook failed: ${JSON.stringify(completedResponse.body)}`);
+    }
+    expect(completedResponse.body).toEqual({ received: true });
+    await postStripeEvent(completed).expect(200, { received: true });
+    await postStripeEvent(
+      stripeEvent('evt_e2e_expired_after_paid', 'checkout.session.expired', {
+        ...paidSession,
+        payment_status: 'unpaid',
+        status: 'expired',
+      } as Stripe.Checkout.Session),
+    ).expect(200, { received: true });
+
+    const applied = await prisma.planChangeRequest.findUniqueOrThrow({ where: { id: requestId } });
+    expect(applied).toEqual(
+      expect.objectContaining({ status: PlanChangeStatus.APPLIED, appliedAt: expect.any(Date) }),
+    );
+    expect(applied.newSubscriptionId).toEqual(expect.any(String));
+    upgradedSubscriptionId = applied.newSubscriptionId as string;
+    const [oldSubscription, newSubscription] = await Promise.all([
+      prisma.subscription.findUniqueOrThrow({ where: { id: subscriptionAId } }),
+      prisma.subscription.findUniqueOrThrow({ where: { id: applied.newSubscriptionId as string } }),
+    ]);
+    expect(oldSubscription).toEqual(
+      expect.objectContaining({
+        status: SubscriptionStatus.CANCELLED,
+        endReason: 'PLAN_UPGRADE',
+      }),
+    );
+    expect(newSubscription).toEqual(
+      expect.objectContaining({
+        status: SubscriptionStatus.ACTIVE,
+        planId: upgradedPlanId,
+        currentPeriodEnd: oldSubscription.currentPeriodEnd,
+      }),
+    );
+    expect(
+      await prisma.subscription.count({
+        where: { customerId: customerAId, status: SubscriptionStatus.ACTIVE },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.payment.count({
+        where: { planChangeRequest: { id: requestId }, status: PaymentStatus.SUCCEEDED },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'PLAN_CHANGE_APPLIED', entityId: applied.newSubscriptionId as string },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.paymentWebhookEvent.count({ where: { planChangeRequestId: requestId } }),
+    ).toBe(2);
+
+    const status = await request(app.getHttpServer())
+      .get(`/api/v1/plan-change-requests/${requestId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+    expect(status.body.status).toBe(PlanChangeStatus.APPLIED);
+    expect(status.body.stripeCheckoutSessionId).toBeUndefined();
+    const adminHistory = await request(app.getHttpServer())
+      .get(
+        `/api/v1/plan-change-requests?status=${PlanChangeStatus.APPLIED}&type=${PlanChangeType.UPGRADE}`,
+      )
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(adminHistory.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: requestId,
+          auditHistory: expect.arrayContaining([
+            expect.objectContaining({ action: 'PLAN_UPGRADE_PAYMENT_COMPLETED' }),
+          ]),
+        }),
+      ]),
+    );
+  });
+
+  it('reconciles an owned paid upgrade when the signed webhook was missed', async () => {
+    const customerBToken = await loginAs('customer-b@merotelecom.test');
+    await prisma.invoice.update({
+      where: { id: invoiceBId },
+      data: { status: InvoiceStatus.PAID, paidAt: new Date() },
+    });
+    const targetPlanId = await createPlan('E2E Reconciled 150', 150, 50, 11900);
+    const created = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscriptionBId}/plan-change`)
+      .set('Authorization', `Bearer ${customerBToken}`)
+      .send({ targetPlanId })
+      .expect(201);
+    const requestId = created.body.planChange.id as string;
+    const stored = await prisma.planChangeRequest.findUniqueOrThrow({ where: { id: requestId } });
+    const sessionId = stored.stripeCheckoutSessionId as string;
+    const session = stripeSessions.get(sessionId);
+    if (!session) throw new Error('Expected the fake reconciliation Checkout session.');
+    const paidSession = {
+      ...session,
+      status: 'complete',
+      payment_status: 'paid',
+      payment_intent: 'pi_e2e_reconciled_upgrade',
+      url: null,
+    } as Stripe.Checkout.Session;
+    stripeSessions.set(sessionId, paidSession);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/plan-change-requests/${requestId}/reconcile`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(404);
+    const reconciled = await request(app.getHttpServer())
+      .post(`/api/v1/plan-change-requests/${requestId}/reconcile`)
+      .set('Authorization', `Bearer ${customerBToken}`)
+      .expect(201);
+    expect(reconciled.body).toEqual(
+      expect.objectContaining({
+        status: PlanChangeStatus.APPLIED,
+        newSubscriptionId: expect.any(String),
+      }),
+    );
+    await request(app.getHttpServer())
+      .post(`/api/v1/plan-change-requests/${requestId}/reconcile`)
+      .set('Authorization', `Bearer ${customerBToken}`)
+      .expect(201);
+
+    await postStripeEvent(
+      stripeEvent(
+        'evt_e2e_reconciled_upgrade_late_webhook',
+        'checkout.session.completed',
+        paidSession,
+      ),
+    ).expect(200, { received: true });
+    expect(
+      await prisma.subscription.count({
+        where: { customerId: customerBId, status: SubscriptionStatus.ACTIVE },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.paymentWebhookEvent.findMany({
+        where: { planChangeRequestId: requestId },
+        select: { providerEventId: true },
+        orderBy: { processedAt: 'asc' },
+      }),
+    ).toEqual([
+      { providerEventId: `reconcile:${sessionId}:paid` },
+      { providerEventId: 'evt_e2e_reconciled_upgrade_late_webhook' },
+    ]);
+  });
+
+  it('reconciles an owned paid plan purchase and activates one subscription', async () => {
+    const user = await prisma.user.create({
+      data: {
+        email: 'checkout-reconcile@merotelecom.test',
+        passwordHash: await hash(password, 12),
+        role: Role.CUSTOMER,
+      },
+    });
+    const customer = await prisma.customer.create({
+      data: {
+        userId: user.id,
+        customerNumber: 'CUST-E2E-RECONCILE',
+        firstName: 'Riley',
+        lastName: 'Chen',
+        email: user.email,
+        phone: '+61400000009',
+        addressLine1: '9 George Street',
+        suburb: 'Sydney',
+        state: 'NSW',
+        postcode: '2000',
+      },
+    });
+    const token = await loginAs(user.email);
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/payments/plan-checkout-session')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ planId })
+      .expect(201);
+    const payment = await prisma.payment.findUniqueOrThrow({
+      where: { id: created.body.paymentId as string },
+    });
+    const sessionId = payment.providerSessionId as string;
+    const session = stripeSessions.get(sessionId);
+    if (!session) throw new Error('Expected the fake plan-purchase Checkout session.');
+    const paidSession = {
+      ...session,
+      status: 'complete',
+      payment_status: 'paid',
+      payment_intent: 'pi_e2e_reconciled_plan_purchase',
+      url: null,
+    } as Stripe.Checkout.Session;
+    stripeSessions.set(sessionId, paidSession);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/payments/checkout-status?sessionId=${sessionId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(404);
+    const reconciled = await request(app.getHttpServer())
+      .get(`/api/v1/payments/checkout-status?sessionId=${sessionId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(reconciled.body).toEqual(
+      expect.objectContaining({
+        paymentStatus: PaymentStatus.SUCCEEDED,
+        invoiceStatus: InvoiceStatus.PAID,
+        subscription: expect.objectContaining({ status: SubscriptionStatus.ACTIVE }),
+      }),
+    );
+    await request(app.getHttpServer())
+      .get(`/api/v1/payments/checkout-status?sessionId=${sessionId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    await postStripeEvent(
+      stripeEvent(
+        'evt_e2e_reconciled_plan_purchase_late_webhook',
+        'checkout.session.completed',
+        paidSession,
+      ),
+    ).expect(200, { received: true });
+
+    expect(
+      await prisma.subscription.count({
+        where: { customerId: customer.id, status: SubscriptionStatus.ACTIVE },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.paymentWebhookEvent.findMany({
+        where: { paymentId: payment.id },
+        select: { providerEventId: true },
+        orderBy: { processedAt: 'asc' },
+      }),
+    ).toEqual([
+      { providerEventId: `reconcile:${sessionId}` },
+      { providerEventId: 'evt_e2e_reconciled_plan_purchase_late_webhook' },
+    ]);
+  });
+
+  it('keeps the current subscription unchanged for expired, failed, and invalidated upgrades', async () => {
+    const firstHigherPlanId = await createPlan('E2E Premium 250', 250, 80, 12900);
+    const expired = await startUpgrade(upgradedSubscriptionId, firstHigherPlanId);
+    const expiredSession = {
+      ...expired.session,
+      status: 'expired',
+      payment_status: 'unpaid',
+    } as Stripe.Checkout.Session;
+    const expiredEvent = stripeEvent(
+      'evt_e2e_plan_change_expired',
+      'checkout.session.expired',
+      expiredSession,
+    );
+    await postStripeEvent(expiredEvent).expect(200, { received: true });
+    await postStripeEvent(expiredEvent).expect(200, { received: true });
+    await postStripeEvent(
+      stripeEvent('evt_e2e_paid_after_expired', 'checkout.session.completed', {
+        ...expired.session,
+        payment_status: 'paid',
+        payment_intent: 'pi_e2e_late_after_expiry',
+      } as Stripe.Checkout.Session),
+    ).expect(200, { received: true });
+    expect(
+      await prisma.planChangeRequest.findUniqueOrThrow({ where: { id: expired.requestId } }),
+    ).toEqual(
+      expect.objectContaining({
+        status: PlanChangeStatus.EXPIRED,
+        failureReason: 'CHECKOUT_EXPIRED',
+      }),
+    );
+    expect(
+      await prisma.paymentWebhookEvent.count({
+        where: { planChangeRequestId: expired.requestId },
+      }),
+    ).toBe(2);
+
+    const asynchronousFailure = await startUpgrade(upgradedSubscriptionId, firstHigherPlanId);
+    await postStripeEvent(
+      stripeEvent(
+        'evt_e2e_async_plan_change_failed',
+        'checkout.session.async_payment_failed',
+        asynchronousFailure.session,
+      ),
+    ).expect(200, { received: true });
+    expect(
+      await prisma.planChangeRequest.findUniqueOrThrow({
+        where: { id: asynchronousFailure.requestId },
+      }),
+    ).toEqual(
+      expect.objectContaining({ status: PlanChangeStatus.FAILED, failureReason: 'PAYMENT_FAILED' }),
+    );
+
+    const suspendedTargetId = await createPlan('E2E Ultra 500', 500, 100, 14900);
+    const suspended = await startUpgrade(upgradedSubscriptionId, suspendedTargetId);
+    await prisma.subscription.update({
+      where: { id: upgradedSubscriptionId },
+      data: { status: SubscriptionStatus.SUSPENDED },
+    });
+    await postStripeEvent(
+      stripeEvent('evt_e2e_paid_while_suspended', 'checkout.session.completed', {
+        ...suspended.session,
+        payment_status: 'paid',
+        payment_intent: 'pi_e2e_suspended',
+      } as Stripe.Checkout.Session),
+    ).expect(200, { received: true });
+    expect(
+      await prisma.planChangeRequest.findUniqueOrThrow({ where: { id: suspended.requestId } }),
+    ).toEqual(
+      expect.objectContaining({
+        status: PlanChangeStatus.FAILED,
+        failureReason: 'SOURCE_NOT_ACTIVE',
+      }),
+    );
+    expect(
+      await prisma.subscription.findUniqueOrThrow({ where: { id: upgradedSubscriptionId } }),
+    ).toEqual(
+      expect.objectContaining({ status: SubscriptionStatus.SUSPENDED, planId: upgradedPlanId }),
+    );
+    await prisma.subscription.update({
+      where: { id: upgradedSubscriptionId },
+      data: { status: SubscriptionStatus.ACTIVE },
+    });
+
+    const overdueTargetId = await createPlan('E2E Gigabit 1000', 1000, 200, 16900);
+    const overdue = await startUpgrade(upgradedSubscriptionId, overdueTargetId);
+    await prisma.invoice.update({
+      where: { id: invoiceAId },
+      data: { status: InvoiceStatus.OVERDUE, paidAt: null },
+    });
+    await postStripeEvent(
+      stripeEvent('evt_e2e_paid_with_overdue_invoice', 'checkout.session.completed', {
+        ...overdue.session,
+        payment_status: 'paid',
+        payment_intent: 'pi_e2e_overdue',
+      } as Stripe.Checkout.Session),
+    ).expect(200, { received: true });
+    expect(
+      await prisma.planChangeRequest.findUniqueOrThrow({ where: { id: overdue.requestId } }),
+    ).toEqual(
+      expect.objectContaining({
+        status: PlanChangeStatus.FAILED,
+        failureReason: 'OUTSTANDING_INVOICE',
+      }),
+    );
+    expect(
+      await prisma.subscription.findUniqueOrThrow({ where: { id: upgradedSubscriptionId } }),
+    ).toEqual(
+      expect.objectContaining({ status: SubscriptionStatus.ACTIVE, planId: upgradedPlanId }),
+    );
+    expect(
+      await prisma.subscription.count({
+        where: { customerId: customerAId, status: SubscriptionStatus.ACTIVE },
+      }),
+    ).toBe(1);
+    await prisma.invoice.update({
+      where: { id: invoiceAId },
+      data: { status: InvoiceStatus.PAID, paidAt: new Date() },
+    });
+  });
+
+  it('schedules, cancels, and idempotently applies a downgrade at the billing boundary', async () => {
+    const preview = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${upgradedSubscriptionId}/plan-change/preview`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ targetPlanId: cheaperPlanId })
+      .expect(201);
+    expect(preview.body).toEqual(
+      expect.objectContaining({
+        type: PlanChangeType.DOWNGRADE,
+        amountPayableCents: 0,
+      }),
+    );
+
+    const scheduled = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${upgradedSubscriptionId}/plan-change`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ targetPlanId: cheaperPlanId })
+      .expect(201);
+    expect(scheduled.body).toEqual({
+      planChange: expect.objectContaining({ status: PlanChangeStatus.SCHEDULED }),
+      checkoutUrl: null,
+    });
+    const firstRequestId = scheduled.body.planChange.id as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/plan-change-requests/${firstRequestId}/cancel`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(201)
+      .expect((response) => expect(response.body.status).toBe(PlanChangeStatus.CANCELLED));
+
+    const rescheduled = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${upgradedSubscriptionId}/plan-change`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ targetPlanId: cheaperPlanId })
+      .expect(201);
+    const requestId = rescheduled.body.planChange.id as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${upgradedSubscriptionId}/plan-change`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ targetPlanId: planId })
+      .expect(409);
+
+    const effectiveAt = new Date(Date.now() - 60_000);
+    const periodStart = new Date(effectiveAt);
+    periodStart.setUTCMonth(periodStart.getUTCMonth() - 1);
+    await prisma.$transaction([
+      prisma.subscription.update({
+        where: { id: upgradedSubscriptionId },
+        data: { currentPeriodStart: periodStart, currentPeriodEnd: effectiveAt },
+      }),
+      prisma.planChangeRequest.update({
+        where: { id: requestId },
+        data: {
+          currentPeriodStartSnapshot: periodStart,
+          currentPeriodEndSnapshot: effectiveAt,
+          effectiveAt,
+        },
+      }),
+    ]);
+
+    const planChanges = app.get(PlanChangesService);
+    await planChanges.reconcileDueDowngrades(new Date());
+    await planChanges.reconcileDueDowngrades(new Date());
+
+    const applied = await prisma.planChangeRequest.findUniqueOrThrow({ where: { id: requestId } });
+    expect(applied).toEqual(
+      expect.objectContaining({
+        status: PlanChangeStatus.APPLIED,
+        newSubscriptionId: expect.any(String),
+      }),
+    );
+    const [oldSubscription, newSubscription] = await Promise.all([
+      prisma.subscription.findUniqueOrThrow({ where: { id: upgradedSubscriptionId } }),
+      prisma.subscription.findUniqueOrThrow({ where: { id: applied.newSubscriptionId as string } }),
+    ]);
+    expect(oldSubscription).toEqual(
+      expect.objectContaining({
+        status: SubscriptionStatus.CANCELLED,
+        endReason: 'PLAN_DOWNGRADE',
+      }),
+    );
+    expect(newSubscription).toEqual(
+      expect.objectContaining({
+        status: SubscriptionStatus.ACTIVE,
+        planId: cheaperPlanId,
+        currentPeriodStart: effectiveAt,
+      }),
+    );
+    expect(newSubscription.currentPeriodEnd.getTime()).toBeGreaterThan(effectiveAt.getTime());
+    expect(
+      await prisma.subscription.count({
+        where: { customerId: customerAId, status: SubscriptionStatus.ACTIVE },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'SCHEDULED_DOWNGRADE_APPLIED', entityId: requestId },
+      }),
+    ).toBe(1);
+
+    const renewalInvoice = await generateInvoice(
+      newSubscription.id,
+      effectiveAt.toISOString().slice(0, 10),
+    );
+    expect(renewalInvoice).toEqual(
+      expect.objectContaining({
+        subscriptionId: newSubscription.id,
+        totalCents: 4900,
+        status: InvoiceStatus.ISSUED,
+      }),
+    );
+  });
+
   it('returns readiness, public coverage, and administrative audit evidence', async () => {
     const ready = await request(app.getHttpServer()).get('/api/v1/health/ready').expect(200);
     expect(ready.body.checks).toEqual({ database: 'ok', redis: 'ok' });
@@ -422,6 +1051,42 @@ describe('Mero Telecom API (e2e)', () => {
     expect(auditCount).toBeGreaterThanOrEqual(5);
   });
 
+  function postStripeEvent(event: Stripe.Event, signature = 'e2e-valid-signature') {
+    return request(app.getHttpServer())
+      .post('/api/v1/payments/stripe/webhook')
+      .set('Stripe-Signature', signature)
+      .send(event);
+  }
+
+  async function createPlan(
+    name: string,
+    downloadMbps: number,
+    uploadMbps: number,
+    monthlyCents: number,
+  ): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/plans')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name, downloadMbps, uploadMbps, monthlyCents })
+      .expect(201);
+    return response.body.id as string;
+  }
+
+  async function startUpgrade(subscriptionId: string, targetPlanId: string) {
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscriptionId}/plan-change`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ targetPlanId })
+      .expect(201);
+    const requestId = response.body.planChange.id as string;
+    const planChange = await prisma.planChangeRequest.findUniqueOrThrow({
+      where: { id: requestId },
+    });
+    const session = stripeSessions.get(planChange.stripeCheckoutSessionId as string);
+    if (!session) throw new Error('Expected the fake plan-change Checkout session.');
+    return { requestId, session };
+  }
+
   async function loginAs(email: string): Promise<string> {
     const response = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -431,11 +1096,23 @@ describe('Mero Telecom API (e2e)', () => {
   }
 
   async function createActiveSubscription(customerId: string) {
+    const currentPeriodStart = new Date();
+    currentPeriodStart.setUTCDate(currentPeriodStart.getUTCDate() - 1);
+    const billingAnchorDay = currentPeriodStart.getUTCDate();
+    const currentPeriodEnd = new Date(currentPeriodStart);
+    currentPeriodEnd.setUTCMonth(currentPeriodEnd.getUTCMonth() + 1, 1);
+    const lastDay = new Date(
+      Date.UTC(currentPeriodEnd.getUTCFullYear(), currentPeriodEnd.getUTCMonth() + 1, 0),
+    ).getUTCDate();
+    currentPeriodEnd.setUTCDate(Math.min(billingAnchorDay, lastDay));
     return prisma.subscription.create({
       data: {
         customerId,
         planId,
-        startDate: new Date('2026-09-01T00:00:00.000Z'),
+        startDate: currentPeriodStart,
+        billingAnchorDay,
+        currentPeriodStart,
+        currentPeriodEnd,
         status: SubscriptionStatus.ACTIVE,
       },
     });
@@ -455,4 +1132,26 @@ function cookieFrom(value: string | string[] | undefined): string {
   const cookie = Array.isArray(value) ? value[0] : value;
   if (!cookie) throw new Error('Expected a refresh cookie.');
   return cookie.split(';')[0];
+}
+
+function stripeEvent(
+  id: string,
+  type:
+    | 'checkout.session.completed'
+    | 'checkout.session.async_payment_succeeded'
+    | 'checkout.session.async_payment_failed'
+    | 'checkout.session.expired',
+  session: Stripe.Checkout.Session,
+): Stripe.Event {
+  return {
+    id,
+    object: 'event',
+    api_version: '2026-07-29.dahlia',
+    created: Math.floor(Date.now() / 1000),
+    data: { object: session },
+    livemode: false,
+    pending_webhooks: 1,
+    request: null,
+    type,
+  } as Stripe.Event;
 }

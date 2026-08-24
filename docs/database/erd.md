@@ -27,22 +27,23 @@ erDiagram
 
 ## Entity responsibilities
 
-| Entity                | Purpose and important constraints                                             |
-| --------------------- | ----------------------------------------------------------------------------- |
-| `User`                | Login identity; nullable password until invitation activation; explicit state |
-| `Customer`            | CRM and service address; unique number/email and optional unique user mapping |
-| `CustomerAddress`     | Typed residential, service, and billing addresses                             |
-| `AccountInvitation`   | Hashed, expiring, single-use activation token and delivery lifecycle          |
-| `CheckoutApplication` | Pre-payment applicant/consent snapshot and Stripe reconciliation state        |
-| `InternetPlan`        | Speed and GST-inclusive monthly cents; deactivation preserves history         |
-| `Subscription`        | Customer-to-plan history and lifecycle; restrictive foreign keys              |
-| `Invoice`             | Authoritative totals/status; subscription billing or an initial plan purchase |
-| `InvoiceItem`         | Immutable billing description, quantity, unit cents, and amount cents         |
-| `InvoiceDocument`     | Private object key, MIME type, size, and one-record-per-invoice constraint    |
-| `Payment`             | Provider/session identifiers, amount, state, and customer/invoice ownership   |
-| `PaymentWebhookEvent` | Unique provider event ID for idempotent webhook processing                    |
-| `RefreshSession`      | Unique hash of a refresh token, expiry, and revocation timestamp              |
-| `AuditLog`            | Actor, action, entity reference, safe metadata, and creation timestamp        |
+| Entity                | Purpose and important constraints                                              |
+| --------------------- | ------------------------------------------------------------------------------ |
+| `User`                | Login identity; nullable password until invitation activation; explicit state  |
+| `Customer`            | CRM and service address; unique number/email and optional unique user mapping  |
+| `CustomerAddress`     | Typed residential, service, and billing addresses                              |
+| `AccountInvitation`   | Hashed, expiring, single-use activation token and delivery lifecycle           |
+| `CheckoutApplication` | Pre-payment applicant/consent snapshot and Stripe reconciliation state         |
+| `InternetPlan`        | Speed and GST-inclusive monthly cents; deactivation preserves history          |
+| `Subscription`        | Customer-to-plan history, explicit UTC billing period, and lifecycle           |
+| `PlanChangeRequest`   | Source/target snapshots, proration, Stripe state, scheduling, and traceability |
+| `Invoice`             | Authoritative totals/status; subscription billing or an initial plan purchase  |
+| `InvoiceItem`         | Immutable billing description, quantity, unit cents, and amount cents          |
+| `InvoiceDocument`     | Private object key, MIME type, size, and one-record-per-invoice constraint     |
+| `Payment`             | Provider/session identifiers, amount, state, and customer/invoice ownership    |
+| `PaymentWebhookEvent` | Unique provider event ID for idempotent webhook processing                     |
+| `RefreshSession`      | Unique hash of a refresh token, expiry, and revocation timestamp               |
+| `AuditLog`            | Actor, action, entity reference, safe metadata, and creation timestamp         |
 
 ## Relationship and deletion decisions
 
@@ -70,6 +71,9 @@ erDiagram
 - Invitation token hashes are unique. Transactional conditional updates prevent two requests from
   consuming the same token.
 - A partial unique index permits only one issued/overdue plan-purchase invoice per customer.
+- A partial unique index permits only one active plan-change request per source subscription;
+  unique links prevent reuse of a Checkout session, Payment Intent, invoice, payment, or resulting
+  subscription across requests.
 - Invoice and payment state changes use transactions where multiple records must remain consistent.
 - `Invoice.pdfUrl` is retained for migration compatibility but new private documents use
   `InvoiceDocument`; no application flow publishes this legacy field.

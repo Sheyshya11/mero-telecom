@@ -14,6 +14,7 @@ import type { AppConfig } from '../../config/configuration';
 import type { PrismaService } from '../../database/prisma.service';
 import { BillingService } from '../billing/billing.service';
 import { PaymentsService } from './payments.service';
+import { StripeClientService } from './stripe-client.service';
 
 const stripeSecret = 'whsec_phase13_test_secret';
 const invoiceId = '6b34d995-21a6-4d36-8e28-1f465f93cc66';
@@ -30,6 +31,7 @@ function makeService(prisma: Partial<PrismaService>) {
   return new PaymentsService(
     prisma as PrismaService,
     configService as never,
+    new StripeClientService(configService as never),
     {
       invalidate: jest.fn().mockResolvedValue(true),
     } as never,
@@ -40,6 +42,7 @@ function makeService(prisma: Partial<PrismaService>) {
       queueDelivery: jest.fn().mockResolvedValue(true),
     } as never,
     { sendSubscriptionConfirmation: jest.fn().mockResolvedValue({}) } as never,
+    { processStripeEvent: jest.fn().mockResolvedValue(undefined) } as never,
   );
 }
 
@@ -68,16 +71,106 @@ function makePublicService(prisma: Partial<PrismaService>) {
   const service = new PaymentsService(
     prisma as PrismaService,
     configService as never,
+    new StripeClientService(configService as never),
     { invalidate: jest.fn().mockResolvedValue(true) } as never,
     new BillingService(),
     { statusFor: jest.fn().mockReturnValue('AVAILABLE') } as never,
     invitations as never,
     notifications as never,
+    { processStripeEvent: jest.fn().mockResolvedValue(undefined) } as never,
   );
   return { invitations, notifications, service };
 }
 
 describe('PaymentsService', () => {
+  it('reconciles an owned paid Checkout before returning authenticated status', async () => {
+    const actor = {
+      id: 'customer-user-id',
+      email: 'customer@merotelecom.test',
+      role: Role.CUSTOMER,
+    };
+    const session = {
+      id: 'cs_test_paid_reconciliation',
+      status: 'complete',
+      payment_status: 'paid',
+    } as Stripe.Checkout.Session;
+    const prisma = {
+      payment: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'payment-id' }),
+        findUnique: jest.fn().mockResolvedValue({
+          status: PaymentStatus.SUCCEEDED,
+          invoice: {
+            status: InvoiceStatus.PAID,
+            subscription: {
+              id: 'subscription-id',
+              status: SubscriptionStatus.ACTIVE,
+              plan: { name: 'Essential 50' },
+            },
+          },
+        }),
+      },
+    };
+    const service = makeService(prisma as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe;
+    (stripe as unknown as { checkout: { sessions: { retrieve: jest.Mock } } }).checkout = {
+      sessions: { retrieve: jest.fn().mockResolvedValue(session) },
+    };
+    const finalize = jest
+      .spyOn(
+        service as unknown as {
+          finalizeInvoiceCheckout(
+            providerEventId: string,
+            eventType: string,
+            checkout: Stripe.Checkout.Session,
+          ): Promise<void>;
+        },
+        'finalizeInvoiceCheckout',
+      )
+      .mockResolvedValue();
+
+    await expect(service.getAuthenticatedCheckoutStatus(session.id, actor)).resolves.toEqual({
+      checkoutStatus: 'complete',
+      stripePaymentStatus: 'paid',
+      paymentStatus: PaymentStatus.SUCCEEDED,
+      invoiceStatus: InvoiceStatus.PAID,
+      subscription: {
+        id: 'subscription-id',
+        status: SubscriptionStatus.ACTIVE,
+        plan: { name: 'Essential 50' },
+      },
+    });
+    expect(finalize).toHaveBeenCalledWith(
+      `reconcile:${session.id}`,
+      'server.checkout_reconciliation',
+      session,
+    );
+    expect(prisma.payment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ customer: { userId: actor.id } }),
+      }),
+    );
+  });
+
+  it('does not retrieve or disclose a Checkout Session that is not owned by the customer', async () => {
+    const service = makeService({
+      payment: { findFirst: jest.fn().mockResolvedValue(null) },
+    } as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe;
+    const retrieve = jest.fn();
+    (stripe as unknown as { checkout: { sessions: { retrieve: jest.Mock } } }).checkout = {
+      sessions: { retrieve },
+    };
+
+    await expect(
+      service.getAuthenticatedCheckoutStatus('cs_test_another_customer', {
+        id: 'customer-user-id',
+        email: 'customer@merotelecom.test',
+        role: Role.CUSTOMER,
+      }),
+    ).rejects.toThrow('Checkout status not found.');
+    expect(retrieve).not.toHaveBeenCalled();
+  });
+
   it('creates a public Checkout from authoritative plan data without creating an account early', async () => {
     const planId = '4ccdfc07-0bac-40e6-93fe-728d00740379';
     const plan = {

@@ -20,6 +20,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { HealthModule } from './health/health.module';
 import { CoverageModule } from './modules/coverage/coverage.module';
+import { PlanChangesModule } from './modules/plan-changes/plan-changes.module';
 import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
 import { AdministrativeAuditInterceptor } from './common/interceptors/administrative-audit.interceptor';
 import { ConfigService } from '@nestjs/config';
@@ -63,6 +64,7 @@ import type { AppConfig } from './config/configuration';
     InvoicesModule,
     DashboardModule,
     PaymentsModule,
+    PlanChangesModule,
     CoverageModule,
     HealthModule,
   ],

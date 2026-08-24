@@ -14,7 +14,13 @@ import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
 import { EmailProvider, type EmailSendResult } from './email-provider';
 
-export type EmailPurpose = 'ACCOUNT_INVITATION' | 'SUBSCRIPTION_CONFIRMATION';
+export type EmailPurpose =
+  | 'ACCOUNT_INVITATION'
+  | 'SUBSCRIPTION_CONFIRMATION'
+  | 'PLAN_CHANGE_SCHEDULED'
+  | 'PLAN_CHANGE_APPLIED'
+  | 'PLAN_CHANGE_CANCELLED'
+  | 'PLAN_CHANGE_FAILED';
 
 interface QueueableEmailMessage {
   to: string;
@@ -27,6 +33,7 @@ interface EmailJobContext {
   purpose: EmailPurpose;
   invitationId?: string;
   checkoutApplicationId?: string;
+  planChangeRequestId?: string;
 }
 
 interface EmailJobPayload {
@@ -179,12 +186,17 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         data: { sentAt: new Date() },
       });
     }
-    const entityId = context.invitationId ?? context.checkoutApplicationId;
+    const entityId =
+      context.invitationId ?? context.checkoutApplicationId ?? context.planChangeRequestId;
     if (!entityId) return;
     await this.prisma.auditLog.create({
       data: {
         action: 'EMAIL_DELIVERY_SENT',
-        entityType: context.invitationId ? 'AccountInvitation' : 'CheckoutApplication',
+        entityType: context.invitationId
+          ? 'AccountInvitation'
+          : context.checkoutApplicationId
+            ? 'CheckoutApplication'
+            : 'PlanChangeRequest',
         entityId,
         metadata: {
           purpose: context.purpose,
@@ -202,12 +214,17 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     try {
       const { context } = this.decrypt(job.data.encryptedPayload);
-      const entityId = context.invitationId ?? context.checkoutApplicationId;
+      const entityId =
+        context.invitationId ?? context.checkoutApplicationId ?? context.planChangeRequestId;
       if (!entityId) return;
       await this.prisma.auditLog.create({
         data: {
           action: 'EMAIL_DELIVERY_FAILED',
-          entityType: context.invitationId ? 'AccountInvitation' : 'CheckoutApplication',
+          entityType: context.invitationId
+            ? 'AccountInvitation'
+            : context.checkoutApplicationId
+              ? 'CheckoutApplication'
+              : 'PlanChangeRequest',
           entityId,
           metadata: {
             purpose: context.purpose,

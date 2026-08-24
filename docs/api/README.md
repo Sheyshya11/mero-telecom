@@ -10,18 +10,18 @@ refresh and logout use the HTTP-only `refresh_token` cookie.
 
 ## Endpoint and role summary
 
-| Area                      | Public             | Customer                   | Staff                 | Admin                    |
-| ------------------------- | ------------------ | -------------------------- | --------------------- | ------------------------ |
-| Health and readiness      | Read               | Read                       | Read                  | Read                     |
-| Coverage and active plans | Read               | Read                       | Read                  | Read                     |
-| Login / refresh / logout  | Session owner      | Session owner              | Session owner         | Session owner            |
-| Customer collection       | —                  | —                          | Read/update           | Create/read/update       |
-| Own customer profile      | —                  | Read/update allowed fields | —                     | —                        |
-| Plan administration       | —                  | —                          | —                     | Create/update/deactivate |
-| Subscription collection   | —                  | Own records/select and pay | Read/status update    | Read/status update       |
-| Invoices                  | —                  | Own records/PDF/pay        | Create/read/PDF/email | Full workflow/status     |
-| Dashboards                | —                  | Own summary                | —                     | Aggregate summary        |
-| Stripe webhook            | Signature required | Signature required         | Signature required    | Signature required       |
+| Area                      | Public             | Customer                           | Staff                               | Admin                               |
+| ------------------------- | ------------------ | ---------------------------------- | ----------------------------------- | ----------------------------------- |
+| Health and readiness      | Read               | Read                               | Read                                | Read                                |
+| Coverage and active plans | Read               | Read                               | Read                                | Read                                |
+| Login / refresh / logout  | Session owner      | Session owner                      | Session owner                       | Session owner                       |
+| Customer collection       | —                  | —                                  | Read/update                         | Create/read/update                  |
+| Own customer profile      | —                  | Read/update allowed fields         | —                                   | —                                   |
+| Plan administration       | —                  | —                                  | —                                   | Create/update/deactivate            |
+| Subscription collection   | —                  | Own records/select/pay/change plan | Read/status and plan-change history | Read/status and plan-change history |
+| Invoices                  | —                  | Own records/PDF/pay                | Create/read/PDF/email               | Full workflow/status                |
+| Dashboards                | —                  | Own summary                        | —                                   | Aggregate summary                   |
+| Stripe webhook            | Signature required | Signature required                 | Signature required                  | Signature required                  |
 
 The public webhook row does not mean anonymous callers are trusted: raw request bytes and the
 `Stripe-Signature` header must pass cryptographic verification before any data changes.
@@ -34,6 +34,8 @@ The public webhook row does not mean anonymous callers are trusted: raw request 
 - `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me` — authentication lifecycle.
 - `/customers`, `/customers/me` — operations and self-service customer data.
 - `/subscriptions`, `/subscriptions/me` — operational status management and customer history.
+- `/subscriptions/:id/plan-change/*`, `/plan-change-requests` — owned upgrade/downgrade previews,
+  requests, cancellation, and role-filtered history; see [plan changes](plan-changes.md).
 - `/invoices`, `/invoices/me`, `/invoices/generate`, `/invoices/:id/pdf`,
   `/invoices/:id/send`, `/invoices/:id/status` — invoice workflow.
 - `/payments/public-plan-checkout-session`, `/payments/public-checkout-status`,

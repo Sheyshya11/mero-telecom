@@ -1,8 +1,8 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { apiDownload, apiRequest } from '../../lib/api/client';
 import { useAuth } from '../auth/auth-provider';
@@ -23,11 +23,44 @@ function formatDate(value: string) {
 
 export function CustomerDashboardView() {
   const { accessToken, isLoading, logout, user } = useAuth();
+  const queryClient = useQueryClient();
+  const [paymentReturn, setPaymentReturn] = useState<'success' | 'cancelled' | null>(null);
+  const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    setPaymentReturn(payment === 'success' || payment === 'cancelled' ? payment : null);
+    setCheckoutSessionId(params.get('sessionId'));
+  }, []);
+
+  const checkoutReconciliation = useQuery({
+    queryKey: ['checkout-reconciliation', checkoutSessionId],
+    queryFn: () =>
+      apiRequest<{
+        paymentStatus: string;
+        invoiceStatus: string;
+        subscription: { status: string; plan: { name: string } } | null;
+      }>(
+        `/payments/checkout-status?sessionId=${encodeURIComponent(checkoutSessionId!)}`,
+        {},
+        accessToken,
+      ),
+    enabled: Boolean(
+      accessToken && user?.role === 'CUSTOMER' && paymentReturn === 'success' && checkoutSessionId,
+    ),
+    retry: 1,
+  });
   const dashboardQuery = useQuery({
     queryKey: ['customer-dashboard'],
     queryFn: () => apiRequest<CustomerDashboard>('/dashboard/customer', {}, accessToken),
     enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
   });
+
+  useEffect(() => {
+    if (!checkoutReconciliation.data) return;
+    void queryClient.invalidateQueries({ queryKey: ['customer-dashboard'] });
+  }, [checkoutReconciliation.data, queryClient]);
 
   if (isLoading) return <Status message="Restoring your session..." />;
   if (!user) return <Status message="Sign in to view your account." />;
@@ -71,6 +104,23 @@ export function CustomerDashboardView() {
           </button>
         </div>
       </header>
+
+      {paymentReturn ? (
+        <p
+          className={`mt-6 rounded-xl border p-4 text-sm ${checkoutReconciliation.isError ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-sky-200 bg-sky-50 text-sky-900'}`}
+          role={checkoutReconciliation.isError ? 'alert' : 'status'}
+        >
+          {paymentReturn === 'cancelled'
+            ? 'Stripe Checkout was closed without changing this invoice.'
+            : checkoutReconciliation.isPending && checkoutSessionId
+              ? 'Payment received. Verifying the Checkout and updating your invoice…'
+              : checkoutReconciliation.isError
+                ? 'Stripe returned a successful payment, but reconciliation could not finish. Do not pay again; retry or contact support.'
+                : checkoutReconciliation.data?.invoiceStatus === 'PAID'
+                  ? 'Payment verified. Your invoice is paid.'
+                  : 'Payment verification is still processing.'}
+        </p>
+      ) : null}
 
       <section className="mt-8 grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
         <Panel title="Your internet service">

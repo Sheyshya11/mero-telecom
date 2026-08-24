@@ -46,6 +46,11 @@ The API suite verifies:
 - deterministic GST cents, duplicate monthly invoice conflict, and authorized PDF bytes;
 - customer ownership on records and PDFs, including an IDOR attempt;
 - self-service mass-assignment rejection;
+- authoritative upgrade/downgrade preview, ownership, blocking invoices, conflicting requests,
+  cancellation, historical subscription creation, and future renewal invoicing;
+- invalid Stripe signatures and plan-change metadata, amount/currency mismatch, duplicate and
+  out-of-order webhooks, expiration, asynchronous failure, suspension/overdue races, and exactly-once
+  upgrade/downgrade application;
 - PostgreSQL and Redis readiness, public coverage responses, and administrative audit evidence.
 
 External systems are not contacted in this suite. Stripe cryptographic/event behavior, SMTP email
@@ -71,7 +76,9 @@ Before a release, run the application with migrated/seeded development services 
 2. Admin login, dashboard, invoice management, safe cancellation dialog, and PDF download.
 3. Staff login and restricted customer-management navigation.
 4. Customer login, owned dashboard/invoice history, PDF download, and profile update form.
-5. Browser console and network failures during each journey.
+5. Customer plan-change upgrade preview, Stripe redirect, pending state, scheduled downgrade, and
+   cancellation; confirm the admin plan-change filters show the same records.
+6. Browser console and network failures during each journey.
 
 Use test data only. Do not submit a real payment or email a real customer. Stripe Checkout may be
 tested with official sandbox cards and a Stripe CLI-forwarded, signature-verified webhook.

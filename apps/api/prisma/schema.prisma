@@ -66,6 +66,22 @@ enum BillingCycle {
   MONTHLY
 }
 
+enum PlanChangeType {
+  UPGRADE
+  DOWNGRADE
+}
+
+enum PlanChangeStatus {
+  PENDING
+  CHECKOUT_CREATED
+  PROCESSING
+  SCHEDULED
+  APPLIED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
 enum InvoiceStatus {
   DRAFT
   ISSUED
@@ -126,6 +142,7 @@ model Customer {
   payments             Payment[]
   addresses            CustomerAddress[]
   checkoutApplications CheckoutApplication[]
+  planChangeRequests   PlanChangeRequest[]
 
   @@index([lastName, firstName])
   @@index([status])
@@ -177,6 +194,8 @@ model InternetPlan {
   subscriptions        Subscription[]
   purchaseInvoices     Invoice[]             @relation("InvoicePurchasePlan")
   checkoutApplications CheckoutApplication[]
+  sourcePlanChanges    PlanChangeRequest[]   @relation("PlanChangeSourcePlan")
+  targetPlanChanges    PlanChangeRequest[]   @relation("PlanChangeTargetPlan")
 
   @@index([isActive])
   @@index([isPublic, isAvailable, tierRank])
@@ -189,13 +208,19 @@ model Subscription {
   status              SubscriptionStatus   @default(PENDING)
   startDate           DateTime             @db.Date
   endDate             DateTime?            @db.Date
+  endReason           String?              @db.VarChar(100)
   billingCycle        BillingCycle         @default(MONTHLY)
+  billingAnchorDay    Int
+  currentPeriodStart  DateTime
+  currentPeriodEnd    DateTime
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   customer            Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
   plan                InternetPlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
   invoices            Invoice[]
   checkoutApplication CheckoutApplication?
+  sourcePlanChanges   PlanChangeRequest[]  @relation("PlanChangeSourceSubscription")
+  resultingPlanChange PlanChangeRequest?   @relation("PlanChangeResultSubscription")
 
   @@index([customerId, status])
   @@index([planId])
@@ -226,6 +251,7 @@ model Invoice {
   payments            Payment[]
   documents           InvoiceDocument[]
   checkoutApplication CheckoutApplication?
+  planChangeRequest   PlanChangeRequest?
 
   @@unique([subscriptionId, issueDate])
   @@index([customerId, status])
@@ -262,6 +288,7 @@ model Payment {
   customer            Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
   webhookEvents       PaymentWebhookEvent[]
   checkoutApplication CheckoutApplication?
+  planChangeRequest   PlanChangeRequest?
 
   @@unique([provider, providerPaymentId])
   @@index([invoiceId, status])
@@ -327,15 +354,62 @@ model AccountInvitation {
 }
 
 model PaymentWebhookEvent {
-  id              String          @id @default(uuid()) @db.Uuid
-  provider        PaymentProvider
-  providerEventId String          @unique @db.VarChar(255)
-  eventType       String          @db.VarChar(100)
-  paymentId       String?         @db.Uuid
-  processedAt     DateTime        @default(now())
-  payment         Payment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  id                  String             @id @default(uuid()) @db.Uuid
+  provider            PaymentProvider
+  providerEventId     String             @unique @db.VarChar(255)
+  eventType           String             @db.VarChar(100)
+  paymentId           String?            @db.Uuid
+  planChangeRequestId String?            @db.Uuid
+  processedAt         DateTime           @default(now())
+  payment             Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  planChangeRequest   PlanChangeRequest? @relation(fields: [planChangeRequestId], references: [id], onDelete: SetNull)
 
   @@index([paymentId])
+  @@index([planChangeRequestId])
+}
+
+model PlanChangeRequest {
+  id                         String                @id @default(uuid()) @db.Uuid
+  customerId                 String                @db.Uuid
+  sourceSubscriptionId       String                @db.Uuid
+  newSubscriptionId          String?               @unique @db.Uuid
+  sourcePlanId               String                @db.Uuid
+  targetPlanId               String                @db.Uuid
+  type                       PlanChangeType
+  status                     PlanChangeStatus      @default(PENDING)
+  currency                   String                @default("AUD") @db.Char(3)
+  sourcePlanPriceCents       Int
+  targetPlanPriceCents       Int
+  unusedCreditCents          Int
+  proratedTargetCents        Int
+  amountPayableCents         Int
+  currentPeriodStartSnapshot DateTime
+  currentPeriodEndSnapshot   DateTime
+  requestedAt                DateTime              @default(now())
+  effectiveAt                DateTime
+  stripeCheckoutSessionId    String?               @unique @db.VarChar(255)
+  stripePaymentIntentId      String?               @unique @db.VarChar(255)
+  invoiceId                  String?               @unique @db.Uuid
+  paymentId                  String?               @unique @db.Uuid
+  failureReason              String?               @db.VarChar(255)
+  cancellationReason         String?               @db.VarChar(255)
+  appliedAt                  DateTime?
+  cancelledAt                DateTime?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  customer                   Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  sourceSubscription         Subscription          @relation("PlanChangeSourceSubscription", fields: [sourceSubscriptionId], references: [id], onDelete: Restrict)
+  newSubscription            Subscription?         @relation("PlanChangeResultSubscription", fields: [newSubscriptionId], references: [id], onDelete: Restrict)
+  sourcePlan                 InternetPlan          @relation("PlanChangeSourcePlan", fields: [sourcePlanId], references: [id], onDelete: Restrict)
+  targetPlan                 InternetPlan          @relation("PlanChangeTargetPlan", fields: [targetPlanId], references: [id], onDelete: Restrict)
+  invoice                    Invoice?              @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  payment                    Payment?              @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  webhookEvents              PaymentWebhookEvent[]
+
+  @@index([customerId, createdAt])
+  @@index([sourceSubscriptionId, status])
+  @@index([status, effectiveAt])
+  @@index([type, status])
 }
 
 model RefreshSession {

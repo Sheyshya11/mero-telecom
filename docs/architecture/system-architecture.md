@@ -139,6 +139,13 @@ one unpaid plan purchase per customer, preventing two simultaneous Checkouts fro
 paid selections. Existing subscription invoices continue through the owned `ISSUED`/`OVERDUE`
 invoice Checkout flow.
 
+Plan upgrades extend that same verified Checkout boundary with a one-time, integer-cent prorated
+charge. The old subscription remains active until the paid webhook atomically creates a historical
+transition and a new active subscription with the preserved period end. Downgrades require no
+payment and are reconciled at the stored UTC billing boundary by a single-concurrency BullMQ worker.
+The worker also advances expired monthly periods with stable month-end anchors. See
+[subscription plan changes](../api/plan-changes.md).
+
 ## Data, cache, and failure behaviour
 
 PostgreSQL is the system of record. Redis caches the admin dashboard summary and persists the

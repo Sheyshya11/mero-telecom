@@ -20,7 +20,7 @@ import {
   UserStatus,
 } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
@@ -34,6 +34,8 @@ import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.servi
 import { CoverageService } from '../coverage/coverage.service';
 import { NotificationService } from '../notifications/notification.service';
 import type { CreatePublicPlanCheckoutSessionDto } from './dto/create-checkout-session.dto';
+import { StripeClientService } from './stripe-client.service';
+import { PlanChangesService } from '../plan-changes/plan-changes.service';
 
 const planPurchaseInclude = {
   customer: true,
@@ -74,15 +76,15 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService<AppConfig, true>,
+    stripeClient: StripeClientService,
     private readonly dashboardCache: AdminDashboardCacheService,
     private readonly billing: BillingService,
     private readonly coverage: CoverageService,
     private readonly invitations: AccountInvitationsService,
     private readonly notifications: NotificationService,
+    private readonly planChanges: PlanChangesService,
   ) {
-    this.stripe = new Stripe(configService.getOrThrow('stripe').secretKey, {
-      apiVersion: '2026-07-29.dahlia',
-    });
+    this.stripe = stripeClient.client;
   }
 
   async createPublicPlanCheckoutSession(input: CreatePublicPlanCheckoutSessionDto) {
@@ -265,6 +267,51 @@ export class PaymentsService {
     };
   }
 
+  async getAuthenticatedCheckoutStatus(sessionId: string, actor: AuthenticatedUser) {
+    if (!/^cs_(?:test|live)_/.test(sessionId)) {
+      throw new BadRequestException('A valid Stripe Checkout Session ID is required.');
+    }
+    const ownedPayment = await this.prisma.payment.findFirst({
+      where: {
+        provider: PaymentProvider.STRIPE,
+        providerSessionId: sessionId,
+        customer: { userId: actor.id },
+      },
+      select: { id: true },
+    });
+    if (!ownedPayment) throw new NotFoundException('Checkout status not found.');
+
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status === 'paid') {
+      await this.finalizeInvoiceCheckout(
+        this.reconciliationEventId(session.id),
+        'server.checkout_reconciliation',
+        session,
+      );
+    }
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: ownedPayment.id },
+      include: {
+        invoice: {
+          select: {
+            status: true,
+            subscription: { select: { id: true, status: true, plan: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+    if (!payment) throw new NotFoundException('Checkout status not found.');
+
+    return {
+      checkoutStatus: session.status,
+      stripePaymentStatus: session.payment_status,
+      paymentStatus: payment.status,
+      invoiceStatus: payment.invoice.status,
+      subscription: payment.invoice.subscription,
+    };
+  }
+
   async createCheckoutSession(invoiceId: string, actor: AuthenticatedUser) {
     const invoice = await this.prisma.invoice.findFirst({
       where:
@@ -297,6 +344,14 @@ export class PaymentsService {
       if (existingSession.status === 'open' && existingSession.url) {
         return { checkoutUrl: existingSession.url, paymentId: existingPayment.id };
       }
+      if (existingSession.payment_status === 'paid') {
+        await this.finalizeInvoiceCheckout(
+          this.reconciliationEventId(existingSession.id),
+          'server.checkout_reconciliation',
+          existingSession,
+        );
+        return { checkoutUrl: null, paymentId: existingPayment.id, reconciled: true };
+      }
       if (existingSession.status === 'complete') {
         throw new ConflictException('Your payment is already complete or still processing.');
       }
@@ -322,7 +377,7 @@ export class PaymentsService {
             },
           },
         ],
-        success_url: `${this.frontendUrl()}/customer/dashboard?payment=success`,
+        success_url: `${this.frontendUrl()}/customer/dashboard?payment=success&sessionId={CHECKOUT_SESSION_ID}`,
         cancel_url: `${this.frontendUrl()}/customer/dashboard?payment=cancelled`,
       },
       { idempotencyKey: `invoice-checkout-${invoice.id}-${randomUUID()}` },
@@ -363,6 +418,8 @@ export class PaymentsService {
 
     let invoice = await this.findOpenPlanPurchase(customer.id);
     if (invoice) {
+      const reconciled = await this.reconcilePaidPlanPurchase(invoice);
+      if (reconciled) return reconciled;
       const selectionChanged =
         invoice.purchasePlanId !== plan.id || invoice.totalCents !== plan.monthlyCents;
       if (selectionChanged || !(await this.isReusablePlanPurchase(invoice))) {
@@ -397,6 +454,10 @@ export class PaymentsService {
       return;
 
     const session = event.data.object as Stripe.Checkout.Session;
+    if (session.metadata?.checkoutKind === 'plan_change') {
+      await this.planChanges.processStripeEvent(event, session);
+      return;
+    }
     if (session.metadata?.checkoutKind === 'public_subscription') {
       await this.processPublicCheckoutEvent(event, session);
       return;
@@ -407,6 +468,16 @@ export class PaymentsService {
     )
       return;
     if (session.payment_status !== 'paid') return;
+
+    await this.finalizeInvoiceCheckout(event.id, event.type, session);
+  }
+
+  private async finalizeInvoiceCheckout(
+    providerEventId: string,
+    eventType: string,
+    session: Stripe.Checkout.Session,
+  ): Promise<void> {
+    if (session.payment_status !== 'paid') return;
     const invoiceId = session.metadata?.invoiceId ?? session.client_reference_id;
     if (!invoiceId)
       throw new BadRequestException('Stripe Checkout session is missing an invoice reference.');
@@ -415,7 +486,7 @@ export class PaymentsService {
       await this.prisma.$transaction(
         async (transaction) => {
           const alreadyProcessed = await transaction.paymentWebhookEvent.findUnique({
-            where: { providerEventId: event.id },
+            where: { providerEventId },
           });
           if (alreadyProcessed) return;
 
@@ -445,8 +516,8 @@ export class PaymentsService {
             await transaction.paymentWebhookEvent.create({
               data: {
                 provider: PaymentProvider.STRIPE,
-                providerEventId: event.id,
-                eventType: event.type,
+                providerEventId,
+                eventType,
                 paymentId: paymentForSession.id,
               },
             });
@@ -472,12 +543,17 @@ export class PaymentsService {
             if (currentSubscription) {
               throw new ConflictException('The customer already has a current subscription.');
             }
+            const activatedAt = new Date();
+            const billingAnchorDay = activatedAt.getUTCDate();
             const subscription = await transaction.subscription.create({
               data: {
                 customerId: invoice.customerId,
                 planId: invoice.purchasePlanId,
                 status: SubscriptionStatus.ACTIVE,
-                startDate: this.utcDate(new Date()),
+                startDate: this.utcDate(activatedAt),
+                billingAnchorDay,
+                currentPeriodStart: activatedAt,
+                currentPeriodEnd: this.billing.nextMonthlyBoundary(activatedAt, billingAnchorDay),
               },
             });
             activatedSubscriptionId = subscription.id;
@@ -505,8 +581,8 @@ export class PaymentsService {
           await transaction.paymentWebhookEvent.create({
             data: {
               provider: PaymentProvider.STRIPE,
-              providerEventId: event.id,
-              eventType: event.type,
+              providerEventId,
+              eventType,
               paymentId: payment.id,
             },
           });
@@ -516,7 +592,7 @@ export class PaymentsService {
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const storedEvent = await this.prisma.paymentWebhookEvent.findUnique({
-          where: { providerEventId: event.id },
+          where: { providerEventId },
         });
         if (storedEvent) return;
       }
@@ -737,12 +813,16 @@ export class PaymentsService {
             },
           });
           const paidAt = new Date();
+          const billingAnchorDay = paidAt.getUTCDate();
           const subscription = await transaction.subscription.create({
             data: {
               customerId: customer.id,
               planId: application.planId,
               status: SubscriptionStatus.ACTIVE,
               startDate: this.utcDate(paidAt),
+              billingAnchorDay,
+              currentPeriodStart: paidAt,
+              currentPeriodEnd: this.billing.nextMonthlyBoundary(paidAt, billingAnchorDay),
             },
           });
           await transaction.$executeRaw`SELECT pg_advisory_xact_lock(${PaymentsService.invoiceSequenceLock})`;
@@ -989,6 +1069,10 @@ export class PaymentsService {
     );
   }
 
+  private reconciliationEventId(sessionId: string): string {
+    return `reconcile:${sessionId}`;
+  }
+
   private async assertCanPurchasePlan(customerId: string): Promise<void> {
     const current = await this.prisma.subscription.count({
       where: {
@@ -1028,6 +1112,20 @@ export class PaymentsService {
       );
     }
     return false;
+  }
+
+  private async reconcilePaidPlanPurchase(invoice: PlanPurchaseInvoice) {
+    const payment = invoice.payments[0];
+    if (!payment?.providerSessionId) return null;
+    const session = await this.stripe.checkout.sessions.retrieve(payment.providerSessionId);
+    if (session.payment_status !== 'paid') return null;
+
+    await this.finalizeInvoiceCheckout(
+      this.reconciliationEventId(session.id),
+      'server.checkout_reconciliation',
+      session,
+    );
+    return { checkoutUrl: null, paymentId: payment.id, reconciled: true };
   }
 
   private async cancelOpenPlanPurchase(invoice: PlanPurchaseInvoice): Promise<void> {
@@ -1168,7 +1266,7 @@ export class PaymentsService {
             },
           },
         ],
-        success_url: `${this.frontendUrl()}/customer/subscription?payment=success`,
+        success_url: `${this.frontendUrl()}/customer/subscription?payment=success&sessionId={CHECKOUT_SESSION_ID}`,
         cancel_url: `${this.frontendUrl()}/customer/subscription?payment=cancelled`,
       },
       { idempotencyKey: `plan-checkout-${invoice.id}` },

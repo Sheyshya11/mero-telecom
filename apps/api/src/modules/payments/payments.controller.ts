@@ -60,6 +60,18 @@ export class PaymentsController {
     return this.payments.getPublicCheckoutStatus(query.sessionId);
   }
 
+  @Get('checkout-status')
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  getCheckoutStatus(
+    @Query() query: PublicCheckoutStatusQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.payments.getAuthenticatedCheckoutStatus(query.sessionId, user);
+  }
+
   @Post('checkout-session')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)

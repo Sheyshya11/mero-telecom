@@ -9,6 +9,10 @@ import {
   renderSubscriptionConfirmationEmail,
 } from './templates/account-email.template';
 import { renderInvoiceEmail } from './templates/invoice-email.template';
+import {
+  renderPlanChangeEmail,
+  type PlanChangeEmailEvent,
+} from './templates/plan-change-email.template';
 import type { AccountInvitationReason } from '@prisma/client';
 
 export interface InvoiceEmailData {
@@ -81,6 +85,32 @@ export class NotificationService {
         checkoutApplicationId: input.checkoutApplicationId,
       },
       `subscription-confirmation-${input.checkoutApplicationId}`,
+    );
+    return { recipient, messageId: `queued:${result.jobId}` };
+  }
+
+  async sendPlanChangeNotification(input: {
+    event: PlanChangeEmailEvent;
+    planChangeRequestId: string;
+    customerName: string;
+    customerEmail: string;
+    oldPlanName: string;
+    newPlanName: string;
+    amountCents: number;
+    currency: string;
+    effectiveAt: Date;
+    nextBillingAt: Date;
+  }): Promise<InvoiceEmailResult> {
+    const recipient = this.invoiceRecipient(input.customerEmail);
+    const template = renderPlanChangeEmail({
+      ...input,
+      dashboardUrl: `${this.configService.getOrThrow('app').frontendUrl}/customer/subscription`,
+    });
+    const purpose = `PLAN_CHANGE_${input.event}` as const;
+    const result = await this.emailQueue.enqueue(
+      { to: recipient, ...template },
+      { purpose, planChangeRequestId: input.planChangeRequestId },
+      `plan-change-${input.planChangeRequestId}-${input.event.toLowerCase()}`,
     );
     return { recipient, messageId: `queued:${result.jobId}` };
   }

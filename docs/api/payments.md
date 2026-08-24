@@ -53,7 +53,16 @@ activates service.
 `POST /api/v1/payments/plan-checkout-session` accepts only a `planId`. The API creates the initial
 issued invoice and payment session, but deliberately does not create a subscription yet. A unique
 database constraint allows one open plan purchase per customer. Repeated requests reuse the same
-open Stripe session, while choosing a different plan expires and cancels the unpaid selection.
+open Stripe session, while choosing a different plan expires and cancels the unpaid selection. If
+the stored session is already paid, retrying this endpoint reconciles that payment instead of
+opening another Checkout or returning a stale conflict.
+
+The authenticated success URL includes Stripe's Checkout Session ID. The customer page calls
+`GET /api/v1/payments/checkout-status?sessionId=cs_test_...`; the API first proves that the stored
+payment belongs to the signed-in customer, retrieves the session directly from Stripe, and passes
+any paid session through the same idempotent invoice/subscription transaction as the webhook. This
+is a recovery path for a browser that returns after a local webhook was missed, not a replacement
+for the signed webhook.
 
 ## Trusted completion and idempotency
 
@@ -64,6 +73,11 @@ whose Stripe-reported total and customer/plan metadata match the invoice can cha
 the `ACTIVE` subscription and links it to the invoice. The payment stores the Stripe Checkout
 Session and PaymentIntent identifiers. Each provider event ID is stored in `PaymentWebhookEvent`;
 retries become no-ops.
+
+Server-side reconciliation records a deterministic `reconcile:<checkout-session-id>` event marker.
+If Stripe later retries the original webhook event, the already-paid payment and active
+subscription make that event an idempotent no-op; no second charge, invoice, or subscription is
+created.
 
 For a paid public registration, one serializable transaction creates the pending login identity,
 customer and addresses, active subscription, paid invoice/items, successful payment, invitation,
@@ -76,3 +90,8 @@ identity.
 The handler also processes `checkout.session.async_payment_failed` and
 `checkout.session.expired`. Stripe metadata contains internal identifiers only; personal details
 remain in the database. Neither session data nor webhook payloads are logged.
+
+Authenticated upgrades reuse this handler with `checkoutKind=plan_change` and collect only the
+server-calculated prorated difference. The old subscription remains active until verified payment;
+see [subscription plan changes](plan-changes.md) for metadata validation, concurrency, and failure
+behaviour.

@@ -14,6 +14,7 @@ checks, and role-specific dashboards.
 - Deterministic monthly billing in integer cents, with GST-inclusive invoice calculations.
 - Authoritative invoice PDFs stored privately in production and streamed only after authorization.
 - Stripe test-mode Checkout with signature-verified, idempotent webhook processing.
+- Self-service prorated upgrades and boundary-scheduled downgrades with historical subscriptions.
 - Public customer registration through paid Checkout, followed by a single-use account activation
   link; abandoned or failed payments never create login accounts.
 - Invitation-based admin customer creation without staff-generated passwords.
@@ -111,7 +112,8 @@ account, and single-use activation invitation in one idempotent transaction. Exi
 sign in before changing plans or paying an owned invoice.
 
 Stripe is deliberately restricted to test keys (`sk_test_...` or `rk_test_...`). Full details are
-in [payments](docs/api/payments.md).
+in [payments](docs/api/payments.md). Upgrade, downgrade, reconciliation, and safe test procedures
+are documented in [subscription plan changes](docs/api/plan-changes.md).
 
 ## Verification
 

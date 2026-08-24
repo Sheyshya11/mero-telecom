@@ -152,6 +152,9 @@ async function main(): Promise<void> {
         planId: essentialPlan.id,
         status: 'ACTIVE',
         startDate: new Date('2026-01-01'),
+        billingAnchorDay: 1,
+        currentPeriodStart: new Date('2026-08-01T00:00:00.000Z'),
+        currentPeriodEnd: new Date('2026-09-01T00:00:00.000Z'),
       },
     }),
     prisma.subscription.create({
@@ -160,6 +163,9 @@ async function main(): Promise<void> {
         planId: familyPlan.id,
         status: 'ACTIVE',
         startDate: new Date('2025-11-01'),
+        billingAnchorDay: 1,
+        currentPeriodStart: new Date('2026-08-01T00:00:00.000Z'),
+        currentPeriodEnd: new Date('2026-09-01T00:00:00.000Z'),
       },
     }),
   ]);
@@ -170,6 +176,9 @@ async function main(): Promise<void> {
       planId: businessPlan.id,
       status: 'PENDING',
       startDate: new Date('2026-09-01'),
+      billingAnchorDay: 1,
+      currentPeriodStart: new Date('2026-09-01T00:00:00.000Z'),
+      currentPeriodEnd: new Date('2026-10-01T00:00:00.000Z'),
     },
   });
 

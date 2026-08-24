@@ -1,16 +1,18 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, apiRequest } from '../../lib/api/client';
 import { useAuth } from '../auth/auth-provider';
 
 interface CheckoutSessionResponse {
-  checkoutUrl: string;
+  checkoutUrl: string | null;
+  reconciled?: boolean;
 }
 
 export function StripeCheckoutButton({ invoiceId }: Readonly<{ invoiceId: string }>) {
   const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
   const checkout = useMutation({
     mutationFn: () =>
       apiRequest<CheckoutSessionResponse>(
@@ -18,7 +20,13 @@ export function StripeCheckoutButton({ invoiceId }: Readonly<{ invoiceId: string
         { method: 'POST', body: JSON.stringify({ invoiceId }) },
         accessToken,
       ),
-    onSuccess: ({ checkoutUrl }) => window.location.assign(checkoutUrl),
+    onSuccess: async ({ checkoutUrl }) => {
+      if (checkoutUrl) {
+        window.location.assign(checkoutUrl);
+        return;
+      }
+      await queryClient.invalidateQueries();
+    },
   });
 
   return (
@@ -34,12 +42,16 @@ export function StripeCheckoutButton({ invoiceId }: Readonly<{ invoiceId: string
       {checkout.isError ? (
         <p className="mt-2 text-sm text-rose-700">Unable to start the secure payment session.</p>
       ) : null}
+      {checkout.data?.reconciled ? (
+        <p className="mt-2 text-sm text-emerald-700">Payment confirmed. Refreshing your account…</p>
+      ) : null}
     </div>
   );
 }
 
 export function PlanCheckoutButton({ planId }: Readonly<{ planId: string }>) {
   const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
   const checkout = useMutation({
     mutationFn: () =>
       apiRequest<CheckoutSessionResponse>(
@@ -47,7 +59,16 @@ export function PlanCheckoutButton({ planId }: Readonly<{ planId: string }>) {
         { method: 'POST', body: JSON.stringify({ planId }) },
         accessToken,
       ),
-    onSuccess: ({ checkoutUrl }) => window.location.assign(checkoutUrl),
+    onSuccess: async ({ checkoutUrl }) => {
+      if (checkoutUrl) {
+        window.location.assign(checkoutUrl);
+        return;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['my-subscriptions'] }),
+        queryClient.invalidateQueries({ queryKey: ['plan-change'] }),
+      ]);
+    },
   });
 
   return (
@@ -65,6 +86,11 @@ export function PlanCheckoutButton({ planId }: Readonly<{ planId: string }>) {
           {checkout.error instanceof ApiError
             ? checkout.error.message
             : 'Unable to start the secure payment session.'}
+        </p>
+      ) : null}
+      {checkout.data?.reconciled ? (
+        <p className="mt-2 text-sm text-emerald-700">
+          Payment confirmed. Your subscription is now active.
         </p>
       ) : null}
     </div>
