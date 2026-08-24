@@ -18,7 +18,7 @@ refresh and logout use the HTTP-only `refresh_token` cookie.
 | Customer collection       | —                  | —                          | Read/update           | Create/read/update       |
 | Own customer profile      | —                  | Read/update allowed fields | —                     | —                        |
 | Plan administration       | —                  | —                          | —                     | Create/update/deactivate |
-| Subscription collection   | —                  | Own records                | Create/read/update    | Create/read/update       |
+| Subscription collection   | —                  | Own records/select and pay | Read/status update    | Read/status update       |
 | Invoices                  | —                  | Own records/PDF/pay        | Create/read/PDF/email | Full workflow/status     |
 | Dashboards                | —                  | Own summary                | —                     | Aggregate summary        |
 | Stripe webhook            | Signature required | Signature required         | Signature required    | Signature required       |
@@ -33,10 +33,14 @@ The public webhook row does not mean anonymous callers are trusted: raw request 
 - `/plans/public`, `/plans` — public catalogue and protected plan management; see [plans](plans.md).
 - `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me` — authentication lifecycle.
 - `/customers`, `/customers/me` — operations and self-service customer data.
-- `/subscriptions`, `/subscriptions/me` — assignment and customer history.
+- `/subscriptions`, `/subscriptions/me` — operational status management and customer history.
 - `/invoices`, `/invoices/me`, `/invoices/generate`, `/invoices/:id/pdf`,
   `/invoices/:id/send`, `/invoices/:id/status` — invoice workflow.
-- `/payments/checkout-session`, `/payments/stripe/webhook` — Stripe test-mode payments.
+- `/payments/public-plan-checkout-session`, `/payments/public-checkout-status`,
+  `/payments/plan-checkout-session`, `/payments/checkout-session`, `/payments/stripe/webhook` —
+  public registration, customer plan purchase, and Stripe test-mode payments.
+- `/auth/activation/verify`, `/auth/activation`, `/auth/activation/resend` — single-use account
+  invitation verification, password setup, and enumeration-safe resend.
 - `/dashboard/admin`, `/dashboard/customer` — role-specific summaries.
 
 Feature-specific request bodies, filters, state transitions, and response examples are documented

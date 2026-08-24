@@ -40,6 +40,18 @@ services:
         value: 15m
       - key: JWT_REFRESH_EXPIRES_IN
         value: 7d
+      - key: ACCOUNT_INVITATION_TTL_HOURS
+        value: 24
+      - key: EMAIL_DELIVERY_MODE
+        value: direct
+      - key: EMAIL_QUEUE_ENCRYPTION_KEY
+        generateValue: true
+      - key: EMAIL_QUEUE_ATTEMPTS
+        value: 3
+      - key: EMAIL_QUEUE_BACKOFF_MS
+        value: 3000
+      - key: EMAIL_QUEUE_CONCURRENCY
+        value: 3
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
@@ -74,8 +86,8 @@ services:
     plan: starter
     region: singapore
     ipAllowList: []
-    maxmemoryPolicy: allkeys-lru
-    persistenceMode: 'off'
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
 
 databases:
   - name: mero-telecom-postgres

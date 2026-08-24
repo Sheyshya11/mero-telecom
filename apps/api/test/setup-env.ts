@@ -11,6 +11,7 @@ process.env.STRIPE_SECRET_KEY ??= 'sk_test_e2e';
 process.env.STRIPE_WEBHOOK_SECRET ??= 'whsec_e2e';
 process.env.EMAIL_FROM ??= 'Mero Telecom Test <test@example.com>';
 process.env.EMAIL_DEV_RECIPIENT ??= 'test@example.com';
+process.env.EMAIL_QUEUE_ENCRYPTION_KEY ??= '';
 process.env.SMTP_HOST ??= 'localhost';
 process.env.SMTP_PORT ??= '1025';
 process.env.SMTP_SECURE ??= 'false';

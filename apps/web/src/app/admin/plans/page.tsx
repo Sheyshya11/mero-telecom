@@ -16,6 +16,9 @@ interface Plan {
   uploadMbps: number;
   monthlyCents: number;
   isActive: boolean;
+  isPublic: boolean;
+  isAvailable: boolean;
+  tierRank: number;
 }
 
 const planSchema = z.object({
@@ -24,6 +27,9 @@ const planSchema = z.object({
   downloadMbps: z.coerce.number().int().min(1, 'Must be at least 1 Mbps.'),
   uploadMbps: z.coerce.number().int().min(1, 'Must be at least 1 Mbps.'),
   monthlyPrice: z.coerce.number().positive('Enter a price greater than zero.'),
+  tierRank: z.coerce.number().int().min(0, 'Tier rank cannot be negative.'),
+  isPublic: z.boolean(),
+  isAvailable: z.boolean(),
 });
 
 type PlanFormInput = z.input<typeof planSchema>;
@@ -48,6 +54,9 @@ export default function AdminPlansPage() {
       downloadMbps: 50,
       uploadMbps: 20,
       monthlyPrice: 59,
+      tierRank: 1,
+      isPublic: true,
+      isAvailable: true,
     },
   });
 
@@ -69,6 +78,9 @@ export default function AdminPlansPage() {
             downloadMbps: values.downloadMbps,
             uploadMbps: values.uploadMbps,
             monthlyCents: Math.round(values.monthlyPrice * 100),
+            tierRank: values.tierRank,
+            isPublic: values.isPublic,
+            isAvailable: values.isAvailable,
           }),
         },
         accessToken ?? '',
@@ -91,6 +103,9 @@ export default function AdminPlansPage() {
             downloadMbps: values.downloadMbps,
             uploadMbps: values.uploadMbps,
             monthlyCents: Math.round(values.monthlyPrice * 100),
+            tierRank: values.tierRank,
+            isPublic: values.isPublic,
+            isAvailable: values.isAvailable,
           }),
         },
         accessToken ?? '',
@@ -103,10 +118,10 @@ export default function AdminPlansPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, isActive }: Pick<Plan, 'id' | 'isActive'>) =>
+    mutationFn: ({ id, changes }: { id: string; changes: Partial<Plan> }) =>
       apiRequest<Plan>(
         `/plans/${id}`,
-        { method: 'PATCH', body: JSON.stringify({ isActive }) },
+        { method: 'PATCH', body: JSON.stringify(changes) },
         accessToken ?? '',
       ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plans'] }),
@@ -183,6 +198,18 @@ export default function AdminPlansPage() {
                 </span>
               )}
             </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Tier rank
+              <input className="field mt-1" min="0" type="number" {...form.register('tierRank')} />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" {...form.register('isPublic')} /> Publicly visible
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" {...form.register('isAvailable')} /> Available to order
+              </label>
+            </div>
             <label className="block text-sm font-medium text-slate-700">
               Description <span className="text-slate-400">(optional)</span>
               <textarea className="field mt-1 min-h-24" {...form.register('description')} />
@@ -284,6 +311,12 @@ export default function AdminPlansPage() {
                     >
                       {plan.isActive ? 'Active' : 'Inactive'}
                     </span>
+                    <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs text-sky-800">
+                      {plan.isPublic ? 'Public' : 'Internal'}
+                    </span>
+                    <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs text-violet-800">
+                      {plan.isAvailable ? 'Orderable' : 'Unavailable'}
+                    </span>
                   </div>
                   <p className="mt-1 text-sm text-slate-600">
                     {plan.downloadMbps} Mbps down · {plan.uploadMbps} Mbps up ·{' '}
@@ -304,6 +337,9 @@ export default function AdminPlansPage() {
                         downloadMbps: plan.downloadMbps,
                         uploadMbps: plan.uploadMbps,
                         monthlyPrice: plan.monthlyCents / 100,
+                        tierRank: plan.tierRank,
+                        isPublic: plan.isPublic,
+                        isAvailable: plan.isAvailable,
                       });
                     }}
                     type="button"
@@ -313,10 +349,28 @@ export default function AdminPlansPage() {
                   <button
                     className="button-secondary"
                     disabled={statusMutation.isPending}
-                    onClick={() => statusMutation.mutate({ id: plan.id, isActive: !plan.isActive })}
+                    onClick={() =>
+                      statusMutation.mutate({
+                        id: plan.id,
+                        changes: { isActive: !plan.isActive },
+                      })
+                    }
                     type="button"
                   >
                     {plan.isActive ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button
+                    className="button-secondary"
+                    disabled={statusMutation.isPending}
+                    onClick={() =>
+                      statusMutation.mutate({
+                        id: plan.id,
+                        changes: { isAvailable: !plan.isAvailable },
+                      })
+                    }
+                    type="button"
+                  >
+                    {plan.isAvailable ? 'Pause orders' : 'Allow orders'}
                   </button>
                 </div>
               </article>

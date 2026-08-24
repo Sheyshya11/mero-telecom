@@ -2,14 +2,7 @@ import { Type } from 'class-transformer';
 import { IsDateString, IsEnum, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { SubscriptionStatus } from '@prisma/client';
 
-export class CreateSubscriptionDto {
-  @IsUUID() customerId!: string;
-  @IsUUID() planId!: string;
-  @IsDateString() startDate!: string;
-}
-
 export class UpdateSubscriptionDto {
-  @IsOptional() @IsUUID() planId?: string;
   @IsOptional() @IsEnum(SubscriptionStatus) status?: SubscriptionStatus;
   @IsOptional() @IsDateString() startDate?: string;
   @IsOptional() @IsDateString() endDate?: string | null;

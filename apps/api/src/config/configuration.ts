@@ -16,6 +16,7 @@ export interface AppConfig {
   security: {
     throttleTtlMilliseconds: number;
     throttleLimit: number;
+    accountInvitationTtlHours: number;
   };
   jwt: {
     accessSecret: string;
@@ -29,7 +30,15 @@ export interface AppConfig {
   };
   email: {
     from: string;
+    deliveryMode: 'redirect' | 'direct';
     developmentRecipient: string;
+    queue: {
+      name: string;
+      attempts: number;
+      backoffMilliseconds: number;
+      concurrency: number;
+      encryptionKey: string;
+    };
     smtp: {
       host: string;
       port: number;
@@ -67,6 +76,7 @@ export default (): AppConfig => ({
   security: {
     throttleTtlMilliseconds: Number(process.env.THROTTLE_TTL_MS ?? 60_000),
     throttleLimit: Number(process.env.THROTTLE_LIMIT ?? 120),
+    accountInvitationTtlHours: Number(process.env.ACCOUNT_INVITATION_TTL_HOURS ?? 24),
   },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET ?? '',
@@ -80,7 +90,18 @@ export default (): AppConfig => ({
   },
   email: {
     from: process.env.EMAIL_FROM ?? '',
+    deliveryMode:
+      process.env.EMAIL_DELIVERY_MODE === 'direct' || process.env.NODE_ENV === 'production'
+        ? 'direct'
+        : 'redirect',
     developmentRecipient: process.env.EMAIL_DEV_RECIPIENT ?? '',
+    queue: {
+      name: 'mero-telecom-email',
+      attempts: Number(process.env.EMAIL_QUEUE_ATTEMPTS ?? 3),
+      backoffMilliseconds: Number(process.env.EMAIL_QUEUE_BACKOFF_MS ?? 3_000),
+      concurrency: Number(process.env.EMAIL_QUEUE_CONCURRENCY ?? 3),
+      encryptionKey: process.env.EMAIL_QUEUE_ENCRYPTION_KEY ?? '',
+    },
     smtp: {
       host: process.env.SMTP_HOST ?? '',
       port: Number(process.env.SMTP_PORT ?? 1025),

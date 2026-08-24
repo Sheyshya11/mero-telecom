@@ -1,9 +1,10 @@
 import Link from 'next/link';
+import { PublicPlanGrid } from '../features/plans/public-plan-grid';
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl items-center px-6 py-16">
-      <section>
+    <main className="mx-auto min-h-screen max-w-6xl px-6 py-16">
+      <section className="py-10">
         <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM</p>
         <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
           ISP management, built to grow with the business.
@@ -23,6 +24,17 @@ export default function HomePage() {
             Check coverage
           </Link>
         </div>
+      </section>
+      <section className="border-t border-slate-200 py-12">
+        <p className="text-sm font-semibold tracking-wide text-sky-700">INTERNET PLANS</p>
+        <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+          Choose the right connection
+        </h2>
+        <p className="mt-3 max-w-2xl text-slate-600">
+          Public plans are available without signing in. Prices and availability are confirmed by
+          Mero Telecom before payment.
+        </p>
+        <PublicPlanGrid />
       </section>
     </main>
   );

@@ -6,6 +6,31 @@ import { SubscriptionsService } from './subscriptions.service';
 const dashboardCache = { invalidate: jest.fn().mockResolvedValue(true) };
 
 describe('SubscriptionsService', () => {
+  it('does not allow staff to approve a pending subscription manually', async () => {
+    const prisma = {
+      subscription: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'subscription-id',
+          customerId: 'customer-id',
+          planId: 'plan-id',
+          status: SubscriptionStatus.PENDING,
+          startDate: new Date('2026-08-10'),
+          endDate: null,
+        }),
+        update: jest.fn(),
+      },
+    };
+    const service = new SubscriptionsService(
+      prisma as unknown as PrismaService,
+      dashboardCache as never,
+    );
+
+    await expect(
+      service.update('subscription-id', { status: SubscriptionStatus.ACTIVE }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
   it('rejects an invalid lifecycle transition before updating the database', async () => {
     const prisma = {
       subscription: {

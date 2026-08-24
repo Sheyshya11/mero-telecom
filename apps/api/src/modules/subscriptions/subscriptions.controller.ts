@@ -5,7 +5,6 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
-  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -16,11 +15,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import {
-  CreateSubscriptionDto,
-  SubscriptionQueryDto,
-  UpdateSubscriptionDto,
-} from './dto/subscription.dto';
+import { SubscriptionQueryDto, UpdateSubscriptionDto } from './dto/subscription.dto';
 import { SubscriptionsService } from './subscriptions.service';
 
 @ApiTags('subscriptions')
@@ -40,9 +35,6 @@ export class SubscriptionsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.subscriptions.findOne(id, user);
-  }
-  @Post() @Roles(Role.ADMIN, Role.STAFF) create(@Body() input: CreateSubscriptionDto) {
-    return this.subscriptions.create(input);
   }
   @Patch(':subscriptionId') @Roles(Role.ADMIN, Role.STAFF) update(
     @Param('subscriptionId', new ParseUUIDPipe()) id: string,

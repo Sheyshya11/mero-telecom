@@ -39,6 +39,9 @@ The API suite verifies:
   and revoked-session rejection;
 - role boundaries for admin, staff, and customer users;
 - customer uniqueness/validation and staff restrictions on protected fields;
+- passwordless admin customer creation, invitation replacement, token activation/replay rejection,
+  and login only after activation;
+- public checkout rejection for an existing identity, with no duplicate customer account;
 - active plan, subscription, and invoice creation through HTTP;
 - deterministic GST cents, duplicate monthly invoice conflict, and authorized PDF bytes;
 - customer ownership on records and PDFs, including an IDOR attempt;
@@ -48,6 +51,17 @@ The API suite verifies:
 External systems are not contacted in this suite. Stripe cryptographic/event behavior, SMTP email
 composition/deduplication, private object-storage behavior, Redis cache fallback, PDF rendering,
 guards, and configuration validation are exercised with focused tests and injected fakes.
+
+Email queue tests prove that recipient data and activation tokens are not visible in Redis job
+payloads, deterministic IDs prevent duplicate enqueueing, exponential retry settings are applied,
+valid invitations record SMTP delivery evidence, and revoked invitations are skipped. The E2E
+suite waits for the fake SMTP worker to mark an invitation sent, covering NestJS, BullMQ, Redis,
+and PostgreSQL together without contacting Gmail.
+
+Focused Stripe tests also prove that the public amount comes from the selected plan, no customer is
+created before payment, paid webhook retries create exactly one account/subscription, and expired
+Checkout creates no account or service. Invitation tests assert token hashing, expiry, replacement,
+strong password hashing, successful activation, and replay rejection.
 
 ## Browser acceptance
 

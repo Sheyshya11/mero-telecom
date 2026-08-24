@@ -21,13 +21,13 @@ export class PlansService {
   }
   findActive() {
     return this.prisma.internetPlan.findMany({
-      where: { isActive: true },
-      orderBy: { monthlyCents: 'asc' },
+      where: { isActive: true, isPublic: true, isAvailable: true },
+      orderBy: [{ tierRank: 'asc' }, { monthlyCents: 'asc' }],
     });
   }
   findAll() {
     return this.prisma.internetPlan.findMany({
-      orderBy: [{ isActive: 'desc' }, { monthlyCents: 'asc' }],
+      orderBy: [{ isActive: 'desc' }, { tierRank: 'asc' }, { monthlyCents: 'asc' }],
     });
   }
   async findOne(id: string) {
@@ -55,7 +55,7 @@ export class PlansService {
       .catch((error: unknown) => {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
           throw new ConflictException(
-            'A plan with subscription history cannot be deleted. Deactivate it instead.',
+            'A plan with subscription or purchase history cannot be deleted. Deactivate it instead.',
           );
         }
         throw error;

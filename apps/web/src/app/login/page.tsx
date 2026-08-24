@@ -2,8 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -18,12 +18,28 @@ const loginSchema = z.object({
 type LoginValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="grid min-h-screen place-items-center text-slate-600">
+          Preparing sign in…
+        </main>
+      }
+    >
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const { login } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = safeReturnTo(searchParams.get('returnTo'));
   const [error, setError] = useState<string | null>(null);
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: 'admin@merotelecom.test', password: 'ChangeMe123!' },
+    defaultValues: { email: '', password: '' },
   });
 
   async function submit(values: LoginValues) {
@@ -32,7 +48,7 @@ export default function LoginPage() {
       const user = await login(values.email, values.password);
       router.push(
         user.role === 'CUSTOMER'
-          ? '/customer/dashboard'
+          ? (returnTo ?? '/customer/dashboard')
           : user.role === 'STAFF'
             ? '/staff/customers'
             : '/admin/dashboard',
@@ -49,7 +65,7 @@ export default function LoginPage() {
           MERO TELECOM
         </Link>
         <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-950">Sign in</h1>
-        <p className="mt-2 text-sm text-slate-600">Use a seeded development account to continue.</p>
+        <p className="mt-2 text-sm text-slate-600">Sign in to manage your Mero Telecom services.</p>
         <form className="mt-6 grid gap-4" onSubmit={form.handleSubmit(submit)}>
           <label className="grid gap-1.5 text-sm font-medium text-slate-700">
             Email
@@ -88,7 +104,20 @@ export default function LoginPage() {
             {form.formState.isSubmitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+        <div className="mt-5 flex flex-wrap justify-between gap-3 text-sm">
+          <Link className="font-semibold text-sky-700" href="/plans">
+            Choose a plan
+          </Link>
+          <Link className="font-semibold text-sky-700" href="/activate/resend">
+            Resend activation email
+          </Link>
+        </div>
       </section>
     </main>
   );
+}
+
+function safeReturnTo(value: string | null): string | null {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
+  return value;
 }

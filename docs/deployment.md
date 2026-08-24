@@ -29,13 +29,13 @@ When production deployment is explicitly approved:
 
 ## Topology
 
-| Component         | Provider               | Production configuration                                       |
-| ----------------- | ---------------------- | -------------------------------------------------------------- |
-| Next.js frontend  | Vercel                 | Project root `apps/web`                                        |
-| NestJS API        | Render web service     | Root `render.yaml`; health path `/api/v1/health/ready`         |
-| PostgreSQL        | Render Postgres        | Private connection string injected into the API                |
-| Redis cache       | Render Key Value       | Private connection string; `allkeys-lru`; persistence disabled |
-| Invoice documents | S3-compatible provider | Private bucket; no anonymous read/list access                  |
+| Component           | Provider               | Production configuration                                    |
+| ------------------- | ---------------------- | ----------------------------------------------------------- |
+| Next.js frontend    | Vercel                 | Project root `apps/web`                                     |
+| NestJS API          | Render web service     | Root `render.yaml`; health path `/api/v1/health/ready`      |
+| PostgreSQL          | Render Postgres        | Private connection string injected into the API             |
+| Redis + email queue | Render Key Value       | Private URL; `noeviction`; journal-and-snapshot persistence |
+| Invoice documents   | S3-compatible provider | Private bucket; no anonymous read/list access               |
 
 Use sibling custom domains such as `app.example.com` and `api.example.com` when possible. This
 keeps the refresh cookie same-site and avoids browser policies that can block third-party cookies
@@ -74,21 +74,24 @@ with the API over Render's private network.
 
 Render prompts for every variable marked `sync: false`:
 
-| Variable                | Required value                                                          |
-| ----------------------- | ----------------------------------------------------------------------- |
-| `FRONTEND_URL`          | Exact HTTPS frontend origin, with no path                               |
-| `STRIPE_SECRET_KEY`     | Restricted or standard Stripe test key (`rk_test_...` or `sk_test_...`) |
-| `STRIPE_WEBHOOK_SECRET` | Signing secret for the production API's Stripe test webhook             |
-| `EMAIL_FROM`            | Sender accepted by the SMTP provider                                    |
-| `SMTP_HOST`             | SMTP provider hostname                                                  |
-| `SMTP_PORT`             | Provider port, commonly `465` or `587`                                  |
-| `SMTP_SECURE`           | `true` for implicit TLS (usually port 465), otherwise `false`           |
-| `SMTP_USER`             | SMTP username, or an empty value if the provider does not require one   |
-| `SMTP_PASS`             | SMTP password, or an empty value if the provider does not require one   |
-| `S3_ENDPOINT`           | S3-compatible HTTPS endpoint; empty only for native AWS S3              |
-| `S3_BUCKET`             | Private invoice-document bucket name                                    |
-| `S3_ACCESS_KEY_ID`      | Bucket-scoped access-key ID                                             |
-| `S3_SECRET_ACCESS_KEY`  | Bucket-scoped secret                                                    |
+| Variable                       | Required value                                                          |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `FRONTEND_URL`                 | Exact HTTPS frontend origin, with no path                               |
+| `ACCOUNT_INVITATION_TTL_HOURS` | Activation-link lifetime; keep at `24` unless policy changes            |
+| `STRIPE_SECRET_KEY`            | Restricted or standard Stripe test key (`rk_test_...` or `sk_test_...`) |
+| `STRIPE_WEBHOOK_SECRET`        | Signing secret for the production API's Stripe test webhook             |
+| `EMAIL_FROM`                   | Sender accepted by the SMTP provider                                    |
+| `EMAIL_DELIVERY_MODE`          | `direct`; production does not allow development-recipient redirection   |
+| `EMAIL_QUEUE_ENCRYPTION_KEY`   | Unique generated secret used only for encrypting retained email jobs    |
+| `SMTP_HOST`                    | SMTP provider hostname                                                  |
+| `SMTP_PORT`                    | Provider port, commonly `465` or `587`                                  |
+| `SMTP_SECURE`                  | `true` for implicit TLS (usually port 465), otherwise `false`           |
+| `SMTP_USER`                    | SMTP username, or an empty value if the provider does not require one   |
+| `SMTP_PASS`                    | SMTP password, or an empty value if the provider does not require one   |
+| `S3_ENDPOINT`                  | S3-compatible HTTPS endpoint; empty only for native AWS S3              |
+| `S3_BUCKET`                    | Private invoice-document bucket name                                    |
+| `S3_ACCESS_KEY_ID`             | Bucket-scoped access-key ID                                             |
+| `S3_SECRET_ACCESS_KEY`         | Bucket-scoped secret                                                    |
 
 Set `S3_REGION` and `S3_FORCE_PATH_STYLE` in `render.yaml` to match the chosen provider before
 provisioning. The Blueprint generates independent JWT secrets and injects managed datastore
@@ -99,8 +102,17 @@ install -> Prisma client generation -> API build -> prisma migrate deploy -> API
 ```
 
 Do not run the development seed against production. After the API deploys, create a Stripe test
-webhook for `https://api.example.com/api/v1/payments/webhook`, subscribe to
-`checkout.session.completed`, set its signing secret in Render, and redeploy.
+webhook for `https://api.example.com/api/v1/payments/stripe/webhook`. Subscribe to
+`checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+`checkout.session.async_payment_failed`, and `checkout.session.expired`, set its signing secret in
+Render, and redeploy. Confirm SMTP can deliver account activation as well as invoice messages and
+that every activation URL uses the final `FRONTEND_URL` origin.
+
+The shared Render Key Value instance is configured as a job queue: `noeviction` prevents queued
+mail from being discarded under memory pressure and `journal-snapshot` preserves jobs across
+routine restarts. Dashboard cache data is bounded by TTL and must never be allowed to crowd out
+queue capacity. Drain or intentionally discard pending encrypted jobs before rotating
+`EMAIL_QUEUE_ENCRYPTION_KEY`; jobs encrypted with the old key cannot be decrypted afterward.
 
 After the first successful document download, verify that the object is private, its key begins
 with `invoices/`, and an `InvoiceDocument` row exists. Do not enable a public bucket URL.
@@ -151,11 +163,17 @@ Run these checks against the deployed URLs:
    became healthy.
 8. As an authorized admin and customer, download an invoice PDF. Confirm the response is a PDF,
    an unauthorized/other-customer request is rejected, and the backing object has no public URL.
-9. Complete one Stripe test Checkout and verify that only the signed webhook changes the payment
-   and invoice to succeeded/paid. Re-deliver the same event and confirm no duplicate payment is
-   created.
-10. Send one invoice email to a controlled test mailbox and confirm no customer or production
-    recipient was used during the smoke test.
+9. Complete one new-customer Stripe test Checkout. Confirm no account exists before payment, the
+   signed paid event creates exactly one paid invoice/payment and active subscription, and the
+   customer remains invitation-pending until choosing a password. Re-deliver the event and confirm
+   no duplicate records are created.
+10. Verify an expired or abandoned Checkout creates no user, customer, invoice, payment, or
+    subscription.
+11. Follow the controlled activation email once, sign in with the chosen password, and confirm a
+    second use of the link is rejected. Resend an invitation and confirm the earlier pending link is
+    revoked.
+12. Send one invoice email to a controlled test mailbox and confirm no unintended customer or
+    production recipient was used during the smoke test.
 
 Render treats readiness responses outside the 2xx/3xx range as unhealthy, so a release with an
 unreachable PostgreSQL or Redis instance will not receive traffic. The liveness endpoint remains a

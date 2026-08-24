@@ -6,7 +6,12 @@ import Link from 'next/link';
 
 import { useAuth } from '../auth/auth-provider';
 import { ApiError } from '../../lib/api/client';
-import { createCustomer, getCustomers, updateCustomer } from './customer.api';
+import {
+  createCustomer,
+  getCustomers,
+  resendCustomerInvitation,
+  updateCustomer,
+} from './customer.api';
 import { CustomerForm } from './customer-form';
 import type { CustomerFormValues } from './customer.schemas';
 import type { Customer } from './customer.types';
@@ -43,6 +48,14 @@ export function CustomerManagement() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['customers'] });
       closeForm();
+    },
+    onError: showError,
+  });
+  const resendMutation = useMutation({
+    mutationFn: (customerId: string) => resendCustomerInvitation(accessToken ?? '', customerId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setError(null);
     },
     onError: showError,
   });
@@ -170,7 +183,7 @@ export function CustomerManagement() {
                     <th className="px-3 py-3">Contact</th>
                     <th className="px-3 py-3">Address</th>
                     <th className="px-3 py-3">Subscription</th>
-                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3">Account</th>
                     <th className="px-3 py-3" aria-label="Actions" />
                   </tr>
                 </thead>
@@ -203,7 +216,12 @@ export function CustomerManagement() {
                         )}
                       </td>
                       <td className="px-3 py-4">
-                        <StatusBadge status={customer.status} />
+                        <StatusBadge status={customer.accountStatus ?? customer.status} />
+                        {customer.invitationStatus ? (
+                          <p className="mt-1 text-xs text-slate-500">
+                            Invitation {customer.invitationStatus.toLowerCase()}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-3 py-4 text-right">
                         <div className="flex justify-end gap-2">
@@ -225,6 +243,17 @@ export function CustomerManagement() {
                           >
                             Edit
                           </button>
+                          {user.role === 'ADMIN' &&
+                          customer.accountStatus === 'INVITATION_PENDING' ? (
+                            <button
+                              className="button-secondary"
+                              disabled={resendMutation.isPending}
+                              onClick={() => resendMutation.mutate(customer.id)}
+                              type="button"
+                            >
+                              Resend invitation
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -310,7 +339,7 @@ export function CustomerManagement() {
                   {selectedCustomer.firstName} {selectedCustomer.lastName}
                 </h2>
               </div>
-              <StatusBadge status={selectedCustomer.status} />
+              <StatusBadge status={selectedCustomer.accountStatus ?? selectedCustomer.status} />
             </div>
             <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
               <Detail label="Email" value={selectedCustomer.email} />
@@ -356,11 +385,15 @@ export function CustomerManagement() {
   );
 }
 
-function StatusBadge({ status }: Readonly<{ status: Customer['status'] }>) {
+function StatusBadge({
+  status,
+}: Readonly<{ status: Customer['status'] | NonNullable<Customer['accountStatus']> }>) {
   const colors = {
+    INVITATION_PENDING: 'bg-sky-100 text-sky-800',
     ACTIVE: 'bg-emerald-100 text-emerald-800',
     INACTIVE: 'bg-slate-100 text-slate-700',
     SUSPENDED: 'bg-amber-100 text-amber-800',
+    DEACTIVATED: 'bg-slate-200 text-slate-700',
   };
 
   return (

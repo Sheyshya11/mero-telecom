@@ -13,6 +13,7 @@ describe('AuthService', () => {
     email: 'admin@merotelecom.test',
     role: 'ADMIN' as const,
     isActive: true,
+    status: 'ACTIVE' as const,
   };
 
   const createService = async (passwordHash: string) => {
@@ -77,6 +78,21 @@ describe('AuthService', () => {
 
     await expect(
       service.login({ email: user.email, password: 'wrong-password' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.refreshSession.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invited account until the customer creates a password', async () => {
+    const { prisma, service } = await createService('');
+    prisma.user.findUnique.mockResolvedValue({
+      ...user,
+      passwordHash: null,
+      isActive: false,
+      status: 'INVITATION_PENDING',
+    });
+
+    await expect(
+      service.login({ email: user.email, password: 'StrongPassword1!' }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.refreshSession.create).not.toHaveBeenCalled();
   });

@@ -26,6 +26,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "6.19.3",
     "bcryptjs": "3.0.3",
+    "bullmq": "^5.81.3",
     "class-transformer": "0.5.1",
     "class-validator": "0.15.1",
     "cookie-parser": "1.4.7",

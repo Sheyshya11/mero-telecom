@@ -47,3 +47,14 @@ export function updateCustomer(
     accessToken,
   );
 }
+
+export function resendCustomerInvitation(
+  accessToken: string,
+  customerId: string,
+): Promise<{ queued: boolean }> {
+  return apiRequest<{ queued: boolean }>(
+    `/customers/${customerId}/invitation/resend`,
+    { method: 'POST' },
+    accessToken,
+  );
+}

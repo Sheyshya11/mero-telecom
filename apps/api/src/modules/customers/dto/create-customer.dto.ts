@@ -1,4 +1,15 @@
-import { IsEmail, IsOptional, IsPhoneNumber, IsString, Length, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsEmail,
+  IsOptional,
+  IsPhoneNumber,
+  IsString,
+  Length,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
+
+import { AddressDto } from '../../../common/dto/address.dto';
 
 export class CreateCustomerDto {
   @IsString()
@@ -36,4 +47,14 @@ export class CreateCustomerDto {
   @IsString()
   @Length(4, 10)
   postcode!: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AddressDto)
+  serviceAddress?: AddressDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AddressDto)
+  billingAddress?: AddressDto;
 }

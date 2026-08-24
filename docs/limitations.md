@@ -26,8 +26,8 @@
 1. Add provider-backed address qualification and keep the result timestamp/evidence with an order.
 2. Add MFA, password-reset/email verification, admin user provisioning, and optional external IdP
    support before handling real customer data.
-3. Move scheduled billing and email reminders to an idempotent background job queue with retry and
-   dead-letter handling.
+3. Add scheduled billing and reminder producers to the existing idempotent email queue, plus an
+   operator UI for inspecting and replaying permanently failed jobs.
 4. Add object retention/deletion policies, storage encryption controls, and periodic private-document
    integrity checks.
 5. Add live-mode readiness controls only after compliance, refund/dispute, reconciliation, webhook

@@ -10,7 +10,12 @@ erDiagram
   User ||--o{ RefreshSession : "owns"
   User ||--o{ AuditLog : "performs"
   Customer ||--o{ Subscription : "has"
+  Customer ||--o{ CustomerAddress : "uses"
+  Customer ||--o{ CheckoutApplication : "completes"
+  User ||--o{ AccountInvitation : "activates with"
   InternetPlan ||--o{ Subscription : "selected by"
+  InternetPlan ||--o{ CheckoutApplication : "requested in"
+  InternetPlan ||--o{ Invoice : "selected for purchase"
   Customer ||--o{ Invoice : "billed"
   Subscription ||--o{ Invoice : "generates"
   Invoice ||--o{ InvoiceItem : "contains"
@@ -24,11 +29,14 @@ erDiagram
 
 | Entity                | Purpose and important constraints                                             |
 | --------------------- | ----------------------------------------------------------------------------- |
-| `User`                | Login identity; unique email, bcrypt password hash, role, active flag         |
+| `User`                | Login identity; nullable password until invitation activation; explicit state |
 | `Customer`            | CRM and service address; unique number/email and optional unique user mapping |
+| `CustomerAddress`     | Typed residential, service, and billing addresses                             |
+| `AccountInvitation`   | Hashed, expiring, single-use activation token and delivery lifecycle          |
+| `CheckoutApplication` | Pre-payment applicant/consent snapshot and Stripe reconciliation state        |
 | `InternetPlan`        | Speed and GST-inclusive monthly cents; deactivation preserves history         |
 | `Subscription`        | Customer-to-plan history and lifecycle; restrictive foreign keys              |
-| `Invoice`             | Authoritative totals/status; unique number and subscription/issue-date pair   |
+| `Invoice`             | Authoritative totals/status; subscription billing or an initial plan purchase |
 | `InvoiceItem`         | Immutable billing description, quantity, unit cents, and amount cents         |
 | `InvoiceDocument`     | Private object key, MIME type, size, and one-record-per-invoice constraint    |
 | `Payment`             | Provider/session identifiers, amount, state, and customer/invoice ownership   |
@@ -57,6 +65,11 @@ erDiagram
   indexed for expected query paths.
 - Database uniqueness complements service validation for emails, customer/invoice numbers,
   provider identifiers, webhook events, refresh hashes, and monthly invoices.
+- A partial unique index permits only one open public checkout application per normalized email,
+  without letting failed or abandoned attempts permanently reserve it.
+- Invitation token hashes are unique. Transactional conditional updates prevent two requests from
+  consuming the same token.
+- A partial unique index permits only one issued/overdue plan-purchase invoice per customer.
 - Invoice and payment state changes use transactions where multiple records must remain consistent.
 - `Invoice.pdfUrl` is retained for migration compatibility but new private documents use
   `InvoiceDocument`; no application flow publishes this legacy field.

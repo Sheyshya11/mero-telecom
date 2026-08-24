@@ -1,12 +1,21 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { InvoiceStatus, Role, SubscriptionStatus } from '@prisma/client';
+import {
+  AccountInvitationReason,
+  AccountInvitationStatus,
+  InvoiceStatus,
+  Role,
+  SubscriptionStatus,
+  UserStatus,
+} from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { createHash } from 'node:crypto';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { configureApplication } from '../src/configure-application';
 import { PrismaService } from '../src/database/prisma.service';
+import { EmailProvider } from '../src/modules/notifications/email-provider';
 
 const password = 'ChangeMe123!';
 const customerInput = {
@@ -21,6 +30,18 @@ const customerInput = {
   postcode: '2000',
 };
 
+async function waitUntil(
+  check: () => Promise<boolean>,
+  timeoutMilliseconds = 5_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMilliseconds;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('Timed out waiting for asynchronous email delivery.');
+}
+
 describe('Mero Telecom API (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -32,20 +53,28 @@ describe('Mero Telecom API (e2e)', () => {
   let planId: string;
   let invoiceAId: string;
   let invoiceBId: string;
+  let invitedCustomerId: string;
+  let invitedUserId: string;
 
   beforeAll(async () => {
-    const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const module = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(EmailProvider)
+      .useValue({ send: jest.fn().mockResolvedValue({ messageId: 'e2e-message-id' }) })
+      .compile();
     app = module.createNestApplication();
     configureApplication(app, { logger: false, swagger: false });
     await app.init();
     prisma = app.get(PrismaService);
 
     await prisma.paymentWebhookEvent.deleteMany();
+    await prisma.accountInvitation.deleteMany();
+    await prisma.checkoutApplication.deleteMany();
     await prisma.payment.deleteMany();
     await prisma.invoiceDocument.deleteMany();
     await prisma.invoiceItem.deleteMany();
     await prisma.invoice.deleteMany();
     await prisma.subscription.deleteMany();
+    await prisma.customerAddress.deleteMany();
     await prisma.customer.deleteMany();
     await prisma.refreshSession.deleteMany();
     await prisma.auditLog.deleteMany();
@@ -158,6 +187,22 @@ describe('Mero Telecom API (e2e)', () => {
       .send(customerInput)
       .expect(201);
     expect(createdCustomer.body.customerNumber).toMatch(/^CUST-/);
+    invitedCustomerId = createdCustomer.body.id;
+    const invitedCustomer = await prisma.customer.findUniqueOrThrow({
+      where: { id: invitedCustomerId },
+      include: { user: true, addresses: true },
+    });
+    invitedUserId = invitedCustomer.userId as string;
+    expect(invitedCustomer.status).toBe('INVITATION_PENDING');
+    expect(invitedCustomer.user).toEqual(
+      expect.objectContaining({
+        role: Role.CUSTOMER,
+        status: UserStatus.INVITATION_PENDING,
+        isActive: false,
+        passwordHash: null,
+      }),
+    );
+    expect(invitedCustomer.addresses).toHaveLength(3);
     await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -168,6 +213,11 @@ describe('Mero Telecom API (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ ...customerInput, email: 'invalid' })
       .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/v1/customers')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ ...customerInput, email: 'staff-forbidden@merotelecom.test' })
+      .expect(403);
 
     const staffList = await request(app.getHttpServer())
       .get('/api/v1/customers?search=Anika')
@@ -183,7 +233,70 @@ describe('Mero Telecom API (e2e)', () => {
     expect(staffUpdate.body.phone).toBe('+61400000003');
   });
 
-  it('creates subscriptions and deterministic invoices through the API', async () => {
+  it('resends a one-time invitation and lets the customer create their own password', async () => {
+    const previous = await prisma.accountInvitation.findFirstOrThrow({
+      where: { userId: invitedUserId, status: AccountInvitationStatus.PENDING },
+      orderBy: { createdAt: 'desc' },
+    });
+    await waitUntil(async () => {
+      const invitation = await prisma.accountInvitation.findUnique({
+        where: { id: previous.id },
+        select: { sentAt: true },
+      });
+      return Boolean(invitation?.sentAt);
+    });
+    await request(app.getHttpServer())
+      .post(`/api/v1/customers/${invitedCustomerId}/invitation/resend`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(
+      await prisma.accountInvitation.findUniqueOrThrow({ where: { id: previous.id } }),
+    ).toEqual(expect.objectContaining({ status: AccountInvitationStatus.REVOKED }));
+
+    await prisma.accountInvitation.updateMany({
+      where: { userId: invitedUserId, status: AccountInvitationStatus.PENDING },
+      data: { status: AccountInvitationStatus.REVOKED },
+    });
+    const activationToken = 'e2e-secure-activation-token-that-is-long-enough';
+    await prisma.accountInvitation.create({
+      data: {
+        userId: invitedUserId,
+        tokenHash: createHash('sha256').update(activationToken).digest('hex'),
+        reason: AccountInvitationReason.RESEND,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/activation/verify')
+      .send({ token: activationToken })
+      .expect(200)
+      .expect({ valid: true });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/activation')
+      .send({ token: activationToken, password: 'CustomerPassword1!' })
+      .expect(204);
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/activation')
+      .send({ token: activationToken, password: 'CustomerPassword1!' })
+      .expect(400);
+
+    const activated = await prisma.customer.findUniqueOrThrow({
+      where: { id: invitedCustomerId },
+      include: { user: true },
+    });
+    expect(activated.status).toBe('ACTIVE');
+    expect(activated.user).toEqual(
+      expect.objectContaining({ status: UserStatus.ACTIVE, isActive: true }),
+    );
+    expect(activated.user?.passwordHash).not.toBe('CustomerPassword1!');
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: customerInput.email, password: 'CustomerPassword1!' })
+      .expect(200);
+  });
+
+  it('blocks staff assignment and creates deterministic invoices for active subscriptions', async () => {
     const plan = await request(app.getHttpServer())
       .post('/api/v1/plans')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -197,8 +310,37 @@ describe('Mero Telecom API (e2e)', () => {
       .expect(201);
     planId = plan.body.id;
 
-    const subscriptionA = await createAndActivateSubscription(customerAId);
-    const subscriptionB = await createAndActivateSubscription(customerBId);
+    const address = {
+      addressLine1: '1 George Street',
+      suburb: 'Sydney',
+      state: 'NSW',
+      postcode: '2000',
+    };
+    await request(app.getHttpServer())
+      .post('/api/v1/payments/public-plan-checkout-session')
+      .send({
+        planId,
+        firstName: 'Duplicate',
+        lastName: 'Customer',
+        email: 'customer@merotelecom.test',
+        phone: '+61400000001',
+        residentialAddress: address,
+        serviceAddress: address,
+        billingAddress: address,
+        termsAccepted: true,
+        privacyAccepted: true,
+      })
+      .expect(409);
+    expect(await prisma.user.count({ where: { email: 'customer@merotelecom.test' } })).toBe(1);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/subscriptions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ customerId: customerAId, planId, startDate: '2026-09-01' })
+      .expect(404);
+
+    const subscriptionA = await createActiveSubscription(customerAId);
+    const subscriptionB = await createActiveSubscription(customerBId);
     expect(subscriptionA.status).toBe(SubscriptionStatus.ACTIVE);
 
     const invoiceA = await generateInvoice(subscriptionA.id, '2026-09-01');
@@ -288,18 +430,15 @@ describe('Mero Telecom API (e2e)', () => {
     return response.body.accessToken as string;
   }
 
-  async function createAndActivateSubscription(customerId: string) {
-    const created = await request(app.getHttpServer())
-      .post('/api/v1/subscriptions')
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ customerId, planId, startDate: '2026-09-01' })
-      .expect(201);
-    const active = await request(app.getHttpServer())
-      .patch(`/api/v1/subscriptions/${created.body.id}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ status: SubscriptionStatus.ACTIVE })
-      .expect(200);
-    return active.body;
+  async function createActiveSubscription(customerId: string) {
+    return prisma.subscription.create({
+      data: {
+        customerId,
+        planId,
+        startDate: new Date('2026-09-01T00:00:00.000Z'),
+        status: SubscriptionStatus.ACTIVE,
+      },
+    });
   }
 
   async function generateInvoice(subscriptionId: string, issueDate: string) {

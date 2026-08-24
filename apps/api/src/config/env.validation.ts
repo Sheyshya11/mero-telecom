@@ -12,6 +12,7 @@ export const validationSchema = Joi.object({
   ADMIN_DASHBOARD_CACHE_TTL_SECONDS: Joi.number().integer().min(5).max(3600).default(60),
   THROTTLE_TTL_MS: Joi.number().integer().min(1000).max(3600000).default(60000),
   THROTTLE_LIMIT: Joi.number().integer().min(10).max(10000).default(120),
+  ACCOUNT_INVITATION_TTL_HOURS: Joi.number().integer().min(1).max(168).default(24),
   FRONTEND_URL: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string()
@@ -36,18 +37,33 @@ export const validationSchema = Joi.object({
     .pattern(/^whsec_/)
     .required(),
   EMAIL_FROM: Joi.string().max(320).required(),
-  EMAIL_DEV_RECIPIENT: Joi.string()
-    .email()
-    .when('NODE_ENV', {
-      is: 'production',
-      then: Joi.optional().allow(''),
-      otherwise: Joi.required(),
-    }),
+  EMAIL_DELIVERY_MODE: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().valid('direct').default('direct'),
+    otherwise: Joi.string().valid('redirect', 'direct').default('redirect'),
+  }),
+  EMAIL_DEV_RECIPIENT: Joi.when('EMAIL_DELIVERY_MODE', {
+    is: 'redirect',
+    then: Joi.string().email().required(),
+    otherwise: Joi.string().email().allow('').optional(),
+  }),
+  EMAIL_QUEUE_ATTEMPTS: Joi.number().integer().min(1).max(10).default(3),
+  EMAIL_QUEUE_BACKOFF_MS: Joi.number().integer().min(100).max(300000).default(3000),
+  EMAIL_QUEUE_CONCURRENCY: Joi.number().integer().min(1).max(20).default(3),
+  EMAIL_QUEUE_ENCRYPTION_KEY: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(32).required(),
+    otherwise: Joi.string().min(32).allow('').default(''),
+  }),
   SMTP_HOST: Joi.string().hostname().required(),
   SMTP_PORT: Joi.number().port().default(1025),
   SMTP_SECURE: Joi.boolean().truthy('true').falsy('false').default(false),
   SMTP_USER: Joi.string().allow('').default(''),
-  SMTP_PASS: Joi.string().allow('').default(''),
+  SMTP_PASS: Joi.when('SMTP_USER', {
+    is: '',
+    then: Joi.string().allow('').default(''),
+    otherwise: Joi.string().min(1).required(),
+  }),
   S3_ENDPOINT: Joi.string()
     .uri({ scheme: ['http', 'https'] })
     .allow('')

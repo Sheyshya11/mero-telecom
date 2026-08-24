@@ -14,7 +14,11 @@ checks, and role-specific dashboards.
 - Deterministic monthly billing in integer cents, with GST-inclusive invoice calculations.
 - Authoritative invoice PDFs stored privately in production and streamed only after authorization.
 - Stripe test-mode Checkout with signature-verified, idempotent webhook processing.
-- Invoice email through SMTP, with development messages redirected to Mailpit.
+- Public customer registration through paid Checkout, followed by a single-use account activation
+  link; abandoned or failed payments never create login accounts.
+- Invitation-based admin customer creation without staff-generated passwords.
+- Redis-backed account and payment email with encrypted queue payloads, exponential retry, SMTP
+  delivery evidence, and development routing to Mailpit or dynamic Gmail recipients.
 - Admin and customer dashboards, Redis caching, readiness checks, throttling, structured request
   logs, and administrative audit records.
 
@@ -31,8 +35,8 @@ This repository is a pnpm workspace and modular monolith:
 - `packages/tsconfig` — shared strict TypeScript configuration.
 - `docs` — architecture, API, database, testing, and deployment runbooks.
 
-PostgreSQL is authoritative. Redis is used only for short-lived dashboard caching. Stripe, SMTP,
-and S3-compatible object storage are accessed only by the API. See the
+PostgreSQL is authoritative. Redis provides short-lived dashboard caching and the durable BullMQ
+email queue. Stripe, SMTP, and S3-compatible object storage are accessed only by the API. See the
 [system architecture](docs/architecture/system-architecture.md) and [database ERD](docs/database/erd.md).
 
 ## Prerequisites
@@ -63,6 +67,17 @@ Mailpit is at `http://localhost:8025`.
 Local object storage is optional: when S3 settings are empty outside production, PDFs are rendered
 on demand without persistence. Production configuration requires private S3-compatible storage.
 
+Local email supports two explicit modes. `EMAIL_DELIVERY_MODE=redirect` safely sends all messages
+to `EMAIL_DEV_RECIPIENT`. `EMAIL_DELIVERY_MODE=direct` sends activation, payment, and invoice email
+to the address entered by the customer. Direct Gmail testing uses `smtp.gmail.com`, SSL port 465,
+the full Gmail address as `SMTP_USER`, and a Google App Password as `SMTP_PASS`; the normal Google
+account password must never be used or committed.
+
+Activation and subscription-confirmation messages are queued with deterministic IDs and retried
+with exponential backoff. Their recipient, content, and activation URLs are AES-256-GCM encrypted
+before entering Redis. Manual invoice PDF delivery stays synchronous so the admin receives an
+authoritative sent/already-sent result and a provider message ID.
+
 ## Demonstration accounts
 
 The repeatable development seed creates these accounts with password `ChangeMe123!`:
@@ -70,6 +85,7 @@ The repeatable development seed creates these accounts with password `ChangeMe12
 - `admin@merotelecom.test`
 - `staff@merotelecom.test`
 - `customer@merotelecom.test`
+- `newcustomer@merotelecom.test` (no subscription; use this account to demonstrate self-service plan checkout)
 
 Never run the development seed or reuse these credentials in production.
 
@@ -77,7 +93,7 @@ Never run the development seed or reuse these credentials in production.
 
 | Audience | Routes                                                                                            |
 | -------- | ------------------------------------------------------------------------------------------------- |
-| Public   | `/`, `/plans`, `/coverage`, `/login`                                                              |
+| Public   | `/`, `/plans`, `/coverage`, `/checkout`, `/activate`, `/activate/resend`, `/login`                |
 | Admin    | `/admin/dashboard`, `/admin/customers`, `/admin/plans`, `/admin/subscriptions`, `/admin/invoices` |
 | Staff    | `/staff/customers`                                                                                |
 | Customer | `/customer/dashboard`, `/customer/profile`, `/customer/subscription`, `/customer/invoices`        |
@@ -87,12 +103,12 @@ all access decisions.
 
 ## Billing and Stripe flow
 
-An admin or staff member assigns an active plan and generates one invoice per subscription and
-issue date. The API derives the amount from the stored plan, extracts the GST component using
-integer arithmetic, and persists the invoice and line item in one transaction. Customers can
-start Stripe Checkout only for their own issued or overdue invoices. A valid
-`checkout.session.completed` webhook creates or updates the payment and marks the invoice paid;
-the browser cannot mark an invoice paid directly.
+New visitors choose an available public plan and enter their identity, service address, and
+consents before Stripe Checkout. The API validates coverage and derives the amount from the stored
+plan. No user, customer, invoice, or subscription is created until a valid paid Checkout webhook
+arrives. The webhook then records the paid invoice, payment, active subscription, pending customer
+account, and single-use activation invitation in one idempotent transaction. Existing customers
+sign in before changing plans or paying an owned invoice.
 
 Stripe is deliberately restricted to test keys (`sk_test_...` or `rk_test_...`). Full details are
 in [payments](docs/api/payments.md).

@@ -8,11 +8,7 @@ import { Prisma, Role, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
-import {
-  CreateSubscriptionDto,
-  SubscriptionQueryDto,
-  UpdateSubscriptionDto,
-} from './dto/subscription.dto';
+import { SubscriptionQueryDto, UpdateSubscriptionDto } from './dto/subscription.dto';
 
 const include = { customer: true, plan: true } satisfies Prisma.SubscriptionInclude;
 
@@ -22,17 +18,6 @@ export class SubscriptionsService {
     private readonly prisma: PrismaService,
     private readonly dashboardCache: AdminDashboardCacheService,
   ) {}
-
-  async create(input: CreateSubscriptionDto) {
-    await this.requireCustomer(input.customerId);
-    await this.requireActivePlan(input.planId);
-    const subscription = await this.prisma.subscription.create({
-      data: { ...input, startDate: new Date(input.startDate), status: SubscriptionStatus.PENDING },
-      include,
-    });
-    await this.dashboardCache.invalidate();
-    return subscription;
-  }
 
   async findAll(query: SubscriptionQueryDto) {
     const where: Prisma.SubscriptionWhereInput = query.customerId
@@ -78,9 +63,6 @@ export class SubscriptionsService {
   async update(id: string, input: UpdateSubscriptionDto) {
     const subscription = await this.prisma.subscription.findUnique({ where: { id }, include });
     if (!subscription) throw new NotFoundException('Subscription not found.');
-    if (input.planId && subscription.status !== SubscriptionStatus.PENDING)
-      throw new BadRequestException('Only pending subscriptions can have their plan changed.');
-    if (input.planId) await this.requireActivePlan(input.planId);
     if (input.status) this.assertTransition(subscription.status, input.status);
     const startDate = input.startDate ? new Date(input.startDate) : subscription.startDate;
     const endDate =
@@ -133,19 +115,14 @@ export class SubscriptionsService {
     return updated;
   }
 
-  private async requireCustomer(id: string) {
-    if (!(await this.prisma.customer.findUnique({ where: { id } })))
-      throw new NotFoundException('Customer not found.');
-  }
   private async requireActivePlan(id: string) {
     const plan = await this.prisma.internetPlan.findUnique({ where: { id } });
     if (!plan) throw new NotFoundException('Internet plan not found.');
-    if (!plan.isActive)
-      throw new BadRequestException('An inactive plan cannot be assigned or activated.');
+    if (!plan.isActive) throw new BadRequestException('An inactive plan cannot be activated.');
   }
   private assertTransition(from: SubscriptionStatus, to: SubscriptionStatus) {
     const allowed: Record<SubscriptionStatus, SubscriptionStatus[]> = {
-      PENDING: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED],
+      PENDING: [SubscriptionStatus.CANCELLED],
       ACTIVE: [SubscriptionStatus.SUSPENDED, SubscriptionStatus.CANCELLED],
       SUSPENDED: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED],
       CANCELLED: [],

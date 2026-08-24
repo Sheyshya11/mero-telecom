@@ -46,8 +46,22 @@ export class CustomersController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Create a customer account record.' })
   @ApiCreatedResponse({ description: 'Customer created.' })
-  create(@Body() input: CreateCustomerDto): Promise<CustomerResponse> {
-    return this.customersService.create(input);
+  create(
+    @Body() input: CreateCustomerDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CustomerResponse> {
+    return this.customersService.create(input, user);
+  }
+
+  @Post(':customerId/invitation/resend')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Invalidate previous links and resend a customer invitation.' })
+  resendInvitation(
+    @Param('customerId', new ParseUUIDPipe()) customerId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ queued: boolean }> {
+    return this.customersService.resendInvitation(customerId, user);
   }
 
   @Get()

@@ -10,6 +10,7 @@ const validEnvironment = {
   STRIPE_SECRET_KEY: 'rk_test_example',
   STRIPE_WEBHOOK_SECRET: 'whsec_example',
   EMAIL_FROM: 'billing@example.com',
+  EMAIL_QUEUE_ENCRYPTION_KEY: 'production-email-queue-key-at-least-32-characters',
   SMTP_HOST: 'smtp.example.com',
   S3_BUCKET: 'mero-telecom-invoices',
   S3_ACCESS_KEY_ID: 'test-access-key',
@@ -39,5 +40,34 @@ describe('environment validation', () => {
     });
 
     expect(error).toBeUndefined();
+  });
+
+  it('allows direct Gmail SMTP delivery without a development redirect address', () => {
+    const { error, value } = validationSchema.validate({
+      ...validEnvironment,
+      NODE_ENV: 'development',
+      FRONTEND_URL: 'http://localhost:3000',
+      EMAIL_FROM: 'Mero Telecom <sender@gmail.com>',
+      EMAIL_DELIVERY_MODE: 'direct',
+      EMAIL_DEV_RECIPIENT: '',
+      SMTP_HOST: 'smtp.gmail.com',
+      SMTP_PORT: 465,
+      SMTP_SECURE: true,
+      SMTP_USER: 'sender@gmail.com',
+      SMTP_PASS: 'google-app-password',
+    });
+
+    expect(error).toBeUndefined();
+    expect(value.EMAIL_DELIVERY_MODE).toBe('direct');
+  });
+
+  it('requires an SMTP password whenever SMTP authentication is configured', () => {
+    const { error } = validationSchema.validate({
+      ...validEnvironment,
+      SMTP_USER: 'sender@gmail.com',
+      SMTP_PASS: '',
+    });
+
+    expect(error?.details.some(({ path }) => path.join('.') === 'SMTP_PASS')).toBe(true);
   });
 });

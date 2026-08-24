@@ -103,6 +103,7 @@ export function CustomerForm({
       {customer && canManageStatus ? (
         <Field label="Account status" error={form.formState.errors.status?.message}>
           <select className="field" {...form.register('status')}>
+            <option value="INVITATION_PENDING">Invitation pending</option>
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
             <option value="SUSPENDED">Suspended</option>

@@ -14,7 +14,7 @@ flowchart LR
   W -->|"JSON + bearer token; refresh cookie"| A["NestJS REST API"]
   W -->|"same-origin PDF proxy"| A
   A --> P[("PostgreSQL")]
-  A --> R[("Redis cache")]
+  A --> R[("Redis cache and email queue")]
   A --> S["Private S3-compatible storage"]
   A --> T["Stripe test mode"]
   A --> M["SMTP provider"]
@@ -32,9 +32,10 @@ streams the result, but it does not make authorization decisions or calculate in
 | Auth          | Login, refresh rotation, logout/revocation, current identity, trusted-origin checks |
 | Customers     | Customer CRUD, self-service profile, ownership-scoped reads                         |
 | Plans         | Public active catalogue and admin lifecycle management                              |
-| Subscriptions | Plan assignment, lifecycle updates, customer history                                |
+| Subscriptions | Payment-activated service lifecycle and customer history                            |
 | Invoices      | Billing calculation, invoice lifecycle, private PDFs, email delivery                |
 | Payments      | Stripe Checkout and verified/idempotent webhook persistence                         |
+| Notifications | Encrypted BullMQ jobs, SMTP templates, retries, and auditable delivery outcomes     |
 | Dashboard     | Admin aggregates with Redis caching and customer-owned summary                      |
 | Coverage      | Prototype postcode availability and eligible public plans                           |
 | Health        | Process liveness plus PostgreSQL/Redis readiness                                    |
@@ -44,18 +45,43 @@ rate limits, structured request logs, and administrative audit records.
 
 ## Authentication and session lifecycle
 
-1. `POST /auth/login` verifies the bcrypt password hash.
-2. The API returns a short-lived access token in JSON and sets a longer-lived, HTTP-only refresh
+1. Admin-created and paid-public customers begin as `INVITATION_PENDING` with no password. A
+   random activation token is hashed in PostgreSQL and queued in an encrypted email payload.
+2. `POST /auth/activation` atomically consumes a valid, unexpired, single-use token, stores the
+   customer-chosen bcrypt password, verifies the email, and activates the user/customer.
+3. `POST /auth/login` verifies the bcrypt password hash and requires an `ACTIVE` user.
+4. The API returns a short-lived access token in JSON and sets a longer-lived, HTTP-only refresh
    cookie. The refresh token is stored only as a server-side hash.
-3. The frontend keeps the access token in application memory and sends it as a bearer token.
-4. `POST /auth/refresh` rotates the cookie and revokes the previous refresh session, preventing
+5. The frontend keeps the access token in application memory and sends it as a bearer token.
+6. `POST /auth/refresh` rotates the cookie and revokes the previous refresh session, preventing
    replay of the old token.
-5. `POST /auth/logout` revokes the current refresh session and clears the cookie.
+7. `POST /auth/logout` revokes the current refresh session and clears the cookie.
 
 In production the refresh cookie is `Secure` and `SameSite=None`; the API accepts credentialed
 CORS requests only from the configured frontend origin. Login, refresh, and logout also use a
 trusted-origin guard. Short endpoint-specific limits protect login, refresh, and public coverage
 in addition to the global throttle.
+
+## Email delivery lifecycle
+
+Account invitations and paid-subscription confirmations use BullMQ on Redis. Business operations
+enqueue a deterministic job and return without waiting for Gmail or another SMTP provider. The
+worker decrypts the job in memory, rejects revoked or expired invitations, and calls the existing
+Nodemailer adapter. Temporary failures are retried with configurable exponential backoff. A final
+success or failure creates safe audit evidence without logging recipients, message bodies,
+activation URLs, or credentials; `AccountInvitation.sentAt` is set only after SMTP accepts the
+message.
+
+Queue payloads use AES-256-GCM. Production requires an independent
+`EMAIL_QUEUE_ENCRYPTION_KEY`; development derives a key from the refresh-token secret when the
+dedicated key is omitted. Completed jobs are retained briefly for operations, failed jobs are kept
+longer for diagnosis, and all retained job data remains encrypted. Manual invoice PDF email stays
+synchronous because the endpoint promises an immediate sent/already-sent result and stores the
+provider message ID.
+
+This design adapts the queue/retry/template/observability principles from
+[Building a Scalable Email Service with Node.js](https://blog.devgenius.io/building-a-scalable-email-service-with-node-js-the-complete-guide-fcebf3f0ed3d)
+to the existing NestJS modules, BullMQ, security requirements, and audit model.
 
 ## Authorization model
 
@@ -64,7 +90,7 @@ ownership is checked against the database before protected records are returned.
 defence in depth by restricting customer reads to the authenticated `User -> Customer` mapping.
 
 - `ADMIN`: full operational workflow, plan management, and invoice status changes.
-- `STAFF`: customer updates and subscription/invoice operations; no plan lifecycle or arbitrary
+- `STAFF`: customer updates and subscription/invoice operations; no plan assignment, plan lifecycle, or arbitrary
   invoice status administration.
 - `CUSTOMER`: their own profile, subscriptions, invoices, PDFs, dashboard, and payment initiation.
 
@@ -98,19 +124,28 @@ not public URLs.
 
 ## Stripe test-mode flow
 
-The API accepts only Stripe test keys. A customer requests Checkout for an owned `ISSUED` or
-`OVERDUE` invoice; the API sends the stored invoice total to Stripe and creates a pending payment
-record. Browser success redirects are informational only. Payment succeeds only when the webhook
-signature is valid and the event has not already been processed. The API then records the provider
-identifiers and changes the invoice to `PAID` transactionally.
+The API accepts only Stripe test keys. A visitor can select an available public plan, provide the
+required contact/address/consent data, and open Checkout without creating an account. The API
+validates coverage and uses only the stored plan price. A verified paid event creates the customer,
+typed addresses, nullable-password login identity, active subscription, paid invoice/payment, and
+activation invitation atomically. Failed or abandoned sessions never reserve a login identity.
+
+An authenticated customer can also select an active plan; the API creates an
+initial invoice from the server-side plan price and opens Stripe Checkout without creating a
+subscription. Browser success redirects are informational only. When a signature-verified,
+idempotent paid event arrives, one transaction records the payment, changes the invoice to `PAID`,
+creates the `ACTIVE` subscription, and links the invoice to it. A partial unique index permits only
+one unpaid plan purchase per customer, preventing two simultaneous Checkouts from producing two
+paid selections. Existing subscription invoices continue through the owned `ISSUED`/`OVERDUE`
+invoice Checkout flow.
 
 ## Data, cache, and failure behaviour
 
-PostgreSQL is the system of record. Redis caches only the admin dashboard summary with a short TTL;
-a cache failure is logged and the API falls back to PostgreSQL. Readiness reports failure when
-either PostgreSQL or Redis is unavailable so production traffic is not sent to an unhealthy
-release. S3-compatible storage is mandatory in production because invoice documents must not rely
-on an ephemeral filesystem.
+PostgreSQL is the system of record. Redis caches the admin dashboard summary and persists the
+encrypted email queue. Cache reads fall back to PostgreSQL, while queue writes fail quickly so the
+caller can expose a resend path instead of claiming delivery. Readiness reports failure when either
+PostgreSQL or Redis is unavailable. S3-compatible storage is mandatory in production because
+invoice documents must not rely on an ephemeral filesystem.
 
 ## Security and observability
 

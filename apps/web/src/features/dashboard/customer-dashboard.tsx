@@ -97,7 +97,12 @@ export function CustomerDashboardView() {
               </div>
             </div>
           ) : (
-            <p className="text-slate-600">You do not have a current internet service.</p>
+            <div>
+              <p className="text-slate-600">You do not have a current internet service.</p>
+              <Link className="button-primary mt-4 inline-flex" href="/customer/subscription">
+                Choose a plan
+              </Link>
+            </div>
           )}
         </Panel>
         <Panel title="Account details">

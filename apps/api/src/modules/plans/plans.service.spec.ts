@@ -6,8 +6,8 @@ describe('PlansService', () => {
     const service = new PlansService(prisma as unknown as PrismaService);
     await service.findActive();
     expect(prisma.internetPlan.findMany).toHaveBeenCalledWith({
-      where: { isActive: true },
-      orderBy: { monthlyCents: 'asc' },
+      where: { isActive: true, isPublic: true, isAvailable: true },
+      orderBy: [{ tierRank: 'asc' }, { monthlyCents: 'asc' }],
     });
   });
 });
