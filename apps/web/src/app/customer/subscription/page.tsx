@@ -85,6 +85,7 @@ export default function CustomerSubscriptionPage() {
   const { accessToken, isLoading, user } = useAuth();
   const queryClient = useQueryClient();
   const [targetPlanId, setTargetPlanId] = useState('');
+  const [requestedPlanId, setRequestedPlanId] = useState<string | null>(null);
   const [checkoutReturn, setCheckoutReturn] = useState<'success' | 'cancelled' | null>(null);
   const [paymentReturn, setPaymentReturn] = useState<'success' | 'cancelled' | null>(null);
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
@@ -94,6 +95,7 @@ export default function CustomerSubscriptionPage() {
     const params = new URLSearchParams(window.location.search);
     const planChange = params.get('planChange');
     const payment = params.get('payment');
+    setRequestedPlanId(params.get('planId'));
     setCheckoutReturn(planChange === 'success' || planChange === 'cancelled' ? planChange : null);
     setPaymentReturn(payment === 'success' || payment === 'cancelled' ? payment : null);
     setCheckoutSessionId(params.get('sessionId'));
@@ -157,6 +159,23 @@ export default function CustomerSubscriptionPage() {
     () => plans.data?.filter((plan) => plan.id !== currentSubscription?.plan.id) ?? [],
     [currentSubscription?.plan.id, plans.data],
   );
+  const displayedPlans = useMemo(() => {
+    const availablePlans = plans.data ?? [];
+    if (!requestedPlanId) return availablePlans;
+    return [...availablePlans].sort(
+      (left, right) => Number(right.id === requestedPlanId) - Number(left.id === requestedPlanId),
+    );
+  }, [plans.data, requestedPlanId]);
+
+  useEffect(() => {
+    if (
+      requestedPlanId &&
+      currentSubscription?.status === 'ACTIVE' &&
+      availableTargets.some((plan) => plan.id === requestedPlanId)
+    ) {
+      setTargetPlanId(requestedPlanId);
+    }
+  }, [availableTargets, currentSubscription?.status, requestedPlanId]);
 
   useEffect(() => {
     if (targetPlanId && !availableTargets.some((plan) => plan.id === targetPlanId)) {
@@ -335,6 +354,13 @@ export default function CustomerSubscriptionPage() {
             server.
           </p>
 
+          {requestedPlanId === currentSubscription.plan.id ? (
+            <p className="mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+              {currentSubscription.plan.name} is already your current plan. Choose another plan to
+              upgrade or downgrade.
+            </p>
+          ) : null}
+
           {plans.isPending ? <p className="mt-5 text-slate-600">Loading available plans…</p> : null}
           {plans.isError ? (
             <ErrorPanel message="Unable to load available plans." retry={() => plans.refetch()} />
@@ -398,11 +424,20 @@ export default function CustomerSubscriptionPage() {
             Choose a plan below. Your service activates automatically after successful payment.
           </p>
           <div className="mt-6 grid gap-5 md:grid-cols-2">
-            {plans.data?.map((plan) => (
+            {displayedPlans.map((plan) => (
               <article
-                className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+                className={`rounded-xl border bg-white p-6 shadow-sm ${
+                  plan.id === requestedPlanId
+                    ? 'border-sky-400 ring-2 ring-sky-100'
+                    : 'border-slate-200'
+                }`}
                 key={plan.id}
               >
+                {plan.id === requestedPlanId ? (
+                  <p className="mb-2 text-xs font-semibold tracking-wide text-sky-700">
+                    SELECTED PLAN
+                  </p>
+                ) : null}
                 <h2 className="text-xl font-bold text-slate-950">{plan.name}</h2>
                 <p className="mt-3 min-h-12 text-slate-600">{plan.description}</p>
                 <p className="mt-4 text-sm text-slate-600">

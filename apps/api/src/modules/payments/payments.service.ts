@@ -1082,7 +1082,7 @@ export class PaymentsService {
     });
     if (current) {
       throw new ConflictException(
-        'You already have a current subscription. Contact support to change plans.',
+        'You already have a current subscription. Use My subscription to upgrade or downgrade your plan.',
       );
     }
   }

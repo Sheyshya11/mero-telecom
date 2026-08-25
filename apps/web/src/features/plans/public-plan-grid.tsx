@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 
 import { apiRequest } from '../../lib/api/client';
+import { useAuth } from '../auth/auth-provider';
 
 interface PublicPlan {
   id: string;
@@ -15,6 +16,7 @@ interface PublicPlan {
 }
 
 export function PublicPlanGrid() {
+  const { user } = useAuth();
   const query = useQuery({
     queryKey: ['public-plans'],
     queryFn: () => apiRequest<PublicPlan[]>('/plans/public'),
@@ -53,9 +55,13 @@ export function PublicPlanGrid() {
           </p>
           <Link
             className="button-primary mt-5 inline-flex w-full justify-center"
-            href={`/checkout?planId=${encodeURIComponent(plan.id)}`}
+            href={
+              user?.role === 'CUSTOMER'
+                ? `/customer/subscription?planId=${encodeURIComponent(plan.id)}`
+                : `/checkout?planId=${encodeURIComponent(plan.id)}`
+            }
           >
-            Choose plan
+            {user?.role === 'CUSTOMER' ? 'Review this plan' : 'Choose plan'}
           </Link>
         </article>
       ))}

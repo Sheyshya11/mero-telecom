@@ -9,7 +9,6 @@ import { useForm, type UseFormRegisterReturn, type UseFormReturn } from 'react-h
 import { z } from 'zod';
 
 import { useAuth } from '../../features/auth/auth-provider';
-import { PlanCheckoutButton } from '../../features/payments/stripe-checkout-button';
 import { ApiError, apiRequest } from '../../lib/api/client';
 
 const addressSchema = z.object({
@@ -153,10 +152,16 @@ function CheckoutContent() {
         <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold">Signed in as {user.email}</h2>
           <p className="mt-2 text-slate-600">
-            Your existing customer profile will own this subscription. Stripe will confirm the
-            authoritative amount shown below.
+            Continue to My subscription to use this selection. If you already have a plan, you can
+            review its prorated upgrade charge or schedule a downgrade. If you do not have a current
+            plan, you can purchase this plan there.
           </p>
-          <PlanCheckoutButton planId={plan.id} />
+          <Link
+            className="button-primary mt-5 inline-flex"
+            href={`/customer/subscription?planId=${encodeURIComponent(plan.id)}`}
+          >
+            Continue with this plan
+          </Link>
         </section>
       </main>
     );
