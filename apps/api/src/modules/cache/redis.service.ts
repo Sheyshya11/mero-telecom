@@ -50,6 +50,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async getWithAvailability(key: string): Promise<{ available: boolean; value: string | null }> {
+    if (!this.client.isReady) return { available: false, value: null };
+    try {
+      return { available: true, value: await this.client.get(key) };
+    } catch {
+      this.warnUnavailable();
+      return { available: false, value: null };
+    }
+  }
+
   async setWithExpiry(key: string, value: string, ttlSeconds: number): Promise<boolean> {
     if (!this.client.isReady) return false;
     try {
@@ -69,6 +79,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     } catch {
       this.warnUnavailable();
       return false;
+    }
+  }
+
+  async getAndDelete(key: string): Promise<{ available: boolean; value: string | null }> {
+    if (!this.client.isReady) return { available: false, value: null };
+    try {
+      return { available: true, value: await this.client.getDel(key) };
+    } catch {
+      this.warnUnavailable();
+      return { available: false, value: null };
     }
   }
 
@@ -95,6 +115,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private warnUnavailable(): void {
     if (this.unavailableWarningLogged) return;
     this.unavailableWarningLogged = true;
-    this.logger.warn('Redis is unavailable; requests will use the database until it recovers.');
+    this.logger.warn(
+      'Redis is unavailable; cache-backed features may be temporarily unavailable until it recovers.',
+    );
   }
 }

@@ -1,4 +1,3 @@
-import { Type } from 'class-transformer';
 import {
   Equals,
   IsBoolean,
@@ -6,11 +5,10 @@ import {
   IsPhoneNumber,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
-  ValidateNested,
+  ValidateIf,
 } from 'class-validator';
-
-import { AddressDto } from '../../../common/dto/address.dto';
 
 export class CreateCheckoutSessionDto {
   @IsUUID()
@@ -41,17 +39,21 @@ export class CreatePublicPlanCheckoutSessionDto {
   @IsPhoneNumber('AU')
   phone!: string;
 
-  @ValidateNested()
-  @Type(() => AddressDto)
-  residentialAddress!: AddressDto;
+  @IsBoolean()
+  residentialSameAsService!: boolean;
 
-  @ValidateNested()
-  @Type(() => AddressDto)
-  serviceAddress!: AddressDto;
+  @ValidateIf((input: CreatePublicPlanCheckoutSessionDto) => !input.residentialSameAsService)
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{43}$/)
+  residentialAddressToken?: string;
 
-  @ValidateNested()
-  @Type(() => AddressDto)
-  billingAddress!: AddressDto;
+  @IsBoolean()
+  billingSameAsResidential!: boolean;
+
+  @ValidateIf((input: CreatePublicPlanCheckoutSessionDto) => !input.billingSameAsResidential)
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{43}$/)
+  billingAddressToken?: string;
 
   @IsBoolean()
   @Equals(true, { message: 'Terms must be accepted.' })
@@ -60,6 +62,15 @@ export class CreatePublicPlanCheckoutSessionDto {
   @IsBoolean()
   @Equals(true, { message: 'Privacy policy must be accepted.' })
   privacyAccepted!: boolean;
+}
+
+export class PreparePublicCheckoutContextDto {
+  @IsUUID()
+  planId!: string;
+
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{43}$/)
+  qualificationToken!: string;
 }
 
 export class PublicCheckoutStatusQueryDto {

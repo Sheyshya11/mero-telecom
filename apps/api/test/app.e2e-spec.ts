@@ -1,12 +1,17 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import {
+  AccessTechnology,
   AccountInvitationReason,
   AccountInvitationStatus,
+  AddressOverrideStatus,
+  CoverageResultStatus,
   InvoiceStatus,
+  OperatingRegionStatus,
   PaymentStatus,
   PlanChangeStatus,
   PlanChangeType,
+  PostcodeCoverageStatus,
   Role,
   SubscriptionStatus,
   UserStatus,
@@ -20,6 +25,11 @@ import { AppModule } from '../src/app.module';
 import { configureApplication } from '../src/configure-application';
 import { PrismaService } from '../src/database/prisma.service';
 import { EmailProvider } from '../src/modules/notifications/email-provider';
+import {
+  ADDRESS_LOOKUP_PROVIDER,
+  type AddressLookupProvider,
+  type NormalizedAddressSuggestion,
+} from '../src/modules/coverage/coverage.types';
 import { StripeClientService } from '../src/modules/payments/stripe-client.service';
 import { PlanChangesService } from '../src/modules/plan-changes/plan-changes.service';
 
@@ -31,9 +41,99 @@ const customerInput = {
   phone: '+61400000009',
   addressLine1: '9 Test Street',
   addressLine2: '',
-  suburb: 'Sydney',
-  state: 'NSW',
-  postcode: '2000',
+  suburb: 'Adelaide',
+  state: 'SA',
+  postcode: '5000',
+};
+
+const coverageFixtures: Record<string, NormalizedAddressSuggestion> = {
+  available: {
+    provider: 'geoapify',
+    providerAddressId: 'fixture-available-adelaide',
+    formattedAddress: '1 North Terrace, Adelaide SA 5000, Australia',
+    unit: null,
+    houseNumber: '1',
+    street: 'North Terrace',
+    suburb: 'Adelaide',
+    city: 'Adelaide',
+    state: 'South Australia',
+    stateCode: 'SA',
+    postcode: '5000',
+    countryCode: 'au',
+    latitude: -34.921,
+    longitude: 138.599,
+  },
+  unsupported: {
+    provider: 'geoapify',
+    providerAddressId: 'fixture-unsupported-adelaide',
+    formattedAddress: '1 Test Street, Adelaide SA 5002, Australia',
+    unit: null,
+    houseNumber: '1',
+    street: 'Test Street',
+    suburb: 'Adelaide',
+    city: 'Adelaide',
+    state: 'South Australia',
+    stateCode: null,
+    postcode: '5002',
+    countryCode: 'AU',
+    latitude: -34.925,
+    longitude: 138.6,
+  },
+  victoria: {
+    provider: 'geoapify',
+    providerAddressId: 'fixture-victoria',
+    formattedAddress: '1 Collins Street, Melbourne VIC 3000, Australia',
+    unit: null,
+    houseNumber: '1',
+    street: 'Collins Street',
+    suburb: 'Melbourne',
+    city: 'Melbourne',
+    state: 'Victoria',
+    stateCode: 'VIC',
+    postcode: '3000',
+    countryCode: 'au',
+    latitude: -37.814,
+    longitude: 144.963,
+  },
+  coming: {
+    provider: 'geoapify',
+    providerAddressId: 'fixture-coming-soon-sa',
+    formattedAddress: '1 Future Road, Gawler SA 5114, Australia',
+    unit: null,
+    houseNumber: '1',
+    street: 'Future Road',
+    suburb: 'Gawler',
+    city: 'Gawler',
+    state: 'South Australia',
+    stateCode: 'SA',
+    postcode: '5114',
+    countryCode: 'au',
+    latitude: -34.6,
+    longitude: 138.75,
+  },
+  override: {
+    provider: 'geoapify',
+    providerAddressId: 'fixture-unavailable-adelaide',
+    formattedAddress: '12 King William Street, Adelaide SA 5000, Australia',
+    unit: null,
+    houseNumber: '12',
+    street: 'King William Street',
+    suburb: 'Adelaide',
+    city: 'Adelaide',
+    state: 'South Australia',
+    stateCode: 'SA',
+    postcode: '5000',
+    countryCode: 'au',
+    latitude: -34.925,
+    longitude: 138.599,
+  },
+};
+
+const fakeAddressProvider: AddressLookupProvider = {
+  search: jest.fn(async (query: string) => {
+    const key = query.trim().toLowerCase();
+    return coverageFixtures[key] ? [coverageFixtures[key]] : [];
+  }),
 };
 
 async function waitUntil(
@@ -111,6 +211,8 @@ describe('Mero Telecom API (e2e)', () => {
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(ADDRESS_LOOKUP_PROVIDER)
+      .useValue(fakeAddressProvider)
       .overrideProvider(EmailProvider)
       .useValue({ send: jest.fn().mockResolvedValue({ messageId: 'e2e-message-id' }) })
       .overrideProvider(StripeClientService)
@@ -121,6 +223,11 @@ describe('Mero Telecom API (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
 
+    await prisma.coverageSearch.deleteMany();
+    await prisma.planCoverageRule.deleteMany();
+    await prisma.addressCoverageOverride.deleteMany();
+    await prisma.postcodeCoverage.deleteMany();
+    await prisma.operatingRegion.deleteMany();
     await prisma.paymentWebhookEvent.deleteMany();
     await prisma.planChangeRequest.deleteMany();
     await prisma.accountInvitation.deleteMany();
@@ -164,10 +271,10 @@ describe('Mero Telecom API (e2e)', () => {
           lastName: 'Singh',
           email: customerAUser.email,
           phone: '+61400000001',
-          addressLine1: '1 George Street',
-          suburb: 'Sydney',
-          state: 'NSW',
-          postcode: '2000',
+          addressLine1: '1 North Terrace',
+          suburb: 'Adelaide',
+          state: 'SA',
+          postcode: '5000',
         },
       }),
       prisma.customer.create({
@@ -178,10 +285,10 @@ describe('Mero Telecom API (e2e)', () => {
           lastName: 'Williams',
           email: customerBUser.email,
           phone: '+61400000002',
-          addressLine1: '2 George Street',
-          suburb: 'Sydney',
-          state: 'NSW',
-          postcode: '2000',
+          addressLine1: '2 North Terrace',
+          suburb: 'Adelaide',
+          state: 'SA',
+          postcode: '5000',
         },
       }),
     ]);
@@ -366,12 +473,6 @@ describe('Mero Telecom API (e2e)', () => {
       .expect(201);
     planId = plan.body.id;
 
-    const address = {
-      addressLine1: '1 George Street',
-      suburb: 'Sydney',
-      state: 'NSW',
-      postcode: '2000',
-    };
     await request(app.getHttpServer())
       .post('/api/v1/payments/public-plan-checkout-session')
       .send({
@@ -380,9 +481,8 @@ describe('Mero Telecom API (e2e)', () => {
         lastName: 'Customer',
         email: 'customer@merotelecom.test',
         phone: '+61400000001',
-        residentialAddress: address,
-        serviceAddress: address,
-        billingAddress: address,
+        residentialSameAsService: true,
+        billingSameAsResidential: true,
         termsAccepted: true,
         privacyAccepted: true,
       })
@@ -1031,24 +1131,230 @@ describe('Mero Telecom API (e2e)', () => {
     );
   });
 
-  it('returns readiness, public coverage, and administrative audit evidence', async () => {
+  it('enforces coverage management RBAC and qualifies only trusted selected addresses', async () => {
     const ready = await request(app.getHttpServer()).get('/api/v1/health/ready').expect(200);
     expect(ready.body.checks).toEqual({ database: 'ok', redis: 'ok' });
     expect(ready.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
 
-    const covered = await request(app.getHttpServer())
-      .get('/api/v1/coverage?postcode=2000')
+    await request(app.getHttpServer()).get('/api/v1/coverage-management/regions').expect(401);
+    const region = await request(app.getHttpServer())
+      .post('/api/v1/coverage-management/regions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        countryCode: 'AU',
+        stateCode: 'SA',
+        name: 'South Australia',
+        status: OperatingRegionStatus.ACTIVE,
+      })
+      .expect(201);
+    const regionId = region.body.id as string;
+
+    await request(app.getHttpServer())
+      .get('/api/v1/coverage-management/regions?search=South')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(200)
+      .expect(({ body }) => expect(body).toHaveLength(1));
+    await request(app.getHttpServer())
+      .patch(`/api/v1/coverage-management/regions/${regionId}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: OperatingRegionStatus.DISABLED })
+      .expect(403);
+
+    for (const postcode of [
+      {
+        postcode: '5000',
+        status: PostcodeCoverageStatus.AVAILABLE,
+        technology: AccessTechnology.FTTP,
+        maximumSpeedMbps: 100,
+      },
+      { postcode: '5001', status: PostcodeCoverageStatus.PARTIAL },
+      { postcode: '5114', status: PostcodeCoverageStatus.COMING_SOON },
+    ]) {
+      await request(app.getHttpServer())
+        .post('/api/v1/coverage-management/postcodes')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ operatingRegionId: regionId, ...postcode })
+        .expect(201);
+    }
+    await request(app.getHttpServer())
+      .post('/api/v1/coverage-management/plan-rules')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        planId,
+        technology: AccessTechnology.FTTP,
+        maximumSpeedMbps: 100,
+        operatingRegionId: regionId,
+      })
+      .expect(201);
+    const overrideSelection = await request(app.getHttpServer())
+      .get('/api/v1/coverage/address-suggestions')
+      .query({ query: 'override' })
       .expect(200);
-    expect(covered.body).toEqual(expect.objectContaining({ status: 'AVAILABLE' }));
+    await request(app.getHttpServer())
+      .post('/api/v1/coverage-management/address-overrides/from-selection')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        operatingRegionId: regionId,
+        selectionToken: overrideSelection.body.suggestions[0].selectionToken,
+        status: AddressOverrideStatus.UNAVAILABLE,
+        technology: null,
+        maximumSpeedMbps: null,
+        isActive: true,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/coverage-management/plan-rules')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ planId, technology: AccessTechnology.FTTP })
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/coverage-management/analytics')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/coverage/address-suggestions')
+      .query({ query: 'ab' })
+      .expect(400);
+    const availableSuggestion = await request(app.getHttpServer())
+      .get('/api/v1/coverage/address-suggestions')
+      .query({ query: 'available' })
+      .expect(200);
+    expect(availableSuggestion.body.suggestions).toHaveLength(1);
+    expect(availableSuggestion.body.suggestions[0]).toEqual(
+      expect.objectContaining({
+        selectionToken: expect.any(String),
+        formattedAddress: coverageFixtures.available.formattedAddress,
+      }),
+    );
+    expect(availableSuggestion.body.suggestions[0]).not.toHaveProperty('latitude');
+    expect(availableSuggestion.body.suggestions[0]).not.toHaveProperty('providerAddressId');
+
+    const covered = await request(app.getHttpServer())
+      .post('/api/v1/coverage/check')
+      .send({ selectionToken: availableSuggestion.body.suggestions[0].selectionToken })
+      .expect(201);
+    expect(covered.body).toEqual(
+      expect.objectContaining({
+        available: true,
+        status: CoverageResultStatus.AVAILABLE,
+        qualification: expect.objectContaining({ technology: AccessTechnology.FTTP }),
+      }),
+    );
     expect(covered.body.plans).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: planId })]),
     );
-    await request(app.getHttpServer()).get('/api/v1/coverage?postcode=20').expect(400);
+    expect(covered.body.qualificationToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+
+    const guestCheckout = request.agent(app.getHttpServer());
+    const preparedCheckout = await guestCheckout
+      .post('/api/v1/payments/public-checkout-context')
+      .set('Origin', 'http://localhost:3000')
+      .send({ planId, qualificationToken: covered.body.qualificationToken })
+      .expect(201);
+    expect(preparedCheckout.headers['set-cookie']?.[0]).toContain('mero_public_checkout_context=');
+    await guestCheckout
+      .get('/api/v1/payments/public-checkout-context')
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toEqual(
+          expect.objectContaining({
+            planId,
+            serviceAddress: expect.objectContaining({
+              formattedAddress: coverageFixtures.available.formattedAddress,
+            }),
+          }),
+        );
+        expect(body).not.toHaveProperty('trustedServiceAddress');
+      });
+    await guestCheckout
+      .post('/api/v1/payments/public-plan-checkout-session')
+      .set('Origin', 'http://localhost:3000')
+      .send({
+        planId,
+        firstName: 'Coverage',
+        lastName: 'Guest',
+        email: 'coverage.guest@merotelecom.test',
+        phone: '+61400000008',
+        residentialSameAsService: true,
+        billingSameAsResidential: true,
+        termsAccepted: true,
+        privacyAccepted: true,
+      })
+      .expect(201)
+      .expect(({ body }) =>
+        expect(body.checkoutUrl).toMatch(/^https:\/\/checkout\.stripe\.test\//),
+      );
+    await guestCheckout.get('/api/v1/payments/public-checkout-context').expect(410);
+    const checkoutApplication = await prisma.checkoutApplication.findFirstOrThrow({
+      where: { applicantEmail: 'coverage.guest@merotelecom.test' },
+    });
+    expect(checkoutApplication.serviceAddress).toEqual(
+      expect.objectContaining({
+        addressLine1: '1 North Terrace',
+        suburb: 'Adelaide',
+        state: 'SA',
+        postcode: '5000',
+      }),
+    );
+    expect(checkoutApplication.residentialAddress).toEqual(checkoutApplication.serviceAddress);
+    await request(app.getHttpServer())
+      .post('/api/v1/coverage/check')
+      .send({ selectionToken: availableSuggestion.body.suggestions[0].selectionToken })
+      .expect(410);
+
+    for (const [query, status] of [
+      ['unsupported', CoverageResultStatus.NOT_AVAILABLE],
+      ['victoria', CoverageResultStatus.OUTSIDE_OPERATING_REGION],
+      ['coming', CoverageResultStatus.COMING_SOON],
+      ['override', CoverageResultStatus.NOT_AVAILABLE],
+    ] as const) {
+      const suggestion = await request(app.getHttpServer())
+        .get('/api/v1/coverage/address-suggestions')
+        .query({ query })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post('/api/v1/coverage/check')
+        .send({ selectionToken: suggestion.body.suggestions[0].selectionToken })
+        .expect(201)
+        .expect(({ body }) => expect(body.status).toBe(status));
+    }
+
+    const analytics = await request(app.getHttpServer())
+      .get('/api/v1/coverage-management/analytics?days=30')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(analytics.body.total).toBeGreaterThanOrEqual(5);
+    expect(analytics.body.recent[0]).not.toHaveProperty('formattedAddress');
+
+    let rateLimited = false;
+    for (let attempt = 0; attempt < 21; attempt += 1) {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/coverage/address-suggestions')
+        .query({ query: `no-result-${attempt}` });
+      if (response.status === 429) {
+        rateLimited = true;
+        break;
+      }
+      expect(response.status).toBe(200);
+    }
+    expect(rateLimited).toBe(true);
 
     const auditCount = await prisma.auditLog.count({
-      where: { actor: { role: { in: [Role.ADMIN, Role.STAFF] } } },
+      where: {
+        actor: { role: Role.ADMIN },
+        action: {
+          in: [
+            'OPERATING_REGION_CREATED',
+            'POSTCODE_COVERAGE_CREATED',
+            'ADDRESS_COVERAGE_OVERRIDE_CREATED',
+            'PLAN_COVERAGE_COMPATIBILITY_CREATED',
+          ],
+        },
+      },
     });
-    expect(auditCount).toBeGreaterThanOrEqual(5);
+    expect(auditCount).toBeGreaterThanOrEqual(6);
   });
 
   function postStripeEvent(event: Stripe.Event, signature = 'e2e-valid-signature') {

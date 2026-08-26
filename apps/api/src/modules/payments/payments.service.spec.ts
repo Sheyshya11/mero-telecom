@@ -19,6 +19,36 @@ import { StripeClientService } from './stripe-client.service';
 const stripeSecret = 'whsec_phase13_test_secret';
 const invoiceId = '6b34d995-21a6-4d36-8e28-1f465f93cc66';
 const customerId = '46ed2dc1-1ff8-4649-8440-1aa4355b97ad';
+const trustedAddress = {
+  provider: 'geoapify' as const,
+  providerAddressId: 'trusted-test-address',
+  formattedAddress: '9 Test Street, Adelaide SA 5000, Australia',
+  unit: null,
+  houseNumber: '9',
+  street: 'Test Street',
+  suburb: 'Adelaide',
+  city: 'Adelaide',
+  state: 'South Australia',
+  stateCode: 'SA',
+  postcode: '5000',
+  countryCode: 'au',
+  latitude: -34.92,
+  longitude: 138.6,
+};
+
+function checkoutContextMock() {
+  return {
+    consume: jest.fn().mockResolvedValue({
+      version: 1,
+      planId: '4ccdfc07-0bac-40e6-93fe-728d00740379',
+      trustedServiceAddress: trustedAddress,
+      technology: 'FTTP',
+      maximumSpeedMbps: 100,
+      checkedAt: '2026-08-25T00:00:00.000Z',
+      expiresAt: '2026-08-25T00:30:00.000Z',
+    }),
+  };
+}
 
 function makeService(prisma: Partial<PrismaService>) {
   const configService = {
@@ -36,7 +66,9 @@ function makeService(prisma: Partial<PrismaService>) {
       invalidate: jest.fn().mockResolvedValue(true),
     } as never,
     new BillingService(),
-    { statusFor: jest.fn().mockReturnValue('AVAILABLE') } as never,
+    { assertTrustedAddressCanOrderPlan: jest.fn().mockResolvedValue(undefined) } as never,
+    { consume: jest.fn().mockResolvedValue(trustedAddress) } as never,
+    checkoutContextMock() as never,
     {
       issueWithinTransaction: jest.fn(),
       queueDelivery: jest.fn().mockResolvedValue(true),
@@ -68,18 +100,24 @@ function makePublicService(prisma: Partial<PrismaService>) {
   const notifications = {
     sendSubscriptionConfirmation: jest.fn().mockResolvedValue({ messageId: 'message-id' }),
   };
+  const publicCheckoutContext = checkoutContextMock();
+  const addressSelections = {
+    consume: jest.fn().mockResolvedValue(trustedAddress),
+  };
   const service = new PaymentsService(
     prisma as PrismaService,
     configService as never,
     new StripeClientService(configService as never),
     { invalidate: jest.fn().mockResolvedValue(true) } as never,
     new BillingService(),
-    { statusFor: jest.fn().mockReturnValue('AVAILABLE') } as never,
+    { assertTrustedAddressCanOrderPlan: jest.fn().mockResolvedValue(undefined) } as never,
+    addressSelections as never,
+    publicCheckoutContext as never,
     invitations as never,
     notifications as never,
     { processStripeEvent: jest.fn().mockResolvedValue(undefined) } as never,
   );
-  return { invitations, notifications, service };
+  return { addressSelections, invitations, notifications, publicCheckoutContext, service };
 }
 
 describe('PaymentsService', () => {
@@ -197,7 +235,7 @@ describe('PaymentsService', () => {
         update: jest.fn().mockResolvedValue(application),
       },
     };
-    const { service } = makePublicService(prisma as never);
+    const { publicCheckoutContext, service } = makePublicService(prisma as never);
     const stripe = (service as unknown as { stripe: Stripe }).stripe;
     const create = jest.fn().mockResolvedValue({
       id: 'cs_test_public_123',
@@ -206,30 +244,26 @@ describe('PaymentsService', () => {
     (stripe as unknown as { checkout: { sessions: { create: jest.Mock } } }).checkout = {
       sessions: { create },
     };
-    const address = {
-      addressLine1: '9 Test Street',
-      suburb: 'Sydney',
-      state: 'NSW',
-      postcode: '2000',
-    };
-
     await expect(
-      service.createPublicPlanCheckoutSession({
-        planId,
-        firstName: 'New',
-        lastName: 'Customer',
-        email: 'NEW.CUSTOMER@example.com',
-        phone: '+61400000009',
-        residentialAddress: address,
-        serviceAddress: address,
-        billingAddress: address,
-        termsAccepted: true,
-        privacyAccepted: true,
-      }),
+      service.createPublicPlanCheckoutSession(
+        {
+          planId,
+          firstName: 'New',
+          lastName: 'Customer',
+          email: 'NEW.CUSTOMER@example.com',
+          phone: '+61400000009',
+          residentialSameAsService: true,
+          billingSameAsResidential: true,
+          termsAccepted: true,
+          privacyAccepted: true,
+        },
+        'c'.repeat(43),
+      ),
     ).resolves.toEqual({ checkoutUrl: 'https://checkout.stripe.test/public-123' });
 
     expect(prisma.user.create).not.toHaveBeenCalled();
     expect(prisma.customer.create).not.toHaveBeenCalled();
+    expect(publicCheckoutContext.consume).toHaveBeenCalledWith('c'.repeat(43), planId);
     expect(prisma.checkoutApplication.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -247,6 +281,87 @@ describe('PaymentsService', () => {
         ],
       }),
       { idempotencyKey: `public-plan-checkout-${application.id}` },
+    );
+  });
+
+  it('resolves separate residential and billing addresses only from trusted tokens', async () => {
+    const planId = '4ccdfc07-0bac-40e6-93fe-728d00740379';
+    const application = {
+      id: '8deea970-2e1f-44a8-b645-b72882631251',
+      amountCents: 8900,
+      currency: 'AUD',
+    };
+    const prisma = {
+      internetPlan: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: planId,
+          name: 'Home Plus',
+          monthlyCents: 8900,
+          isActive: true,
+          isPublic: true,
+          isAvailable: true,
+        }),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
+      customer: { findUnique: jest.fn().mockResolvedValue(null) },
+      checkoutApplication: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(application),
+        update: jest.fn().mockResolvedValue(application),
+      },
+    };
+    const { addressSelections, service } = makePublicService(prisma as never);
+    addressSelections.consume
+      .mockResolvedValueOnce({
+        ...trustedAddress,
+        providerAddressId: 'residential-id',
+        houseNumber: '2',
+        street: 'Residential Road',
+      })
+      .mockResolvedValueOnce({
+        ...trustedAddress,
+        providerAddressId: 'billing-id',
+        houseNumber: '3',
+        street: 'Billing Road',
+      });
+    const stripe = (service as unknown as { stripe: Stripe }).stripe;
+    (stripe as unknown as { checkout: { sessions: { create: jest.Mock } } }).checkout = {
+      sessions: {
+        create: jest.fn().mockResolvedValue({
+          id: 'cs_test_public_separate',
+          url: 'https://checkout.stripe.test/public-separate',
+        }),
+      },
+    };
+
+    await service.createPublicPlanCheckoutSession(
+      {
+        planId,
+        firstName: 'Different',
+        lastName: 'Addresses',
+        email: 'different.addresses@example.com',
+        phone: '+61400000009',
+        residentialSameAsService: false,
+        residentialAddressToken: 'r'.repeat(43),
+        billingSameAsResidential: false,
+        billingAddressToken: 'b'.repeat(43),
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
+      'c'.repeat(43),
+    );
+
+    expect(addressSelections.consume).toHaveBeenNthCalledWith(1, 'r'.repeat(43));
+    expect(addressSelections.consume).toHaveBeenNthCalledWith(2, 'b'.repeat(43));
+    expect(prisma.checkoutApplication.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          residentialAddress: expect.objectContaining({ addressLine1: '2 Residential Road' }),
+          serviceAddress: expect.objectContaining({ addressLine1: '9 Test Street' }),
+          billingAddress: expect.objectContaining({ addressLine1: '3 Billing Road' }),
+        }),
+      }),
     );
   });
 

@@ -36,12 +36,35 @@ Mailpit (or the configured safe development recipient) to follow the account act
 
 ## Public registration and checkout
 
-`POST /api/v1/payments/public-plan-checkout-session` accepts applicant/contact data, typed
-residential/service/billing addresses, `planId`, and required terms/privacy consent flags. It does
-not accept an amount or currency. The API rejects an existing account email, unavailable plan, or
-uncovered service postcode, then stores a short-lived `CheckoutApplication` and creates Stripe
-Checkout with the server-side plan price. No `User`, `Customer`, `Subscription`, `Invoice`, or
-`Payment` exists at this point.
+Public checkout does not require login, but it does require a server-trusted service address:
+
+1. `POST /api/v1/coverage/check` consumes the selected-address token and returns a one-use
+   `qualificationToken` only for an orderable result.
+2. `POST /api/v1/payments/public-checkout-context` consumes that token with a compatible `planId`,
+   stores the trusted address/qualification in Redis for 30 minutes, and sets an opaque HTTP-only
+   cookie. The token and address are not placed in the checkout URL.
+3. `GET /api/v1/payments/public-checkout-context` returns display-safe context fields so checkout
+   can restore a landing-page result. A direct `/checkout?planId=...` visit must qualify a service
+   address before displaying the applicant form.
+4. `POST /api/v1/payments/public-plan-checkout-session` accepts contact data, address relationship
+   flags, optional one-use residential/billing address tokens, `planId`, and required consent. It
+   never accepts a typed address object, amount, or currency.
+
+The API atomically consumes the HTTP-only context, re-runs database qualification for the exact
+trusted service address, confirms the plan remains public/active/orderable, resolves any distinct
+residential and billing addresses from Geoapify-backed Redis tokens, and stores normalized address
+snapshots in `CheckoutApplication`. "Same as service" and "same as residential" copy only trusted
+server-side values. A missing, expired, mismatched, or reused context returns `410` and requires a
+fresh coverage check. Redis failure returns `503`; there is no untrusted fallback.
+
+`POST /api/v1/payments/public-checkout-context/clear` deletes the Redis context and clears the
+cookie when the visitor changes the installation address. The cookie is `HttpOnly`, path-scoped,
+`SameSite=Lax` locally, and `Secure; SameSite=None` for the configured production frontend/API
+topology.
+
+After validation, the API stores a short-lived `CheckoutApplication` and creates Stripe Checkout
+with the server-side plan price. No `User`, `Customer`, `Subscription`, `Invoice`, or `Payment`
+exists at this point.
 
 `GET /api/v1/payments/public-checkout-status?sessionId=cs_test_...` returns only the minimal
 application state. It retrieves the Stripe session server-side and safely reconciles a paid session
@@ -86,6 +109,10 @@ the account remains `INVITATION_PENDING` until the customer chooses a password. 
 expired, or abandoned sessions create none of those business records. A paid concurrency conflict
 is retained as `REQUIRES_REVIEW` rather than losing payment evidence or attaching it to the wrong
 identity.
+
+Residential, service, and billing addresses remain separate. Coverage applies only to the service
+address. Editing the eventual customer profile cannot change the address snapshot used by the paid
+checkout; moving an active service requires a separate future service-transfer workflow.
 
 The handler also processes `checkout.session.async_payment_failed` and
 `checkout.session.expired`. Stripe metadata contains internal identifiers only; personal details

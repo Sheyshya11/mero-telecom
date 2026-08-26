@@ -9,16 +9,16 @@ real NestJS application against dedicated PostgreSQL and Redis instances.
 
 ## Test layers
 
-| Layer            | Command                                           | What it proves                                                                   |
-| ---------------- | ------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Formatting       | `pnpm format:check`                               | Version-controlled source and docs match Prettier                                |
-| Lint             | `pnpm lint`                                       | ESLint rules and common unsafe patterns pass                                     |
-| Types            | `pnpm typecheck`                                  | Strict TypeScript contracts across workspaces                                    |
-| Unit/integration | `pnpm test`                                       | Services, guards, configuration, billing, PDF, email, cache, and Stripe adapters |
-| API end-to-end   | `pnpm test:e2e`                                   | Real routes, guards, migrations, PostgreSQL transactions, and Redis readiness    |
-| Production build | `pnpm build`                                      | NestJS and Next.js compile in production mode                                    |
-| Schema           | `pnpm --filter @mero-telecom/api prisma:validate` | Prisma schema and datasource contract are valid                                  |
-| Supply chain     | `pnpm audit --audit-level=high`                   | No known high/critical dependency advisory is accepted silently                  |
+| Layer            | Command                                           | What it proves                                                                |
+| ---------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Formatting       | `pnpm format:check`                               | Version-controlled source and docs match Prettier                             |
+| Lint             | `pnpm lint`                                       | ESLint rules and common unsafe patterns pass                                  |
+| Types            | `pnpm typecheck`                                  | Strict TypeScript contracts across workspaces                                 |
+| Unit/integration | `pnpm test`                                       | API services/adapters plus Vitest coverage-component behavior                 |
+| API end-to-end   | `pnpm test:e2e`                                   | Real routes, guards, migrations, PostgreSQL transactions, and Redis readiness |
+| Production build | `pnpm build`                                      | NestJS and Next.js compile in production mode                                 |
+| Schema           | `pnpm --filter @mero-telecom/api prisma:validate` | Prisma schema and datasource contract are valid                               |
+| Supply chain     | `pnpm audit --audit-level=high`                   | No known high/critical dependency advisory is accepted silently               |
 
 ## Isolated test infrastructure
 
@@ -51,11 +51,21 @@ The API suite verifies:
 - invalid Stripe signatures and plan-change metadata, amount/currency mismatch, duplicate and
   out-of-order webhooks, expiration, asynchronous failure, suspension/overdue races, and exactly-once
   upgrade/downgrade application;
-- PostgreSQL and Redis readiness, public coverage responses, and administrative audit evidence.
+- PostgreSQL and Redis readiness; mocked autocomplete with Redis-backed one-time selections;
+  exact available/unsupported/coming-soon/override/state decisions; management RBAC; analytics;
+  HTTP-only guest checkout context issuance/restoration/one-use consumption; trusted address
+  persistence; and administrative audit evidence.
 
 External systems are not contacted in this suite. Stripe cryptographic/event behavior, SMTP email
 composition/deduplication, private object-storage behavior, Redis cache fallback, PDF rendering,
 guards, and configuration validation are exercised with focused tests and injected fakes.
+
+Frontend Vitest/Testing Library checks prove the three-character threshold, 400 ms debounce,
+keyboard selection, loading/safe provider errors, selection requirement, result clearing on input
+change, compatible-plan actions, and available/coming-soon/outside/manual-review rendering. Guest
+checkout tests cover a direct visit that cannot proceed without qualification, landing-page
+context restoration, and distinct residential/billing tokens without browser-posted address
+objects.
 
 Email queue tests prove that recipient data and activation tokens are not visible in Redis job
 payloads, deterministic IDs prevent duplicate enqueueing, exponential retry settings are applied,

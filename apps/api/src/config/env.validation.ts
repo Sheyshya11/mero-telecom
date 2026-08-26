@@ -10,6 +10,20 @@ export const validationSchema = Joi.object({
     .uri({ scheme: ['redis', 'rediss'] })
     .required(),
   ADMIN_DASHBOARD_CACHE_TTL_SECONDS: Joi.number().integer().min(5).max(3600).default(60),
+  ADDRESS_LOOKUP_PROVIDER: Joi.string().valid('geoapify').default('geoapify'),
+  GEOAPIFY_API_KEY: Joi.when('ADDRESS_LOOKUP_PROVIDER', {
+    is: 'geoapify',
+    then: Joi.when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string().min(1).required(),
+      otherwise: Joi.string().allow('').default(''),
+    }),
+  }),
+  COVERAGE_QUALIFICATION_PROVIDER: Joi.string().valid('database').default('database'),
+  ADDRESS_LOOKUP_MIN_CHARACTERS: Joi.number().integer().min(3).max(10).default(3),
+  ADDRESS_LOOKUP_CACHE_TTL_SECONDS: Joi.number().integer().min(30).max(86400).default(600),
+  ADDRESS_SELECTION_TTL_SECONDS: Joi.number().integer().min(60).max(3600).default(900),
+  PUBLIC_CHECKOUT_CONTEXT_TTL_SECONDS: Joi.number().integer().min(300).max(3600).default(1800),
   THROTTLE_TTL_MS: Joi.number().integer().min(1000).max(3600000).default(60000),
   THROTTLE_LIMIT: Joi.number().integer().min(10).max(10000).default(120),
   ACCOUNT_INVITATION_TTL_HOURS: Joi.number().integer().min(1).max(168).default(24),

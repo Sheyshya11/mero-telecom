@@ -31,11 +31,15 @@ import {
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { BillingService } from '../billing/billing.service';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
+import { AddressSelectionService } from '../coverage/address-selection.service';
+import { normalizeAustralianStateCode } from '../coverage/australian-states';
 import { CoverageService } from '../coverage/coverage.service';
+import type { NormalizedAddressSuggestion } from '../coverage/coverage.types';
 import { NotificationService } from '../notifications/notification.service';
 import type { CreatePublicPlanCheckoutSessionDto } from './dto/create-checkout-session.dto';
 import { StripeClientService } from './stripe-client.service';
 import { PlanChangesService } from '../plan-changes/plan-changes.service';
+import { PublicCheckoutContextService } from './public-checkout-context.service';
 
 const planPurchaseInclude = {
   customer: true,
@@ -80,6 +84,8 @@ export class PaymentsService {
     private readonly dashboardCache: AdminDashboardCacheService,
     private readonly billing: BillingService,
     private readonly coverage: CoverageService,
+    private readonly addressSelections: AddressSelectionService,
+    private readonly publicCheckoutContext: PublicCheckoutContextService,
     private readonly invitations: AccountInvitationsService,
     private readonly notifications: NotificationService,
     private readonly planChanges: PlanChangesService,
@@ -87,7 +93,10 @@ export class PaymentsService {
     this.stripe = stripeClient.client;
   }
 
-  async createPublicPlanCheckoutSession(input: CreatePublicPlanCheckoutSessionDto) {
+  async createPublicPlanCheckoutSession(
+    input: CreatePublicPlanCheckoutSessionDto,
+    checkoutContextToken?: string,
+  ) {
     const applicantEmail = input.email.trim().toLowerCase();
     const [plan, existingUser, existingCustomer] = await Promise.all([
       this.prisma.internetPlan.findUnique({ where: { id: input.planId } }),
@@ -106,12 +115,6 @@ export class PaymentsService {
         'An account already exists for this email. Sign in to continue with your selected plan.',
       );
     }
-    if (this.coverage.statusFor(Number(input.serviceAddress.postcode)) !== 'AVAILABLE') {
-      throw new BadRequestException(
-        'Mero Telecom service is not currently orderable at this address.',
-      );
-    }
-
     const now = new Date();
     await this.prisma.checkoutApplication.updateMany({
       where: {
@@ -144,6 +147,26 @@ export class PaymentsService {
       );
     }
 
+    const trustedCheckout = await this.publicCheckoutContext.consume(
+      checkoutContextToken,
+      input.planId,
+    );
+    await this.coverage.assertTrustedAddressCanOrderPlan(
+      trustedCheckout.trustedServiceAddress,
+      input.planId,
+    );
+    const serviceAddress = this.normalizedAddress(trustedCheckout.trustedServiceAddress);
+    const residentialAddress = input.residentialSameAsService
+      ? serviceAddress
+      : this.normalizedAddress(
+          await this.addressSelections.consume(input.residentialAddressToken ?? ''),
+        );
+    const billingAddress = input.billingSameAsResidential
+      ? residentialAddress
+      : this.normalizedAddress(
+          await this.addressSelections.consume(input.billingAddressToken ?? ''),
+        );
+
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
     let application;
     try {
@@ -154,9 +177,9 @@ export class PaymentsService {
           firstName: input.firstName.trim(),
           lastName: input.lastName.trim(),
           phone: input.phone,
-          residentialAddress: this.addressJson(input.residentialAddress),
-          serviceAddress: this.addressJson(input.serviceAddress),
-          billingAddress: this.addressJson(input.billingAddress),
+          residentialAddress: this.addressJson(residentialAddress),
+          serviceAddress: this.addressJson(serviceAddress),
+          billingAddress: this.addressJson(billingAddress),
           termsAcceptedAt: now,
           privacyAcceptedAt: now,
           amountCents: plan.monthlyCents,
@@ -1014,6 +1037,33 @@ export class PaymentsService {
       addressLine2: address.addressLine2 ?? null,
       suburb: address.suburb,
       state: address.state.toUpperCase(),
+      postcode: address.postcode,
+    };
+  }
+
+  private normalizedAddress(address: NormalizedAddressSuggestion): StoredAddress {
+    const streetAddress = [address.houseNumber, address.street].filter(Boolean).join(' ').trim();
+    const addressLine1 = streetAddress || address.formattedAddress.split(',')[0]?.trim();
+    const suburb = address.suburb ?? address.city;
+    const state = normalizeAustralianStateCode(address.stateCode, address.state);
+    if (
+      !addressLine1 ||
+      addressLine1.length > 255 ||
+      !suburb ||
+      suburb.length > 100 ||
+      !state ||
+      !address.postcode ||
+      !/^\d{4}$/.test(address.postcode)
+    ) {
+      throw new BadRequestException(
+        'The selected address is incomplete. Please choose a more specific address.',
+      );
+    }
+    return {
+      addressLine1,
+      addressLine2: address.unit || null,
+      suburb,
+      state,
       postcode: address.postcode,
     };
   }

@@ -102,6 +102,42 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum AccessTechnology {
+  FTTP
+  FTTN
+  FTTC
+  HFC
+  FIXED_WIRELESS
+  SATELLITE
+}
+
+enum OperatingRegionStatus {
+  ACTIVE
+  COMING_SOON
+  DISABLED
+}
+
+enum PostcodeCoverageStatus {
+  AVAILABLE
+  PARTIAL
+  COMING_SOON
+  UNAVAILABLE
+}
+
+enum AddressOverrideStatus {
+  AVAILABLE
+  UNAVAILABLE
+  MANUAL_REVIEW
+}
+
+enum CoverageResultStatus {
+  AVAILABLE
+  COMING_SOON
+  NOT_AVAILABLE
+  OUTSIDE_OPERATING_REGION
+  MANUAL_REVIEW
+}
+
 model User {
   id                String              @id @default(uuid()) @db.Uuid
   email             String              @unique @db.VarChar(320)
@@ -143,6 +179,7 @@ model Customer {
   addresses            CustomerAddress[]
   checkoutApplications CheckoutApplication[]
   planChangeRequests   PlanChangeRequest[]
+  coverageSearches     CoverageSearch[]
 
   @@index([lastName, firstName])
   @@index([status])
@@ -196,6 +233,7 @@ model InternetPlan {
   checkoutApplications CheckoutApplication[]
   sourcePlanChanges    PlanChangeRequest[]   @relation("PlanChangeSourcePlan")
   targetPlanChanges    PlanChangeRequest[]   @relation("PlanChangeTargetPlan")
+  coverageRules        PlanCoverageRule[]
 
   @@index([isActive])
   @@index([isPublic, isAvailable, tierRank])
@@ -436,4 +474,103 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([actorUserId, createdAt])
+}
+
+model OperatingRegion {
+  id                String                    @id @default(uuid()) @db.Uuid
+  countryCode       String                    @db.Char(2)
+  stateCode         String                    @db.VarChar(3)
+  name              String                    @db.VarChar(100)
+  status            OperatingRegionStatus     @default(DISABLED)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  postcodeCoverage  PostcodeCoverage[]
+  addressOverrides  AddressCoverageOverride[]
+  planCoverageRules PlanCoverageRule[]
+  coverageSearches  CoverageSearch[]
+
+  @@unique([countryCode, stateCode])
+  @@index([status])
+}
+
+model PostcodeCoverage {
+  id                String                 @id @default(uuid()) @db.Uuid
+  operatingRegionId String                 @db.Uuid
+  postcode          String                 @db.Char(4)
+  status            PostcodeCoverageStatus
+  technology        AccessTechnology?
+  maximumSpeedMbps  Int?
+  availabilityDate  DateTime?              @db.Date
+  isActive          Boolean                @default(true)
+  adminNotes        String?                @db.VarChar(1000)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  operatingRegion   OperatingRegion        @relation(fields: [operatingRegionId], references: [id], onDelete: Restrict)
+
+  @@unique([operatingRegionId, postcode])
+  @@index([postcode, isActive])
+  @@index([status, isActive])
+}
+
+model AddressCoverageOverride {
+  id                String                @id @default(uuid()) @db.Uuid
+  operatingRegionId String                @db.Uuid
+  provider          String                @db.VarChar(50)
+  providerAddressId String                @db.VarChar(255)
+  formattedAddress  String                @db.VarChar(500)
+  stateCode         String                @db.VarChar(3)
+  postcode          String                @db.Char(4)
+  status            AddressOverrideStatus
+  technology        AccessTechnology?
+  maximumSpeedMbps  Int?
+  availabilityDate  DateTime?             @db.Date
+  isActive          Boolean               @default(true)
+  adminNotes        String?               @db.VarChar(1000)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  operatingRegion   OperatingRegion       @relation(fields: [operatingRegionId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, providerAddressId])
+  @@index([operatingRegionId, postcode, isActive])
+  @@index([status, isActive])
+}
+
+model PlanCoverageRule {
+  id                String           @id @default(uuid()) @db.Uuid
+  planId            String           @db.Uuid
+  technology        AccessTechnology
+  minimumSpeedMbps  Int?
+  maximumSpeedMbps  Int?
+  operatingRegionId String?          @db.Uuid
+  postcode          String?          @db.Char(4)
+  scopeKey          String           @db.VarChar(100)
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  plan              InternetPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  operatingRegion   OperatingRegion? @relation(fields: [operatingRegionId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, technology, scopeKey])
+  @@index([technology, isActive])
+  @@index([operatingRegionId, postcode, isActive])
+}
+
+model CoverageSearch {
+  id                String               @id @default(uuid()) @db.Uuid
+  requestIdentifier String               @default(uuid()) @db.Uuid
+  resultStatus      CoverageResultStatus
+  stateCode         String?              @db.VarChar(3)
+  postcode          String?              @db.Char(4)
+  technology        AccessTechnology?
+  plansReturned     Boolean              @default(false)
+  operatingRegionId String?              @db.Uuid
+  customerId        String?              @db.Uuid
+  createdAt         DateTime             @default(now())
+  operatingRegion   OperatingRegion?     @relation(fields: [operatingRegionId], references: [id], onDelete: SetNull)
+  customer          Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([resultStatus, createdAt])
+  @@index([stateCode, postcode, createdAt])
+  @@index([customerId, createdAt])
 }

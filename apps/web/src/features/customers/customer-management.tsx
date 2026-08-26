@@ -122,6 +122,12 @@ export function CustomerManagement() {
           <Link className="button-secondary" href="/admin/invoices">
             Invoices
           </Link>
+          <Link
+            className="button-secondary"
+            href={user.role === 'ADMIN' ? '/admin/coverage' : '/staff/coverage'}
+          >
+            Coverage
+          </Link>
           {user.role === 'ADMIN' ? (
             <button
               className="button-primary"

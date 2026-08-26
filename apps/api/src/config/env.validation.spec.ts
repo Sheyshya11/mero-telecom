@@ -5,6 +5,7 @@ const validEnvironment = {
   DATABASE_URL: 'postgresql://user:password@database:5432/mero_telecom',
   REDIS_URL: 'redis://redis:6379',
   FRONTEND_URL: 'https://app.example.com',
+  GEOAPIFY_API_KEY: 'geoapify-production-key',
   JWT_ACCESS_SECRET: 'access-secret-at-least-thirty-two-characters',
   JWT_REFRESH_SECRET: 'refresh-secret-at-least-thirty-two-characters',
   STRIPE_SECRET_KEY: 'rk_test_example',

@@ -7,6 +7,7 @@ import { CoverageModule } from '../coverage/coverage.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
+import { PublicCheckoutContextService } from './public-checkout-context.service';
 import { StripeModule } from './stripe.module';
 import { PlanChangesModule } from '../plan-changes/plan-changes.module';
 
@@ -21,6 +22,6 @@ import { PlanChangesModule } from '../plan-changes/plan-changes.module';
     PlanChangesModule,
   ],
   controllers: [PaymentsController],
-  providers: [PaymentsService],
+  providers: [PaymentsService, PublicCheckoutContextService],
 })
 export class PaymentsModule {}

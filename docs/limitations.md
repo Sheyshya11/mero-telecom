@@ -2,8 +2,8 @@
 
 ## Current limitations
 
-- Coverage is a deterministic postcode demonstration, not an NBN address qualification or service
-  ordering integration.
+- Geoapify identifies addresses, while deterministic exact database records simulate coverage.
+  This is not an authorized nbn wholesale Site Qualification or service-ordering integration.
 - Stripe is test mode only. There are no live payments, refunds UI, disputes, failed-payment retry
   automation, or accounting reconciliation.
 - Invoice email is manual. There is no scheduled billing job, recurring invoice run, reminder
@@ -23,7 +23,8 @@
 
 ## Recommended improvements
 
-1. Add provider-backed address qualification and keep the result timestamp/evidence with an order.
+1. Replace the database qualification provider with an authorized nbn wholesale integration and
+   retain appropriate result timestamp/evidence with an order.
 2. Add MFA, password-reset/email verification, admin user provisioning, and optional external IdP
    support before handling real customer data.
 3. Add scheduled billing and reminder producers to the existing idempotent email queue, plus an

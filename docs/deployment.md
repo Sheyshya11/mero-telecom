@@ -77,6 +77,7 @@ Render prompts for every variable marked `sync: false`:
 | Variable                       | Required value                                                          |
 | ------------------------------ | ----------------------------------------------------------------------- |
 | `FRONTEND_URL`                 | Exact HTTPS frontend origin, with no path                               |
+| `GEOAPIFY_API_KEY`             | Server-only key for the production API's Geoapify project               |
 | `ACCOUNT_INVITATION_TTL_HOURS` | Activation-link lifetime; keep at `24` unless policy changes            |
 | `STRIPE_SECRET_KEY`            | Restricted or standard Stripe test key (`rk_test_...` or `sk_test_...`) |
 | `STRIPE_WEBHOOK_SECRET`        | Signing secret for the production API's Stripe test webhook             |
@@ -163,10 +164,12 @@ Run these checks against the deployed URLs:
    became healthy.
 8. As an authorized admin and customer, download an invoice PDF. Confirm the response is a PDF,
    an unauthorized/other-customer request is rejected, and the backing object has no public URL.
-9. Complete one new-customer Stripe test Checkout. Confirm no account exists before payment, the
-   signed paid event creates exactly one paid invoice/payment and active subscription, and the
-   customer remains invitation-pending until choosing a password. Re-deliver the event and confirm
-   no duplicate records are created.
+9. Qualify a service address, choose a compatible plan, and confirm guest checkout restores the
+   address without putting a qualification token in the URL. Select a different residential or
+   billing address, then complete one new-customer Stripe test Checkout. Confirm no account exists
+   before payment, the signed paid event creates exactly one paid invoice/payment and active
+   subscription with the three address roles, and the customer remains invitation-pending until
+   choosing a password. Re-deliver the event and confirm no duplicate records are created.
 10. Verify an expired or abandoned Checkout creates no user, customer, invoice, payment, or
     subscription.
 11. Follow the controlled activation email once, sign in with the chosen password, and confirm a
@@ -174,6 +177,10 @@ Run these checks against the deployed URLs:
     revoked.
 12. Send one invoice email to a controlled test mailbox and confirm no unintended customer or
     production recipient was used during the smoke test.
+13. Search and select an SA address, confirm the browser never calls `api.geoapify.com`, and verify
+    the API returns only a database estimate. Confirm a non-configured state is not orderable.
+14. Sign in as Staff and verify coverage configuration is read-only; sign in as Admin and verify
+    a reversible test record mutation creates an audit entry.
 
 Render treats readiness responses outside the 2xx/3xx range as unhealthy, so a release with an
 unreachable PostgreSQL or Redis instance will not receive traffic. The liveness endpoint remains a

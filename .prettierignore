@@ -1,7 +1,9 @@
 node_modules/
 dist/
 .next/
-coverage/
+/coverage/
+/apps/api/coverage/
+/apps/web/coverage/
 apps/web/next-env.d.ts
 .playwright-cli/
 .agents/

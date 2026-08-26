@@ -10,18 +10,19 @@ refresh and logout use the HTTP-only `refresh_token` cookie.
 
 ## Endpoint and role summary
 
-| Area                      | Public             | Customer                           | Staff                               | Admin                               |
-| ------------------------- | ------------------ | ---------------------------------- | ----------------------------------- | ----------------------------------- |
-| Health and readiness      | Read               | Read                               | Read                                | Read                                |
-| Coverage and active plans | Read               | Read                               | Read                                | Read                                |
-| Login / refresh / logout  | Session owner      | Session owner                      | Session owner                       | Session owner                       |
-| Customer collection       | —                  | —                                  | Read/update                         | Create/read/update                  |
-| Own customer profile      | —                  | Read/update allowed fields         | —                                   | —                                   |
-| Plan administration       | —                  | —                                  | —                                   | Create/update/deactivate            |
-| Subscription collection   | —                  | Own records/select/pay/change plan | Read/status and plan-change history | Read/status and plan-change history |
-| Invoices                  | —                  | Own records/PDF/pay                | Create/read/PDF/email               | Full workflow/status                |
-| Dashboards                | —                  | Own summary                        | —                                   | Aggregate summary                   |
-| Stripe webhook            | Signature required | Signature required                 | Signature required                  | Signature required                  |
+| Area                     | Public             | Customer                           | Staff                               | Admin                               |
+| ------------------------ | ------------------ | ---------------------------------- | ----------------------------------- | ----------------------------------- |
+| Health and readiness     | Read               | Read                               | Read                                | Read                                |
+| Address coverage         | Check              | Check                              | Check/view config                   | Check/full configuration            |
+| Active plans             | Read               | Read                               | Read                                | Read/administer                     |
+| Login / refresh / logout | Session owner      | Session owner                      | Session owner                       | Session owner                       |
+| Customer collection      | —                  | —                                  | Read/update                         | Create/read/update                  |
+| Own customer profile     | —                  | Read/update allowed fields         | —                                   | —                                   |
+| Plan administration      | —                  | —                                  | —                                   | Create/update/deactivate            |
+| Subscription collection  | —                  | Own records/select/pay/change plan | Read/status and plan-change history | Read/status and plan-change history |
+| Invoices                 | —                  | Own records/PDF/pay                | Create/read/PDF/email               | Full workflow/status                |
+| Dashboards               | —                  | Own summary                        | —                                   | Aggregate summary                   |
+| Stripe webhook           | Signature required | Signature required                 | Signature required                  | Signature required                  |
 
 The public webhook row does not mean anonymous callers are trusted: raw request bytes and the
 `Stripe-Signature` header must pass cryptographic verification before any data changes.
@@ -29,7 +30,9 @@ The public webhook row does not mean anonymous callers are trusted: raw request 
 ## Route catalogue
 
 - `/health`, `/health/ready` — liveness and dependency readiness.
-- `/coverage` — public prototype postcode lookup; see [coverage](coverage.md).
+- `/coverage/address-suggestions`, `/coverage/check` — public trusted-address lookup, exact
+  database qualification, and one-use checkout qualification tokens; see [coverage](coverage.md).
+- `/coverage-management/*` — Admin configuration/analytics and Staff read-only views.
 - `/plans/public`, `/plans` — public catalogue and protected plan management; see [plans](plans.md).
 - `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me` — authentication lifecycle.
 - `/customers`, `/customers/me` — operations and self-service customer data.
@@ -38,7 +41,8 @@ The public webhook row does not mean anonymous callers are trusted: raw request 
   requests, cancellation, and role-filtered history; see [plan changes](plan-changes.md).
 - `/invoices`, `/invoices/me`, `/invoices/generate`, `/invoices/:id/pdf`,
   `/invoices/:id/send`, `/invoices/:id/status` — invoice workflow.
-- `/payments/public-plan-checkout-session`, `/payments/public-checkout-status`,
+- `/payments/public-checkout-context`, `/payments/public-checkout-context/clear`,
+  `/payments/public-plan-checkout-session`, `/payments/public-checkout-status`,
   `/payments/plan-checkout-session`, `/payments/checkout-session`, `/payments/stripe/webhook` —
   public registration, customer plan purchase, and Stripe test-mode payments.
 - `/auth/activation/verify`, `/auth/activation`, `/auth/activation/resend` — single-use account
@@ -57,7 +61,7 @@ the final protection against duplicate invoice, payment, and webhook processing.
   generate a console error; a supplied invalid or expired cookie still returns `401`.
 - Role or ownership violations return `403`; missing records return `404`; conflicting uniqueness
   or state transitions return `409`; invalid payloads return `400`.
-- Login is limited to 10 attempts per minute, refresh to 30 per minute, coverage to 30 per minute,
+- Login is limited to 10 attempts per minute, refresh to 30 per minute, coverage to 20 per minute,
   and other endpoints inherit the configurable global throttle.
 
 ## Private document delivery

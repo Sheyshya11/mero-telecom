@@ -8,12 +8,13 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -25,16 +26,21 @@ import {
   CreateCheckoutSessionDto,
   CreatePlanCheckoutSessionDto,
   CreatePublicPlanCheckoutSessionDto,
+  PreparePublicCheckoutContextDto,
   PublicCheckoutStatusQueryDto,
 } from './dto/create-checkout-session.dto';
 import { PaymentsService } from './payments.service';
+import { PublicCheckoutContextService } from './public-checkout-context.service';
 
 type StripeRawBodyRequest = Request & { rawBody?: Buffer };
 
 @ApiTags('payments')
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly payments: PaymentsService) {}
+  constructor(
+    private readonly payments: PaymentsService,
+    private readonly publicCheckoutContext: PublicCheckoutContextService,
+  ) {}
 
   @Post('stripe/webhook')
   @HttpCode(200)
@@ -47,11 +53,54 @@ export class PaymentsController {
     return { received: true };
   }
 
+  @Post('public-checkout-context')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @UseGuards(TrustedOriginGuard)
+  async preparePublicCheckoutContext(
+    @Body() input: PreparePublicCheckoutContextDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const prepared = await this.publicCheckoutContext.prepare(
+      input.planId,
+      input.qualificationToken,
+    );
+    response.cookie(
+      this.publicCheckoutContext.cookieName,
+      prepared.contextToken,
+      this.publicCheckoutContext.cookieOptions(),
+    );
+    return prepared.context;
+  }
+
+  @Get('public-checkout-context')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  getPublicCheckoutContext(@Req() request: Request) {
+    return this.publicCheckoutContext.get(this.checkoutContextToken(request));
+  }
+
+  @Post('public-checkout-context/clear')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @UseGuards(TrustedOriginGuard)
+  async clearPublicCheckoutContext(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.publicCheckoutContext.clear(this.checkoutContextToken(request));
+    response.clearCookie(
+      this.publicCheckoutContext.cookieName,
+      this.publicCheckoutContext.clearCookieOptions(),
+    );
+  }
+
   @Post('public-plan-checkout-session')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(TrustedOriginGuard)
-  createPublicPlanCheckoutSession(@Body() input: CreatePublicPlanCheckoutSessionDto) {
-    return this.payments.createPublicPlanCheckoutSession(input);
+  createPublicPlanCheckoutSession(
+    @Body() input: CreatePublicPlanCheckoutSessionDto,
+    @Req() request: Request,
+  ) {
+    return this.payments.createPublicPlanCheckoutSession(input, this.checkoutContextToken(request));
   }
 
   @Get('public-checkout-status')
@@ -92,5 +141,12 @@ export class PaymentsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.payments.createPlanCheckoutSession(input.planId, user);
+  }
+
+  private checkoutContextToken(request: Request): string | undefined {
+    const value = (request.cookies as Record<string, unknown> | undefined)?.[
+      this.publicCheckoutContext.cookieName
+    ];
+    return typeof value === 'string' ? value : undefined;
   }
 }

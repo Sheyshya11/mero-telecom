@@ -13,6 +13,20 @@ export interface AppConfig {
   cache: {
     adminDashboardTtlSeconds: number;
   };
+  addressLookup: {
+    provider: 'geoapify';
+    geoapifyApiKey: string;
+    minimumCharacters: number;
+    cacheTtlSeconds: number;
+    selectionTtlSeconds: number;
+    requestTimeoutMilliseconds: number;
+  };
+  coverage: {
+    qualificationProvider: 'database';
+  };
+  publicCheckout: {
+    contextTtlSeconds: number;
+  };
   security: {
     throttleTtlMilliseconds: number;
     throttleLimit: number;
@@ -72,6 +86,21 @@ export default (): AppConfig => ({
   },
   cache: {
     adminDashboardTtlSeconds: Number(process.env.ADMIN_DASHBOARD_CACHE_TTL_SECONDS ?? 60),
+  },
+  addressLookup: {
+    provider: (process.env.ADDRESS_LOOKUP_PROVIDER ?? 'geoapify') as 'geoapify',
+    geoapifyApiKey: process.env.GEOAPIFY_API_KEY ?? '',
+    minimumCharacters: Number(process.env.ADDRESS_LOOKUP_MIN_CHARACTERS ?? 3),
+    cacheTtlSeconds: Number(process.env.ADDRESS_LOOKUP_CACHE_TTL_SECONDS ?? 600),
+    selectionTtlSeconds: Number(process.env.ADDRESS_SELECTION_TTL_SECONDS ?? 900),
+    requestTimeoutMilliseconds: 5_000,
+  },
+  coverage: {
+    qualificationProvider: (process.env.COVERAGE_QUALIFICATION_PROVIDER ??
+      'database') as 'database',
+  },
+  publicCheckout: {
+    contextTtlSeconds: Number(process.env.PUBLIC_CHECKOUT_CONTEXT_TTL_SECONDS ?? 1800),
   },
   security: {
     throttleTtlMilliseconds: Number(process.env.THROTTLE_TTL_MS ?? 60_000),

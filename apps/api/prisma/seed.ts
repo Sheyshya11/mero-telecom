@@ -9,12 +9,19 @@ async function main(): Promise<void> {
 
   await prisma.$transaction([
     prisma.paymentWebhookEvent.deleteMany(),
+    prisma.planChangeRequest.deleteMany(),
     prisma.accountInvitation.deleteMany(),
     prisma.checkoutApplication.deleteMany(),
+    prisma.coverageSearch.deleteMany(),
     prisma.payment.deleteMany(),
+    prisma.invoiceDocument.deleteMany(),
     prisma.invoiceItem.deleteMany(),
     prisma.invoice.deleteMany(),
     prisma.subscription.deleteMany(),
+    prisma.planCoverageRule.deleteMany(),
+    prisma.addressCoverageOverride.deleteMany(),
+    prisma.postcodeCoverage.deleteMany(),
+    prisma.operatingRegion.deleteMany(),
     prisma.internetPlan.deleteMany(),
     prisma.refreshSession.deleteMany(),
     prisma.auditLog.deleteMany(),
@@ -87,6 +94,83 @@ async function main(): Promise<void> {
     }),
   ]);
 
+  const southAustralia = await prisma.operatingRegion.create({
+    data: {
+      countryCode: 'AU',
+      stateCode: 'SA',
+      name: 'South Australia',
+      status: 'ACTIVE',
+    },
+  });
+
+  await Promise.all([
+    prisma.postcodeCoverage.create({
+      data: {
+        operatingRegionId: southAustralia.id,
+        postcode: '5000',
+        status: 'AVAILABLE',
+        technology: 'FTTP',
+        maximumSpeedMbps: 1000,
+        adminNotes: 'Deterministic Adelaide CBD demonstration fixture; not an nbn SQ result.',
+      },
+    }),
+    prisma.postcodeCoverage.create({
+      data: {
+        operatingRegionId: southAustralia.id,
+        postcode: '5001',
+        status: 'PARTIAL',
+        technology: 'FTTC',
+        maximumSpeedMbps: 100,
+        adminNotes: 'Deterministic partial-coverage demonstration fixture.',
+      },
+    }),
+    prisma.postcodeCoverage.create({
+      data: {
+        operatingRegionId: southAustralia.id,
+        postcode: '5114',
+        status: 'COMING_SOON',
+        availabilityDate: new Date('2027-03-01T00:00:00.000Z'),
+        adminNotes: 'Deterministic coming-soon demonstration fixture.',
+      },
+    }),
+    prisma.addressCoverageOverride.create({
+      data: {
+        operatingRegionId: southAustralia.id,
+        provider: 'geoapify',
+        providerAddressId: 'fixture-unavailable-12-king-william-adelaide',
+        formattedAddress: '12 King William Street, Adelaide SA 5000, Australia',
+        stateCode: 'SA',
+        postcode: '5000',
+        status: 'UNAVAILABLE',
+        adminNotes: 'Deterministic address override fixture for automated tests.',
+      },
+    }),
+  ]);
+
+  const planTechnologyRules = [
+    [essentialPlan.id, 'FTTP'],
+    [familyPlan.id, 'FTTP'],
+    [businessPlan.id, 'FTTP'],
+    [essentialPlan.id, 'FTTN'],
+    [familyPlan.id, 'FTTN'],
+    [essentialPlan.id, 'FTTC'],
+    [familyPlan.id, 'FTTC'],
+    [essentialPlan.id, 'HFC'],
+    [familyPlan.id, 'HFC'],
+    [businessPlan.id, 'HFC'],
+    [essentialPlan.id, 'FIXED_WIRELESS'],
+    [familyPlan.id, 'FIXED_WIRELESS'],
+  ] as const;
+  await prisma.planCoverageRule.createMany({
+    data: planTechnologyRules.map(([planId, technology]) => ({
+      planId,
+      technology,
+      operatingRegionId: southAustralia.id,
+      scopeKey: `region:${southAustralia.id}:postcode:*`,
+      maximumSpeedMbps: technology === 'FIXED_WIRELESS' ? 100 : null,
+    })),
+  });
+
   const [anika, noah, olivia] = await Promise.all([
     prisma.customer.create({
       data: {
@@ -96,10 +180,10 @@ async function main(): Promise<void> {
         lastName: 'Singh',
         email: customerUser.email,
         phone: '0400 000 001',
-        addressLine1: '15 Harbour Street',
-        suburb: 'Sydney',
-        state: 'NSW',
-        postcode: '2000',
+        addressLine1: '15 King William Street',
+        suburb: 'Adelaide',
+        state: 'SA',
+        postcode: '5000',
       },
     }),
     prisma.customer.create({
@@ -109,10 +193,10 @@ async function main(): Promise<void> {
         lastName: 'Martinez',
         email: 'noah.martinez@merotelecom.test',
         phone: '0400 000 002',
-        addressLine1: '8 King Street',
-        suburb: 'Parramatta',
-        state: 'NSW',
-        postcode: '2150',
+        addressLine1: '8 Prospect Road',
+        suburb: 'Prospect',
+        state: 'SA',
+        postcode: '5082',
       },
     }),
     prisma.customer.create({
@@ -122,10 +206,10 @@ async function main(): Promise<void> {
         lastName: 'Chen',
         email: 'olivia.chen@merotelecom.test',
         phone: '0400 000 003',
-        addressLine1: '42 Station Road',
-        suburb: 'Chatswood',
-        state: 'NSW',
-        postcode: '2067',
+        addressLine1: '42 The Parade',
+        suburb: 'Norwood',
+        state: 'SA',
+        postcode: '5067',
       },
     }),
   ]);
@@ -138,10 +222,10 @@ async function main(): Promise<void> {
       lastName: 'Patel',
       email: newCustomerUser.email,
       phone: '0400 000 004',
-      addressLine1: '21 Market Street',
-      suburb: 'Sydney',
-      state: 'NSW',
-      postcode: '2000',
+      addressLine1: '21 Jetty Road',
+      suburb: 'Glenelg',
+      state: 'SA',
+      postcode: '5045',
     },
   });
 
@@ -274,19 +358,28 @@ async function main(): Promise<void> {
     },
   });
 
-  const [userCount, customerCount, planCount, subscriptionCount, invoiceCount, paymentCount] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.customer.count(),
-      prisma.internetPlan.count(),
-      prisma.subscription.count(),
-      prisma.invoice.count(),
-      prisma.payment.count(),
-    ]);
+  const [
+    userCount,
+    customerCount,
+    planCount,
+    subscriptionCount,
+    invoiceCount,
+    paymentCount,
+    postcodeCoverageCount,
+  ] = await Promise.all([
+    prisma.user.count(),
+    prisma.customer.count(),
+    prisma.internetPlan.count(),
+    prisma.subscription.count(),
+    prisma.invoice.count(),
+    prisma.payment.count(),
+    prisma.postcodeCoverage.count(),
+  ]);
 
   console.log(
     `Seeded ${userCount} users, ${customerCount} customers, ${planCount} internet plans, ` +
       `${subscriptionCount} subscriptions, ${invoiceCount} invoices, and ${paymentCount} payment.`,
+    ` Coverage fixtures include ${postcodeCoverageCount} exact South Australian postcodes.`,
   );
 }
 

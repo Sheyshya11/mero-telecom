@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CoverageChecker } from '../features/coverage/coverage-checker';
 import { PublicPlanGrid } from '../features/plans/public-plan-grid';
 
 export default function HomePage() {
@@ -24,6 +25,9 @@ export default function HomePage() {
             Check coverage
           </Link>
         </div>
+      </section>
+      <section className="border-t border-slate-200 py-12">
+        <CoverageChecker />
       </section>
       <section className="border-t border-slate-200 py-12">
         <p className="text-sm font-semibold tracking-wide text-sky-700">INTERNET PLANS</p>

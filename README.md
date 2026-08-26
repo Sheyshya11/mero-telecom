@@ -7,7 +7,9 @@ checks, and role-specific dashboards.
 
 ## Delivered scope
 
-- Public plan catalogue and postcode coverage checker.
+- Public plan catalogue and trusted Australian address coverage checker.
+- Server-side Geoapify autocomplete with Redis selection tokens, exact database qualification,
+  compatible-plan rules, SA-first configuration, and Admin/Staff coverage operations.
 - Short-lived JWT access tokens, rotating HTTP-only refresh cookies, and server-side revocation.
 - Backend-enforced `ADMIN`, `STAFF`, and `CUSTOMER` permissions with customer ownership checks.
 - Customer, internet-plan, and subscription management.
@@ -17,6 +19,8 @@ checks, and role-specific dashboards.
 - Self-service prorated upgrades and boundary-scheduled downgrades with historical subscriptions.
 - Public customer registration through paid Checkout, followed by a single-use account activation
   link; abandoned or failed payments never create login accounts.
+- Guest coverage follows the selected plan into Checkout through an HTTP-only Redis context;
+  service, residential, and billing addresses may differ but are all server-trusted selections.
 - Invitation-based admin customer creation without staff-generated passwords.
 - Redis-backed account and payment email with encrypted queue payloads, exponential retry, SMTP
   delivery evidence, and development routing to Mailpit or dynamic Gmail recipients.
@@ -49,7 +53,8 @@ email queue. Stripe, SMTP, and S3-compatible object storage are accessed only by
 
 ## Local development
 
-1. Copy `.env.example` to `.env` and replace every placeholder secret.
+1. Copy `.env.example` to `.env`, replace every placeholder secret, and add a development
+   `GEOAPIFY_API_KEY`.
 2. Install dependencies with `pnpm install`.
 3. Start PostgreSQL, Redis, and Mailpit with `pnpm services:up`.
 4. Apply migrations and seed safe demonstration data:
@@ -92,24 +97,27 @@ Never run the development seed or reuse these credentials in production.
 
 ## Main application routes
 
-| Audience | Routes                                                                                            |
-| -------- | ------------------------------------------------------------------------------------------------- |
-| Public   | `/`, `/plans`, `/coverage`, `/checkout`, `/activate`, `/activate/resend`, `/login`                |
-| Admin    | `/admin/dashboard`, `/admin/customers`, `/admin/plans`, `/admin/subscriptions`, `/admin/invoices` |
-| Staff    | `/staff/customers`                                                                                |
-| Customer | `/customer/dashboard`, `/customer/profile`, `/customer/subscription`, `/customer/invoices`        |
+| Audience | Routes                                                                                                               |
+| -------- | -------------------------------------------------------------------------------------------------------------------- |
+| Public   | `/`, `/plans`, `/coverage`, `/checkout`, `/activate`, `/activate/resend`, `/login`                                   |
+| Admin    | `/admin/dashboard`, `/admin/customers`, `/admin/plans`, `/admin/subscriptions`, `/admin/invoices`, `/admin/coverage` |
+| Staff    | `/staff/customers`, `/staff/coverage`                                                                                |
+| Customer | `/customer/dashboard`, `/customer/profile`, `/customer/subscription`, `/customer/invoices`                           |
 
 The browser UI is a convenience boundary only; NestJS guards and ownership-scoped queries enforce
 all access decisions.
 
 ## Billing and Stripe flow
 
-New visitors choose an available public plan and enter their identity, service address, and
-consents before Stripe Checkout. The API validates coverage and derives the amount from the stored
-plan. No user, customer, invoice, or subscription is created until a valid paid Checkout webhook
-arrives. The webhook then records the paid invoice, payment, active subscription, pending customer
-account, and single-use activation invitation in one idempotent transaction. Existing customers
-sign in before changing plans or paying an owned invoice.
+New visitors select and qualify a service address before Stripe Checkout. An opaque HTTP-only
+cookie carries only a random Redis context identifier into guest checkout, where the customer may
+mark residential and billing addresses as the same or select different normalized addresses. The
+API revalidates the exact service address and chosen plan, derives the amount from the stored plan,
+and rejects browser-posted address objects. No user, customer, invoice, or subscription is created
+until a valid paid Checkout webhook arrives. The webhook then records the three address roles,
+paid invoice, payment, active subscription, pending customer account, and single-use activation
+invitation in one idempotent transaction. Existing customers sign in before changing plans or
+paying an owned invoice.
 
 Stripe is deliberately restricted to test keys (`sk_test_...` or `rk_test_...`). Full details are
 in [payments](docs/api/payments.md). Upgrade, downgrade, reconciliation, and safe test procedures
@@ -147,6 +155,7 @@ owner. Follow the [deployment runbook](docs/deployment.md); do not run the seed 
 ## Documentation index
 
 - [System architecture](docs/architecture/system-architecture.md)
+- [Address lookup and coverage qualification](docs/api/coverage.md)
 - [API overview and RBAC matrix](docs/api/README.md)
 - [Database design and ERD](docs/database/erd.md)
 - [Testing strategy](docs/testing/testing-strategy.md)

@@ -18,6 +18,7 @@ flowchart LR
   A --> S["Private S3-compatible storage"]
   A --> T["Stripe test mode"]
   A --> M["SMTP provider"]
+  A --> G["Geoapify address autocomplete"]
   T -->|"signature-verified webhook"| A
 ```
 
@@ -37,7 +38,7 @@ streams the result, but it does not make authorization decisions or calculate in
 | Payments      | Stripe Checkout and verified/idempotent webhook persistence                         |
 | Notifications | Encrypted BullMQ jobs, SMTP templates, retries, and auditable delivery outcomes     |
 | Dashboard     | Admin aggregates with Redis caching and customer-owned summary                      |
-| Coverage      | Prototype postcode availability and eligible public plans                           |
+| Coverage      | Trusted address selection, exact DB qualification, plan compatibility, operations   |
 | Health        | Process liveness plus PostgreSQL/Redis readiness                                    |
 
 Cross-cutting components provide validation, exception normalization, RBAC, customer ownership,
@@ -89,9 +90,9 @@ NestJS guards are the security boundary. Route metadata defines allowed roles, a
 ownership is checked against the database before protected records are returned. Query filters add
 defence in depth by restricting customer reads to the authenticated `User -> Customer` mapping.
 
-- `ADMIN`: full operational workflow, plan management, and invoice status changes.
-- `STAFF`: customer updates and subscription/invoice operations; no plan assignment, plan lifecycle, or arbitrary
-  invoice status administration.
+- `ADMIN`: full operational workflow, plan/coverage management, and invoice status changes.
+- `STAFF`: customer updates, subscription/invoice operations, coverage lookup, and read-only
+  coverage configuration; no region/plan-rule mutations or arbitrary invoice administration.
 - `CUSTOMER`: their own profile, subscriptions, invoices, PDFs, dashboard, and payment initiation.
 
 DTO validation rejects unknown fields, so self-service requests cannot mass-assign identity,
@@ -124,11 +125,14 @@ not public URLs.
 
 ## Stripe test-mode flow
 
-The API accepts only Stripe test keys. A visitor can select an available public plan, provide the
-required contact/address/consent data, and open Checkout without creating an account. The API
-validates coverage and uses only the stored plan price. A verified paid event creates the customer,
-typed addresses, nullable-password login identity, active subscription, paid invoice/payment, and
-activation invitation atomically. Failed or abandoned sessions never reserve a login identity.
+The API accepts only Stripe test keys. A visitor can qualify a trusted service address, select a
+compatible public plan, and open Checkout without creating an account. Redis holds a short-lived
+qualification record behind an opaque HTTP-only cookie, so the browser never posts authoritative
+address fields. Checkout may resolve distinct residential and billing selections, revalidates the
+service address/plan, and uses only the stored plan price. A verified paid event creates the
+customer, three normalized address roles, nullable-password login identity, active subscription,
+paid invoice/payment, and activation invitation atomically. Failed or abandoned sessions never
+reserve a login identity.
 
 An authenticated customer can also select an active plan; the API creates an
 initial invoice from the server-side plan price and opens Stripe Checkout without creating a
@@ -148,11 +152,15 @@ The worker also advances expired monthly periods with stable month-end anchors. 
 
 ## Data, cache, and failure behaviour
 
-PostgreSQL is the system of record. Redis caches the admin dashboard summary and persists the
-encrypted email queue. Cache reads fall back to PostgreSQL, while queue writes fail quickly so the
-caller can expose a resend path instead of claiming delivery. Readiness reports failure when either
-PostgreSQL or Redis is unavailable. S3-compatible storage is mandatory in production because
-invoice documents must not rely on an ephemeral filesystem.
+PostgreSQL is the system of record. Redis caches the admin dashboard summary and normalized
+autocomplete queries, stores short-lived one-time address selections, and persists the encrypted
+email queue. It also stores one-use coverage qualifications and guest checkout contexts; those
+contexts contain the trusted service address and compatible plan scope while the browser holds
+only a random HTTP-only identifier. Dashboard cache reads can fall back to PostgreSQL; trusted
+address/checkout verification and queue writes fail closed because neither can safely accept an
+unverified fallback. Readiness
+reports failure when PostgreSQL or Redis is unavailable. S3-compatible storage is mandatory in
+production because invoice documents must not rely on an ephemeral filesystem.
 
 ## Security and observability
 
