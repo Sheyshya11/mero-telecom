@@ -39,7 +39,8 @@ export function InvoiceManagement() {
     defaultValues: { subscriptionId: '', issueDate: new Date().toISOString().slice(0, 10) },
   });
 
-  const canOperate = user?.role === 'ADMIN' || user?.role === 'STAFF';
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const canOperate = isAdmin || user?.role === 'STAFF';
   const invoices = useQuery({
     queryKey: ['invoices', 'operations'],
     queryFn: () => apiRequest<InvoiceList>('/invoices?limit=100', {}, accessToken),
@@ -130,9 +131,9 @@ export function InvoiceManagement() {
         <nav className="flex flex-wrap gap-2" aria-label="Operations">
           <Link
             className="button-secondary"
-            href={user.role === 'ADMIN' ? '/admin/dashboard' : '/staff/customers'}
+            href={isAdmin ? '/admin/dashboard' : '/staff/customers'}
           >
-            {user.role === 'ADMIN' ? 'Dashboard' : 'Customers'}
+            {isAdmin ? 'Dashboard' : 'Customers'}
           </Link>
           <Link className="button-secondary" href="/admin/subscriptions">
             Subscriptions
@@ -266,7 +267,7 @@ export function InvoiceManagement() {
                             Email
                           </button>
                         ) : null}
-                        {user.role === 'ADMIN' && invoice.status === 'ISSUED' ? (
+                        {isAdmin && invoice.status === 'ISSUED' ? (
                           <button
                             className="button-secondary"
                             onClick={() =>
@@ -277,8 +278,7 @@ export function InvoiceManagement() {
                             Mark overdue
                           </button>
                         ) : null}
-                        {user.role === 'ADMIN' &&
-                        ['DRAFT', 'ISSUED', 'OVERDUE'].includes(invoice.status) ? (
+                        {isAdmin && ['DRAFT', 'ISSUED', 'OVERDUE'].includes(invoice.status) ? (
                           <button
                             className="button-secondary text-rose-700"
                             onClick={() => setInvoiceToCancel(invoice)}

@@ -40,10 +40,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    const tokens = await this.createTokens(user);
+    const authenticatedAt = Math.floor(Date.now() / 1000);
+    const tokens = await this.createTokens(user, authenticatedAt);
     await this.createRefreshSession(this.prisma, user.id, tokens.refreshToken);
 
-    return { tokens, user: this.toAuthenticatedUser(user) };
+    return { tokens, user: this.toAuthenticatedUser(user, authenticatedAt) };
   }
 
   async refresh(refreshToken: string): Promise<{ tokens: AuthTokens; user: AuthenticatedUser }> {
@@ -65,7 +66,9 @@ export class AuthService {
       throw new UnauthorizedException('Refresh session is invalid or expired.');
     }
 
-    const tokens = await this.createTokens(session.user);
+    // Refreshing a session must not renew password-authentication assurance.
+    const authenticatedAt = payload.authTime ?? 0;
+    const tokens = await this.createTokens(session.user, authenticatedAt);
 
     await this.prisma.$transaction(async (transaction) => {
       const revokedSession = await transaction.refreshSession.updateMany({
@@ -85,7 +88,7 @@ export class AuthService {
       await this.createRefreshSession(transaction, session.userId, tokens.refreshToken);
     });
 
-    return { tokens, user: this.toAuthenticatedUser(session.user) };
+    return { tokens, user: this.toAuthenticatedUser(session.user, authenticatedAt) };
   }
 
   async logout(refreshToken: string | undefined): Promise<void> {
@@ -127,18 +130,20 @@ export class AuthService {
     return this.parseDuration(this.configService.getOrThrow('jwt').refreshExpiresIn);
   }
 
-  private async createTokens(user: User): Promise<AuthTokens> {
+  private async createTokens(user: User, authenticatedAt: number): Promise<AuthTokens> {
     const jwtConfig = this.configService.getOrThrow('jwt');
     const accessPayload: AccessTokenPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
       type: 'access',
+      authTime: authenticatedAt,
     };
     const refreshPayload: RefreshTokenPayload = {
       sub: user.id,
       sid: randomUUID(),
       type: 'refresh',
+      authTime: authenticatedAt,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -210,7 +215,10 @@ export class AuthService {
     return amount * multiplier;
   }
 
-  private toAuthenticatedUser(user: Pick<User, 'id' | 'email' | 'role'>): AuthenticatedUser {
-    return { id: user.id, email: user.email, role: user.role };
+  private toAuthenticatedUser(
+    user: Pick<User, 'id' | 'email' | 'role'>,
+    authenticatedAt?: number,
+  ): AuthenticatedUser {
+    return { id: user.id, email: user.email, role: user.role, authenticatedAt };
   }
 }

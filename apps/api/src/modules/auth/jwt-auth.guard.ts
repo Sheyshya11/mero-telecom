@@ -27,7 +27,10 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException('Access token is invalid.');
       }
 
-      request.user = await this.authService.getAuthenticatedUser(payload.sub);
+      request.user = {
+        ...(await this.authService.getAuthenticatedUser(payload.sub)),
+        authenticatedAt: payload.authTime ?? 0,
+      };
       return true;
     } catch {
       throw new UnauthorizedException('Access token is invalid or expired.');

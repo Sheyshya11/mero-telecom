@@ -4,7 +4,7 @@ import type { Reflector } from '@nestjs/core';
 import { RolesGuard } from './roles.guard';
 
 describe('RolesGuard', () => {
-  const createContext = (role: 'ADMIN' | 'STAFF' | 'CUSTOMER') =>
+  const createContext = (role: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | 'CUSTOMER') =>
     ({
       getHandler: jest.fn(),
       getClass: jest.fn(),
@@ -13,30 +13,41 @@ describe('RolesGuard', () => {
       }),
     }) as never;
 
-  it('allows an admin assigned to an admin-only route', () => {
+  it('allows an admin assigned to an admin-only route', async () => {
     const reflector = {
       getAllAndOverride: jest.fn().mockReturnValue(['ADMIN']),
     };
     const guard = new RolesGuard(reflector as unknown as Reflector);
 
-    expect(guard.canActivate(createContext('ADMIN'))).toBe(true);
+    await expect(guard.canActivate(createContext('ADMIN'))).resolves.toBe(true);
   });
 
-  it('rejects staff from an admin-only route', () => {
+  it('rejects staff from an admin-only route', async () => {
     const reflector = {
       getAllAndOverride: jest.fn().mockReturnValue(['ADMIN']),
     };
     const guard = new RolesGuard(reflector as unknown as Reflector);
 
-    expect(() => guard.canActivate(createContext('STAFF'))).toThrow(ForbiddenException);
+    await expect(guard.canActivate(createContext('STAFF'))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
-  it('allows all authenticated roles when no role metadata is defined', () => {
+  it('explicitly allows a super admin to inherit an admin route', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(['ADMIN']),
+    };
+    const guard = new RolesGuard(reflector as unknown as Reflector);
+
+    await expect(guard.canActivate(createContext('SUPER_ADMIN'))).resolves.toBe(true);
+  });
+
+  it('allows all authenticated roles when no role metadata is defined', async () => {
     const reflector = {
       getAllAndOverride: jest.fn().mockReturnValue(undefined),
     };
     const guard = new RolesGuard(reflector as unknown as Reflector);
 
-    expect(guard.canActivate(createContext('CUSTOMER'))).toBe(true);
+    await expect(guard.canActivate(createContext('CUSTOMER'))).resolves.toBe(true);
   });
 });

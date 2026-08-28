@@ -57,11 +57,11 @@ email queue. Stripe, SMTP, and S3-compatible object storage are accessed only by
    `GEOAPIFY_API_KEY`.
 2. Install dependencies with `pnpm install`.
 3. Start PostgreSQL, Redis, and Mailpit with `pnpm services:up`.
-4. Apply migrations and seed safe demonstration data:
+4. Apply migrations and seed development demonstration data:
 
    ```text
-   pnpm --filter @mero-telecom/api exec prisma migrate deploy
-   pnpm --filter @mero-telecom/api prisma:seed
+   pnpm db:migrate
+   pnpm db:seed:demo
    ```
 
 5. Start both applications with `pnpm dev`.
@@ -97,15 +97,20 @@ Never run the development seed or reuse these credentials in production.
 
 ## Main application routes
 
-| Audience | Routes                                                                                                               |
-| -------- | -------------------------------------------------------------------------------------------------------------------- |
-| Public   | `/`, `/plans`, `/coverage`, `/checkout`, `/activate`, `/activate/resend`, `/login`                                   |
-| Admin    | `/admin/dashboard`, `/admin/customers`, `/admin/plans`, `/admin/subscriptions`, `/admin/invoices`, `/admin/coverage` |
-| Staff    | `/staff/customers`, `/staff/coverage`                                                                                |
-| Customer | `/customer/dashboard`, `/customer/profile`, `/customer/subscription`, `/customer/invoices`                           |
+| Audience | Routes                                                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Public   | `/`, `/plans`, `/coverage`, `/checkout`, `/activate`, `/activate/resend`, `/staff-invitation`, `/login`                              |
+| Admin    | `/admin/dashboard`, `/admin/customers`, `/admin/plans`, `/admin/subscriptions`, `/admin/invoices`, `/admin/coverage`, `/admin/users` |
+| Staff    | `/staff/customers`, `/staff/coverage`                                                                                                |
+| Customer | `/customer/dashboard`, `/customer/profile`, `/customer/subscription`, `/customer/invoices`                                           |
 
 The browser UI is a convenience boundary only; NestJS guards and ownership-scoped queries enforce
 all access decisions.
+
+Production and staging must use `pnpm db:migrate` followed by the one-time, idempotent
+`pnpm db:bootstrap-super-admin`; they must not use the development seed. Super administrators
+invite administrators from `/admin/users`, while administrators can invite staff. See
+[system-user provisioning](docs/api/system-users.md).
 
 ## Billing and Stripe flow
 

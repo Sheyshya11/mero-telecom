@@ -18,6 +18,58 @@ interface SubscriptionConfirmationTemplateData {
   activationPending: boolean;
 }
 
+interface StaffInvitationTemplateData {
+  displayName: string;
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF';
+  activationUrl: string;
+  expiresAt: Date;
+}
+
+export function renderStaffInvitationEmail(
+  data: StaffInvitationTemplateData,
+): RenderedEmailTemplate {
+  const expiry = new Intl.DateTimeFormat('en-AU', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+    timeZone: 'Australia/Adelaide',
+  }).format(data.expiresAt);
+  const roleName =
+    data.role === 'SUPER_ADMIN'
+      ? 'super administrator'
+      : data.role === 'ADMIN'
+        ? 'administrator'
+        : 'staff member';
+
+  return {
+    subject: `Your Mero Telecom ${roleName} invitation`,
+    text: [
+      `Hello ${data.displayName},`,
+      '',
+      `You have been invited to join Mero Telecom as an ${roleName}.`,
+      'Use the secure, single-use link below to verify your email and create your password.',
+      data.activationUrl,
+      '',
+      `This link expires at ${expiry}.`,
+      'If you did not expect this invitation, do not use the link and contact Mero Telecom.',
+    ].join('\n'),
+    html: `<!doctype html>
+<html lang="en">
+  <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a">
+    <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:12px;overflow:hidden">
+      <div style="background:#075985;padding:24px;color:#fff"><div style="font-size:22px;font-weight:700">MERO TELECOM</div></div>
+      <div style="padding:28px">
+        <p>Hello ${escapeHtml(data.displayName)},</p>
+        <h1 style="font-size:22px">Join Mero Telecom</h1>
+        <p>You have been invited as an <strong>${escapeHtml(roleName)}</strong>. Verify your email and create your password using this secure, single-use link.</p>
+        <p style="margin:28px 0"><a href="${escapeHtml(data.activationUrl)}" style="background:#0369a1;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700">Accept invitation</a></p>
+        <p style="color:#475569">This link expires at ${escapeHtml(expiry)}. Never share this invitation or your password.</p>
+      </div>
+    </div>
+  </body>
+</html>`,
+  };
+}
+
 export function renderAccountInvitationEmail(
   data: AccountInvitationTemplateData,
 ): RenderedEmailTemplate {

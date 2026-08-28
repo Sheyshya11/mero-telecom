@@ -26,12 +26,13 @@ export function CustomerManagement() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   const queryKey = useMemo(() => ['customers', page, search], [page, search]);
   const customersQuery = useQuery({
     queryKey,
     queryFn: () => getCustomers(accessToken ?? '', page, search),
-    enabled: Boolean(accessToken && (user?.role === 'ADMIN' || user?.role === 'STAFF')),
+    enabled: Boolean(accessToken && (isAdmin || user?.role === 'STAFF')),
   });
 
   const createMutation = useMutation({
@@ -87,7 +88,7 @@ export function CustomerManagement() {
     return <StatusMessage message="Sign in with the seeded admin account to manage customers." />;
   }
 
-  if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
+  if (!isAdmin && user.role !== 'STAFF') {
     return <StatusMessage message="Customer management requires staff access." />;
   }
 
@@ -98,17 +99,18 @@ export function CustomerManagement() {
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">
-            MERO TELECOM · {user.role === 'ADMIN' ? 'ADMIN' : 'STAFF'}
+            MERO TELECOM ·{' '}
+            {user.role === 'SUPER_ADMIN' ? 'SUPER ADMIN' : isAdmin ? 'ADMIN' : 'STAFF'}
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Customers</h1>
           <p className="mt-2 text-slate-600">
             Search and update customer account records
-            {user.role === 'ADMIN' ? ', or create a new customer.' : '.'}
+            {isAdmin ? ', or create a new customer.' : '.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="hidden text-sm text-slate-500 sm:inline">{user.email}</span>
-          {user.role === 'ADMIN' ? (
+          {isAdmin ? (
             <Link className="button-secondary" href="/admin/dashboard">
               Dashboard
             </Link>
@@ -122,13 +124,10 @@ export function CustomerManagement() {
           <Link className="button-secondary" href="/admin/invoices">
             Invoices
           </Link>
-          <Link
-            className="button-secondary"
-            href={user.role === 'ADMIN' ? '/admin/coverage' : '/staff/coverage'}
-          >
+          <Link className="button-secondary" href={isAdmin ? '/admin/coverage' : '/staff/coverage'}>
             Coverage
           </Link>
-          {user.role === 'ADMIN' ? (
+          {isAdmin ? (
             <button
               className="button-primary"
               onClick={() => {
@@ -249,8 +248,7 @@ export function CustomerManagement() {
                           >
                             Edit
                           </button>
-                          {user.role === 'ADMIN' &&
-                          customer.accountStatus === 'INVITATION_PENDING' ? (
+                          {isAdmin && customer.accountStatus === 'INVITATION_PENDING' ? (
                             <button
                               className="button-secondary"
                               disabled={resendMutation.isPending}
@@ -319,8 +317,8 @@ export function CustomerManagement() {
             <div className="mt-5">
               <CustomerForm
                 customer={editingCustomer}
-                canEditIdentity={user.role === 'ADMIN'}
-                canManageStatus={user.role === 'ADMIN'}
+                canEditIdentity={isAdmin}
+                canManageStatus={isAdmin}
                 isSubmitting={createMutation.isPending || updateMutation.isPending}
                 onCancel={closeForm}
                 onSubmit={submitForm}

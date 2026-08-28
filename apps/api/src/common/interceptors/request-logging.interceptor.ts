@@ -13,7 +13,7 @@ import { finalize, tap } from 'rxjs/operators';
 
 import type { AuthenticatedUser } from '../../modules/auth/auth.types';
 
-type AuthenticatedRequest = Request & { user?: AuthenticatedUser };
+type AuthenticatedRequest = Request & { user?: AuthenticatedUser; requestId?: string };
 
 @Injectable()
 export class RequestLoggingInterceptor implements NestInterceptor {
@@ -25,6 +25,7 @@ export class RequestLoggingInterceptor implements NestInterceptor {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const response = context.switchToHttp().getResponse<Response>();
     const requestId = this.requestId(request.header('x-request-id'));
+    request.requestId = requestId;
     const startedAt = performance.now();
     let statusCode = response.statusCode;
 

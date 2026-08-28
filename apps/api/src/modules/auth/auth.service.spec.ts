@@ -63,7 +63,12 @@ describe('AuthService', () => {
 
     expect(result).toEqual({
       tokens: { accessToken: 'access-token', refreshToken: 'refresh-token' },
-      user: { id: user.id, email: user.email, role: 'ADMIN' },
+      user: {
+        id: user.id,
+        email: user.email,
+        role: 'ADMIN',
+        authenticatedAt: expect.any(Number),
+      },
     });
     expect(prisma.refreshSession.create).toHaveBeenCalledWith(
       expect.objectContaining({

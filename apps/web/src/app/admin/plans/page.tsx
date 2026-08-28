@@ -63,7 +63,7 @@ export default function AdminPlansPage() {
   const plansQuery = useQuery({
     queryKey: ['plans'],
     queryFn: () => apiRequest<Plan[]>('/plans', {}, accessToken ?? ''),
-    enabled: Boolean(accessToken && user?.role === 'ADMIN'),
+    enabled: Boolean(accessToken && (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')),
   });
 
   const createMutation = useMutation({
@@ -143,7 +143,7 @@ export default function AdminPlansPage() {
     );
   }
 
-  if (user.role !== 'ADMIN') {
+  if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
     return (
       <main className="grid min-h-screen place-items-center px-6 text-slate-600">
         Administrator access is required.

@@ -27,6 +27,14 @@ export const validationSchema = Joi.object({
   THROTTLE_TTL_MS: Joi.number().integer().min(1000).max(3600000).default(60000),
   THROTTLE_LIMIT: Joi.number().integer().min(10).max(10000).default(120),
   ACCOUNT_INVITATION_TTL_HOURS: Joi.number().integer().min(1).max(168).default(24),
+  STAFF_INVITATION_TTL_HOURS: Joi.number().integer().min(1).max(168).default(48),
+  ENHANCED_AUTH_MAX_AGE_SECONDS: Joi.number().integer().min(300).max(1800).default(600),
+  BOOTSTRAP_SUPER_ADMIN_EMAIL: Joi.string().email().max(320).allow('').default(''),
+  BOOTSTRAP_SUPER_ADMIN_NAME: Joi.string().trim().max(200).allow('').default(''),
+  BOOTSTRAP_ADMIN_EMAIL: Joi.string().email().max(320).allow('').default(''),
+  BOOTSTRAP_ADMIN_NAME: Joi.string().trim().max(200).allow('').default(''),
+  RECOVERY_SUPER_ADMIN_EMAIL: Joi.string().email().max(320).allow('').default(''),
+  RECOVERY_ADMIN_EMAIL: Joi.string().email().max(320).allow('').default(''),
   FRONTEND_URL: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string()

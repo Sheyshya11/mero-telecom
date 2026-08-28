@@ -19,7 +19,14 @@
     "services:up": "docker compose up -d",
     "services:down": "docker compose down",
     "services:test:up": "docker compose --profile test up -d postgres-test redis-test",
-    "services:test:down": "docker compose --profile test stop postgres-test redis-test"
+    "services:test:down": "docker compose --profile test stop postgres-test redis-test",
+    "db:migrate": "pnpm --filter @mero-telecom/api db:migrate",
+    "db:bootstrap-super-admin": "pnpm --filter @mero-telecom/api db:bootstrap-super-admin",
+    "db:bootstrap-admin": "pnpm --filter @mero-telecom/api db:bootstrap-admin",
+    "db:recover-super-admin": "pnpm --filter @mero-telecom/api db:recover-super-admin",
+    "db:recover-admin": "pnpm --filter @mero-telecom/api db:recover-admin",
+    "db:seed:demo": "pnpm --filter @mero-telecom/api db:seed:demo",
+    "db:reset": "pnpm --filter @mero-telecom/api db:reset"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",

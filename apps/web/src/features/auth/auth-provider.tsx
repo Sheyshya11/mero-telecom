@@ -12,7 +12,7 @@ import {
 
 import { apiRequest, setAccessTokenRefreshHandler } from '../../lib/api/client';
 
-export type AppRole = 'ADMIN' | 'STAFF' | 'CUSTOMER';
+export type AppRole = 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | 'CUSTOMER';
 
 export interface SessionUser {
   id: string;

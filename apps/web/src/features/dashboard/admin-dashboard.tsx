@@ -37,11 +37,12 @@ export function AdminDashboardView() {
   const dashboardQuery = useQuery({
     queryKey: ['admin-dashboard'],
     queryFn: () => apiRequest<AdminDashboard>('/dashboard/admin', {}, accessToken),
-    enabled: Boolean(accessToken && user?.role === 'ADMIN'),
+    enabled: Boolean(accessToken && (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')),
   });
   if (isLoading) return <Status message="Restoring your session…" />;
   if (!user) return <Status message="Sign in to view the dashboard." />;
-  if (user.role !== 'ADMIN') return <Status message="Administrator access is required." />;
+  if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN')
+    return <Status message="Administrator access is required." />;
   if (dashboardQuery.isPending) return <Status message="Loading dashboard…" />;
   if (dashboardQuery.isError || !dashboardQuery.data)
     return (
@@ -82,6 +83,9 @@ export function AdminDashboardView() {
           </Link>
           <Link className="button-secondary" href="/admin/coverage">
             Coverage
+          </Link>
+          <Link className="button-secondary" href="/admin/users">
+            Team
           </Link>
           <button className="button-primary" onClick={() => void logout()} type="button">
             Sign out

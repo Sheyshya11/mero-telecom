@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   STAFF
   CUSTOMER
@@ -44,6 +45,13 @@ enum AccountInvitationReason {
   ONLINE_PURCHASE
   ADMIN_CREATED
   RESEND
+}
+
+enum StaffInvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
 }
 
 enum CheckoutApplicationStatus {
@@ -139,20 +147,23 @@ enum CoverageResultStatus {
 }
 
 model User {
-  id                String              @id @default(uuid()) @db.Uuid
-  email             String              @unique @db.VarChar(320)
-  passwordHash      String?             @db.VarChar(255)
-  role              Role                @default(CUSTOMER)
-  isActive          Boolean             @default(true)
-  status            UserStatus          @default(ACTIVE)
-  emailVerifiedAt   DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  customer          Customer?
-  refreshSessions   RefreshSession[]
-  auditLogs         AuditLog[]          @relation("AuditActor")
-  invitations       AccountInvitation[] @relation("InvitationUser")
-  issuedInvitations AccountInvitation[] @relation("InvitationIssuer")
+  id                       String              @id @default(uuid()) @db.Uuid
+  email                    String              @unique @db.VarChar(320)
+  displayName              String?             @db.VarChar(200)
+  passwordHash             String?             @db.VarChar(255)
+  role                     Role                @default(CUSTOMER)
+  isActive                 Boolean             @default(true)
+  status                   UserStatus          @default(ACTIVE)
+  emailVerifiedAt          DateTime?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  customer                 Customer?
+  refreshSessions          RefreshSession[]
+  auditLogs                AuditLog[]          @relation("AuditActor")
+  invitations              AccountInvitation[] @relation("InvitationUser")
+  issuedInvitations        AccountInvitation[] @relation("InvitationIssuer")
+  staffInvitationsIssued   StaffInvitation[]   @relation("StaffInvitationIssuer")
+  staffInvitationsAccepted StaffInvitation[]   @relation("StaffInvitationAcceptor")
 }
 
 model Customer {
@@ -389,6 +400,28 @@ model AccountInvitation {
 
   @@index([userId, status, expiresAt])
   @@index([createdByUserId, createdAt])
+}
+
+model StaffInvitation {
+  id           String                @id @default(uuid()) @db.Uuid
+  email        String                @db.VarChar(320)
+  role         Role
+  tokenHash    String                @unique @db.Char(64)
+  status       StaffInvitationStatus @default(PENDING)
+  expiresAt    DateTime
+  invitedById  String?               @db.Uuid
+  acceptedById String?               @db.Uuid
+  acceptedAt   DateTime?
+  revokedAt    DateTime?
+  sentAt       DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  invitedBy    User?                 @relation("StaffInvitationIssuer", fields: [invitedById], references: [id], onDelete: SetNull)
+  acceptedBy   User?                 @relation("StaffInvitationAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@index([email, status, expiresAt])
+  @@index([invitedById, createdAt])
+  @@index([status, expiresAt])
 }
 
 model PaymentWebhookEvent {

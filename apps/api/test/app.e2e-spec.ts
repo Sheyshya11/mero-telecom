@@ -152,6 +152,7 @@ describe('Mero Telecom API (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let adminToken: string;
+  let superAdminToken: string;
   let staffToken: string;
   let customerToken: string;
   let customerAId: string;
@@ -231,6 +232,7 @@ describe('Mero Telecom API (e2e)', () => {
     await prisma.paymentWebhookEvent.deleteMany();
     await prisma.planChangeRequest.deleteMany();
     await prisma.accountInvitation.deleteMany();
+    await prisma.staffInvitation.deleteMany();
     await prisma.checkoutApplication.deleteMany();
     await prisma.payment.deleteMany();
     await prisma.invoiceDocument.deleteMany();
@@ -245,7 +247,14 @@ describe('Mero Telecom API (e2e)', () => {
     await prisma.user.deleteMany();
 
     const passwordHash = await hash(password, 12);
-    const [admin, staff, customerAUser, customerBUser] = await Promise.all([
+    const [superAdmin, admin, staff, customerAUser, customerBUser] = await Promise.all([
+      prisma.user.create({
+        data: {
+          email: 'super.admin@merotelecom.test',
+          passwordHash,
+          role: Role.SUPER_ADMIN,
+        },
+      }),
       prisma.user.create({
         data: { email: 'admin@merotelecom.test', passwordHash, role: Role.ADMIN },
       }),
@@ -259,6 +268,7 @@ describe('Mero Telecom API (e2e)', () => {
         data: { email: 'customer-b@merotelecom.test', passwordHash, role: Role.CUSTOMER },
       }),
     ]);
+    expect(superAdmin.id).toBeDefined();
     expect(admin.id).toBeDefined();
     expect(staff.id).toBeDefined();
 
@@ -335,6 +345,7 @@ describe('Mero Telecom API (e2e)', () => {
   });
 
   it('enforces validation and admin/staff role boundaries', async () => {
+    superAdminToken = await loginAs('super.admin@merotelecom.test');
     adminToken = await loginAs('admin@merotelecom.test');
     staffToken = await loginAs('staff@merotelecom.test');
 
@@ -394,6 +405,148 @@ describe('Mero Telecom API (e2e)', () => {
       .expect(200);
     expect(staffUpdate.body.firstName).toBe('Anika');
     expect(staffUpdate.body.phone).toBe('+61400000003');
+  });
+
+  it('provisions staff only through an admin invitation and rejects public role injection', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/payments/public-plan-checkout-session')
+      .send({
+        planId: '00000000-0000-4000-8000-000000000001',
+        firstName: 'Privilege',
+        lastName: 'Attempt',
+        email: 'privilege.attempt@example.com',
+        phone: '+61400000008',
+        residentialSameAsService: true,
+        billingSameAsResidential: true,
+        termsAccepted: true,
+        privacyAccepted: true,
+        role: Role.ADMIN,
+      })
+      .expect(400)
+      .expect((response) => {
+        expect(response.body.errors.messages).toContain('property role should not exist');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/users/invitations')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({
+        displayName: 'Forbidden Invite',
+        email: 'forbidden.staff@example.com',
+        role: Role.STAFF,
+      })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/users/invitations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        displayName: 'Forbidden Administrator',
+        email: 'forbidden.admin@example.com',
+        role: Role.ADMIN,
+      })
+      .expect(403);
+
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/admin/users/invitations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        displayName: 'Invited Operator',
+        email: 'invited.operator@example.com',
+        role: Role.STAFF,
+      })
+      .expect(201);
+    expect(created.body).not.toHaveProperty('tokenHash');
+    const invitation = await prisma.staffInvitation.findUniqueOrThrow({
+      where: { id: created.body.id },
+    });
+    expect(invitation.tokenHash).toMatch(/^[a-f0-9]{64}$/);
+    const activationToken = 'staff-invitation-token-that-is-long-enough-123';
+    await prisma.staffInvitation.update({
+      where: { id: invitation.id },
+      data: { tokenHash: createHash('sha256').update(activationToken).digest('hex') },
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/staff-invitations/accept')
+      .send({ token: activationToken, password: 'StaffPassword1!' })
+      .expect(204);
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/staff-invitations/accept')
+      .send({ token: activationToken, password: 'StaffPassword1!' })
+      .expect(400);
+    const invitedLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: 'invited.operator@example.com', password: 'StaffPassword1!' })
+      .expect(200);
+    const invitedAccessToken = invitedLogin.body.accessToken as string;
+
+    const invitedUser = await prisma.user.findUniqueOrThrow({
+      where: { email: 'invited.operator@example.com' },
+    });
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${invitedUser.id}/role`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ role: Role.ADMIN })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${invitedUser.id}/role`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: Role.ADMIN })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${invitedUser.id}/role`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ role: Role.ADMIN })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${invitedUser.id}/status`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: UserStatus.SUSPENDED })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${invitedUser.id}/role`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ role: Role.SUPER_ADMIN })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/audit-logs')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/audit-logs')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${invitedUser.id}/role`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ role: Role.STAFF })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${invitedUser.id}/status`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: UserStatus.SUSPENDED })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/v1/customers')
+      .set('Authorization', `Bearer ${invitedAccessToken}`)
+      .expect(401);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${invitedUser.id}/status`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: UserStatus.ACTIVE })
+      .expect(200);
+
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          entityId: invitedUser.id,
+          action: {
+            in: ['STAFF_INVITATION_ACCEPTED', 'SYSTEM_USER_SUSPENDED', 'SYSTEM_USER_REACTIVATED'],
+          },
+        },
+      }),
+    ).toBe(3);
   });
 
   it('resends a one-time invitation and lets the customer create their own password', async () => {

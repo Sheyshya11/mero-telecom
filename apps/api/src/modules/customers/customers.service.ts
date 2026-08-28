@@ -231,7 +231,7 @@ export class CustomersService {
     try {
       const customer = await this.prisma.$transaction(async (transaction) => {
         const updated = await transaction.customer.update({ where: { id: customerId }, data });
-        if (existing.user && actor.role === Role.ADMIN) {
+        if (existing.user && (actor.role === Role.SUPER_ADMIN || actor.role === Role.ADMIN)) {
           const userUpdate = this.userUpdateForCustomer(existing.user, input);
           if (Object.keys(userUpdate).length > 0) {
             await transaction.user.update({ where: { id: existing.user.id }, data: userUpdate });
@@ -302,7 +302,7 @@ export class CustomersService {
   }
 
   private getUpdateData(role: Role, input: UpdateCustomerDto): Prisma.CustomerUpdateInput {
-    if (role === Role.ADMIN) {
+    if (role === Role.SUPER_ADMIN || role === Role.ADMIN) {
       return {
         ...input,
         email: input.email ? this.normalizeEmail(input.email) : undefined,

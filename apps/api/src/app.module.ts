@@ -21,6 +21,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { HealthModule } from './health/health.module';
 import { CoverageModule } from './modules/coverage/coverage.module';
 import { PlanChangesModule } from './modules/plan-changes/plan-changes.module';
+import { SystemUsersModule } from './modules/system-users/system-users.module';
 import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
 import { AdministrativeAuditInterceptor } from './common/interceptors/administrative-audit.interceptor';
 import { ConfigService } from '@nestjs/config';
@@ -66,6 +67,7 @@ import type { AppConfig } from './config/configuration';
     PaymentsModule,
     PlanChangesModule,
     CoverageModule,
+    SystemUsersModule,
     HealthModule,
   ],
   providers: [

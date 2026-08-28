@@ -6,6 +6,7 @@ import { EmailQueueService } from './email-queue.service';
 import { EmailProvider } from './email-provider';
 import {
   renderAccountInvitationEmail,
+  renderStaffInvitationEmail,
   renderSubscriptionConfirmationEmail,
 } from './templates/account-email.template';
 import { renderInvoiceEmail } from './templates/invoice-email.template';
@@ -62,6 +63,24 @@ export class NotificationService {
       { to: recipient, ...template },
       { purpose: 'ACCOUNT_INVITATION', invitationId: input.invitationId },
       `account-invitation-${input.invitationId}`,
+    );
+    return { recipient, messageId: `queued:${result.jobId}` };
+  }
+
+  async sendStaffInvitation(input: {
+    displayName: string;
+    email: string;
+    role: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF';
+    activationUrl: string;
+    expiresAt: Date;
+    invitationId: string;
+  }): Promise<InvoiceEmailResult> {
+    const recipient = this.invoiceRecipient(input.email);
+    const template = renderStaffInvitationEmail(input);
+    const result = await this.emailQueue.enqueue(
+      { to: recipient, ...template },
+      { purpose: 'STAFF_INVITATION', staffInvitationId: input.invitationId },
+      `staff-invitation-${input.invitationId}`,
     );
     return { recipient, messageId: `queued:${result.jobId}` };
   }

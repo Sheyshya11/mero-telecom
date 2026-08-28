@@ -31,6 +31,17 @@ export interface AppConfig {
     throttleTtlMilliseconds: number;
     throttleLimit: number;
     accountInvitationTtlHours: number;
+    staffInvitationTtlHours: number;
+    enhancedAuthMaxAgeSeconds: number;
+  };
+  bootstrapSuperAdmin: {
+    email: string;
+    name: string;
+    usesLegacyVariables: boolean;
+  };
+  recoverySuperAdmin: {
+    email: string;
+    usesLegacyVariable: boolean;
   };
   jwt: {
     accessSecret: string;
@@ -106,6 +117,30 @@ export default (): AppConfig => ({
     throttleTtlMilliseconds: Number(process.env.THROTTLE_TTL_MS ?? 60_000),
     throttleLimit: Number(process.env.THROTTLE_LIMIT ?? 120),
     accountInvitationTtlHours: Number(process.env.ACCOUNT_INVITATION_TTL_HOURS ?? 24),
+    staffInvitationTtlHours: Number(process.env.STAFF_INVITATION_TTL_HOURS ?? 48),
+    enhancedAuthMaxAgeSeconds: Number(process.env.ENHANCED_AUTH_MAX_AGE_SECONDS ?? 600),
+  },
+  bootstrapSuperAdmin: {
+    email:
+      process.env.BOOTSTRAP_SUPER_ADMIN_EMAIL?.trim().toLowerCase() ||
+      process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase() ||
+      '',
+    name:
+      process.env.BOOTSTRAP_SUPER_ADMIN_NAME?.trim() ||
+      process.env.BOOTSTRAP_ADMIN_NAME?.trim() ||
+      'Mero Telecom Super Administrator',
+    usesLegacyVariables:
+      !process.env.BOOTSTRAP_SUPER_ADMIN_EMAIL?.trim() &&
+      Boolean(process.env.BOOTSTRAP_ADMIN_EMAIL?.trim()),
+  },
+  recoverySuperAdmin: {
+    email:
+      process.env.RECOVERY_SUPER_ADMIN_EMAIL?.trim().toLowerCase() ||
+      process.env.RECOVERY_ADMIN_EMAIL?.trim().toLowerCase() ||
+      '',
+    usesLegacyVariable:
+      !process.env.RECOVERY_SUPER_ADMIN_EMAIL?.trim() &&
+      Boolean(process.env.RECOVERY_ADMIN_EMAIL?.trim()),
   },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET ?? '',

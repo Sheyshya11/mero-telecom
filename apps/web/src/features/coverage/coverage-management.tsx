@@ -97,7 +97,7 @@ function messageFor(error: unknown): string {
 export function CoverageManagement() {
   const { accessToken, isLoading, logout, user } = useAuth();
   const queryClient = useQueryClient();
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
   const [tab, setTab] = useState<Tab>('lookup');
   const [search, setSearch] = useState('');
   const [regionStatus, setRegionStatus] = useState('');
@@ -109,7 +109,10 @@ export function CoverageManagement() {
   const [overrideSelection, setOverrideSelection] = useState<AddressSuggestion | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const canView = Boolean(accessToken && (user?.role === 'ADMIN' || user?.role === 'STAFF'));
+  const canView = Boolean(
+    accessToken &&
+    (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'STAFF'),
+  );
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
     if (search.trim()) params.set('search', search.trim());
@@ -189,7 +192,7 @@ export function CoverageManagement() {
 
   if (isLoading) return <PageStatus message="Restoring your session…" />;
   if (!user) return <PageStatus message="Sign in to view coverage operations." />;
-  if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
+  if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN' && user.role !== 'STAFF') {
     return <PageStatus message="Coverage operations require staff access." />;
   }
 

@@ -23,7 +23,11 @@ export class CustomerOwnershipGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
-    if (request.user.role === Role.ADMIN || request.user.role === Role.STAFF) {
+    if (
+      request.user.role === Role.SUPER_ADMIN ||
+      request.user.role === Role.ADMIN ||
+      request.user.role === Role.STAFF
+    ) {
       return true;
     }
 

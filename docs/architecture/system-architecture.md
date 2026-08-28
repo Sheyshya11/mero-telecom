@@ -162,6 +162,14 @@ unverified fallback. Readiness
 reports failure when PostgreSQL or Redis is unavailable. S3-compatible storage is mandatory in
 production because invoice documents must not rely on an ephemeral filesystem.
 
+PostgreSQL also owns explicit system roles, including `SUPER_ADMIN`; role ordering is never used.
+Local authentication is currently authoritative and Authentik/MFA is not integrated. Staff,
+administrators, and super administrators enter through hashed, expiring, single-use invitations,
+while public creation always produces a customer. Every protected request reloads current role and
+account state, privileged changes revoke refresh sessions, and super-admin target changes require a
+recent signed password-login timestamp. See
+[system-user provisioning](../api/system-users.md).
+
 ## Security and observability
 
 - Helmet headers, strict DTO validation, allowlisted credentialed CORS, and a production CSP.

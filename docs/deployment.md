@@ -74,25 +74,30 @@ with the API over Render's private network.
 
 Render prompts for every variable marked `sync: false`:
 
-| Variable                       | Required value                                                          |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| `FRONTEND_URL`                 | Exact HTTPS frontend origin, with no path                               |
-| `GEOAPIFY_API_KEY`             | Server-only key for the production API's Geoapify project               |
-| `ACCOUNT_INVITATION_TTL_HOURS` | Activation-link lifetime; keep at `24` unless policy changes            |
-| `STRIPE_SECRET_KEY`            | Restricted or standard Stripe test key (`rk_test_...` or `sk_test_...`) |
-| `STRIPE_WEBHOOK_SECRET`        | Signing secret for the production API's Stripe test webhook             |
-| `EMAIL_FROM`                   | Sender accepted by the SMTP provider                                    |
-| `EMAIL_DELIVERY_MODE`          | `direct`; production does not allow development-recipient redirection   |
-| `EMAIL_QUEUE_ENCRYPTION_KEY`   | Unique generated secret used only for encrypting retained email jobs    |
-| `SMTP_HOST`                    | SMTP provider hostname                                                  |
-| `SMTP_PORT`                    | Provider port, commonly `465` or `587`                                  |
-| `SMTP_SECURE`                  | `true` for implicit TLS (usually port 465), otherwise `false`           |
-| `SMTP_USER`                    | SMTP username, or an empty value if the provider does not require one   |
-| `SMTP_PASS`                    | SMTP password, or an empty value if the provider does not require one   |
-| `S3_ENDPOINT`                  | S3-compatible HTTPS endpoint; empty only for native AWS S3              |
-| `S3_BUCKET`                    | Private invoice-document bucket name                                    |
-| `S3_ACCESS_KEY_ID`             | Bucket-scoped access-key ID                                             |
-| `S3_SECRET_ACCESS_KEY`         | Bucket-scoped secret                                                    |
+| Variable                        | Required value                                                          |
+| ------------------------------- | ----------------------------------------------------------------------- |
+| `FRONTEND_URL`                  | Exact HTTPS frontend origin, with no path                               |
+| `GEOAPIFY_API_KEY`              | Server-only key for the production API's Geoapify project               |
+| `ACCOUNT_INVITATION_TTL_HOURS`  | Activation-link lifetime; keep at `24` unless policy changes            |
+| `STRIPE_SECRET_KEY`             | Restricted or standard Stripe test key (`rk_test_...` or `sk_test_...`) |
+| `STRIPE_WEBHOOK_SECRET`         | Signing secret for the production API's Stripe test webhook             |
+| `EMAIL_FROM`                    | Sender accepted by the SMTP provider                                    |
+| `EMAIL_DELIVERY_MODE`           | `direct`; production does not allow development-recipient redirection   |
+| `EMAIL_QUEUE_ENCRYPTION_KEY`    | Unique generated secret used only for encrypting retained email jobs    |
+| `SMTP_HOST`                     | SMTP provider hostname                                                  |
+| `SMTP_PORT`                     | Provider port, commonly `465` or `587`                                  |
+| `SMTP_SECURE`                   | `true` for implicit TLS (usually port 465), otherwise `false`           |
+| `SMTP_USER`                     | SMTP username, or an empty value if the provider does not require one   |
+| `SMTP_PASS`                     | SMTP password, or an empty value if the provider does not require one   |
+| `S3_ENDPOINT`                   | S3-compatible HTTPS endpoint; empty only for native AWS S3              |
+| `S3_BUCKET`                     | Private invoice-document bucket name                                    |
+| `S3_ACCESS_KEY_ID`              | Bucket-scoped access-key ID                                             |
+| `S3_SECRET_ACCESS_KEY`          | Bucket-scoped secret                                                    |
+| `STAFF_INVITATION_TTL_HOURS`    | Single-use privileged invitation lifetime; `48` is recommended          |
+| `ENHANCED_AUTH_MAX_AGE_SECONDS` | Password-login age for super-admin targets; default `600`               |
+| `BOOTSTRAP_SUPER_ADMIN_EMAIL`   | Exact email used by the explicit super-admin bootstrap command          |
+| `BOOTSTRAP_SUPER_ADMIN_NAME`    | Display name for the bootstrap super administrator                      |
+| `RECOVERY_SUPER_ADMIN_EMAIL`    | Normally blank; exact super-admin email during break-glass recovery     |
 
 Set `S3_REGION` and `S3_FORCE_PATH_STYLE` in `render.yaml` to match the chosen provider before
 provisioning. The Blueprint generates independent JWT secrets and injects managed datastore
@@ -108,6 +113,13 @@ webhook for `https://api.example.com/api/v1/payments/stripe/webhook`. Subscribe 
 `checkout.session.async_payment_failed`, and `checkout.session.expired`, set its signing secret in
 Render, and redeploy. Confirm SMTP can deliver account activation as well as invoice messages and
 that every activation URL uses the final `FRONTEND_URL` origin.
+
+For a new database, configure `BOOTSTRAP_SUPER_ADMIN_EMAIL` and `BOOTSTRAP_SUPER_ADMIN_NAME`, then run
+`pnpm db:bootstrap-super-admin` once from a secure API shell. Accept the emailed link and remove the
+bootstrap email if your deployment policy does not retain it. The command is idempotent and refuses
+to create a different super administrator after an active one exists. Existing administrators are
+never auto-promoted; only the exact configured administrator can be explicitly promoted. See
+[system-user provisioning](api/system-users.md) for invitations and audited break-glass recovery.
 
 The shared Render Key Value instance is configured as a job queue: `noeviction` prevents queued
 mail from being discarded under memory pressure and `journal-snapshot` preserves jobs across
@@ -181,6 +193,9 @@ Run these checks against the deployed URLs:
     the API returns only a database estimate. Confirm a non-configured state is not orderable.
 14. Sign in as Staff and verify coverage configuration is read-only; sign in as Admin and verify
     a reversible test record mutation creates an audit entry.
+15. Invite a controlled staff mailbox from `/admin/users`, accept the link once, and verify Staff
+    cannot open Team management. Suspend that account and confirm its existing session immediately
+    loses access, then reactivate it.
 
 Render treats readiness responses outside the 2xx/3xx range as unhealthy, so a release with an
 unreachable PostgreSQL or Redis instance will not receive traffic. The liveness endpoint remains a

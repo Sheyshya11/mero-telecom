@@ -21,7 +21,7 @@ export class AdministrativeAuditInterceptor implements NestInterceptor {
     const actor = request.user;
     if (
       !actor ||
-      (actor.role !== Role.ADMIN && actor.role !== Role.STAFF) ||
+      (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.ADMIN && actor.role !== Role.STAFF) ||
       ['GET', 'HEAD', 'OPTIONS'].includes(request.method)
     ) {
       return next.handle();

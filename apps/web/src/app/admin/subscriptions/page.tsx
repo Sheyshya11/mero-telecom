@@ -65,7 +65,10 @@ export default function AdminSubscriptionsPage() {
     queryKey: ['subscriptions'],
     queryFn: () =>
       apiRequest<{ data: Subscription[] }>('/subscriptions?limit=100', {}, accessToken),
-    enabled: Boolean(accessToken && (user?.role === 'ADMIN' || user?.role === 'STAFF')),
+    enabled: Boolean(
+      accessToken &&
+      (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'STAFF'),
+    ),
   });
   const planChanges = useQuery({
     queryKey: ['plan-change-requests', statusFilter, typeFilter],
@@ -79,7 +82,10 @@ export default function AdminSubscriptionsPage() {
         accessToken,
       );
     },
-    enabled: Boolean(accessToken && (user?.role === 'ADMIN' || user?.role === 'STAFF')),
+    enabled: Boolean(
+      accessToken &&
+      (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'STAFF'),
+    ),
   });
   const transition = useMutation({
     mutationFn: ({ id, status }: { id: string; status: Subscription['status'] }) =>
@@ -103,7 +109,7 @@ export default function AdminSubscriptionsPage() {
       </main>
     );
   }
-  if (!user || (user.role !== 'ADMIN' && user.role !== 'STAFF')) {
+  if (!user || (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN' && user.role !== 'STAFF')) {
     return (
       <main className="grid min-h-screen place-items-center text-slate-600">
         Staff or administrator access is required.

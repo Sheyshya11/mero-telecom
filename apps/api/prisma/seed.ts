@@ -1,16 +1,19 @@
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { assertNonProductionDatabaseCommand } from '../src/scripts/database-command-safety';
 
 const prisma = new PrismaClient();
 const demoPassword = 'ChangeMe123!';
 
 async function main(): Promise<void> {
+  assertNonProductionDatabaseCommand(process.env.NODE_ENV, 'Development demo seed');
   const passwordHash = await hash(demoPassword, 12);
 
   await prisma.$transaction([
     prisma.paymentWebhookEvent.deleteMany(),
     prisma.planChangeRequest.deleteMany(),
     prisma.accountInvitation.deleteMany(),
+    prisma.staffInvitation.deleteMany(),
     prisma.checkoutApplication.deleteMany(),
     prisma.coverageSearch.deleteMany(),
     prisma.payment.deleteMany(),

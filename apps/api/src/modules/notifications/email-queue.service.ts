@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AccountInvitationStatus } from '@prisma/client';
+import { AccountInvitationStatus, StaffInvitationStatus } from '@prisma/client';
 import { Queue, Worker, type Job } from 'bullmq';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 
@@ -16,6 +16,7 @@ import { EmailProvider, type EmailSendResult } from './email-provider';
 
 export type EmailPurpose =
   | 'ACCOUNT_INVITATION'
+  | 'STAFF_INVITATION'
   | 'SUBSCRIPTION_CONFIRMATION'
   | 'PLAN_CHANGE_SCHEDULED'
   | 'PLAN_CHANGE_APPLIED'
@@ -32,6 +33,7 @@ interface QueueableEmailMessage {
 interface EmailJobContext {
   purpose: EmailPurpose;
   invitationId?: string;
+  staffInvitationId?: string;
   checkoutApplicationId?: string;
   planChangeRequestId?: string;
 }
@@ -169,6 +171,19 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         return { messageId: 'skipped-invalid-invitation', skipped: true };
       }
     }
+    if (payload.context.staffInvitationId) {
+      const invitation = await this.prisma.staffInvitation.findUnique({
+        where: { id: payload.context.staffInvitationId },
+        select: { status: true, expiresAt: true },
+      });
+      if (
+        !invitation ||
+        invitation.status !== StaffInvitationStatus.PENDING ||
+        invitation.expiresAt <= new Date()
+      ) {
+        return { messageId: 'skipped-invalid-invitation', skipped: true };
+      }
+    }
 
     const delivery = await this.emailProvider.send(payload.message);
     await this.recordSuccess(job, payload.context, delivery.messageId);
@@ -186,17 +201,28 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         data: { sentAt: new Date() },
       });
     }
+    if (context.staffInvitationId) {
+      await this.prisma.staffInvitation.updateMany({
+        where: { id: context.staffInvitationId, status: StaffInvitationStatus.PENDING },
+        data: { sentAt: new Date() },
+      });
+    }
     const entityId =
-      context.invitationId ?? context.checkoutApplicationId ?? context.planChangeRequestId;
+      context.invitationId ??
+      context.staffInvitationId ??
+      context.checkoutApplicationId ??
+      context.planChangeRequestId;
     if (!entityId) return;
     await this.prisma.auditLog.create({
       data: {
         action: 'EMAIL_DELIVERY_SENT',
         entityType: context.invitationId
           ? 'AccountInvitation'
-          : context.checkoutApplicationId
-            ? 'CheckoutApplication'
-            : 'PlanChangeRequest',
+          : context.staffInvitationId
+            ? 'StaffInvitation'
+            : context.checkoutApplicationId
+              ? 'CheckoutApplication'
+              : 'PlanChangeRequest',
         entityId,
         metadata: {
           purpose: context.purpose,
@@ -215,16 +241,21 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
     try {
       const { context } = this.decrypt(job.data.encryptedPayload);
       const entityId =
-        context.invitationId ?? context.checkoutApplicationId ?? context.planChangeRequestId;
+        context.invitationId ??
+        context.staffInvitationId ??
+        context.checkoutApplicationId ??
+        context.planChangeRequestId;
       if (!entityId) return;
       await this.prisma.auditLog.create({
         data: {
           action: 'EMAIL_DELIVERY_FAILED',
           entityType: context.invitationId
             ? 'AccountInvitation'
-            : context.checkoutApplicationId
-              ? 'CheckoutApplication'
-              : 'PlanChangeRequest',
+            : context.staffInvitationId
+              ? 'StaffInvitation'
+              : context.checkoutApplicationId
+                ? 'CheckoutApplication'
+                : 'PlanChangeRequest',
           entityId,
           metadata: {
             purpose: context.purpose,

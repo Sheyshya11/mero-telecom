@@ -13,7 +13,14 @@
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "db:migrate": "prisma migrate deploy",
+    "db:bootstrap-super-admin": "nest build && node dist/scripts/bootstrap-super-admin.js",
+    "db:bootstrap-admin": "node -e \"console.warn('db:bootstrap-admin is deprecated; use db:bootstrap-super-admin')\" && pnpm db:bootstrap-super-admin",
+    "db:recover-super-admin": "nest build && node dist/scripts/recover-super-admin.js",
+    "db:recover-admin": "node -e \"console.warn('db:recover-admin is deprecated; use db:recover-super-admin')\" && pnpm db:recover-super-admin",
+    "db:seed:demo": "prisma db seed",
+    "db:reset": "tsx src/scripts/reset-database.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1111.0",
