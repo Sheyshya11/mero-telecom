@@ -127,6 +127,9 @@ export function CustomerManagement() {
           <Link className="button-secondary" href={isAdmin ? '/admin/coverage' : '/staff/coverage'}>
             Coverage
           </Link>
+          <Link className="button-secondary" href={isAdmin ? '/admin/plans' : '/staff/plans'}>
+            Plans
+          </Link>
           {isAdmin ? (
             <button
               className="button-primary"

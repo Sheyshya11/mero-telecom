@@ -13,16 +13,28 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { useAuth } from '../auth/auth-provider';
+
+import { LandingIcon, type LandingIconName } from '../../components/landing/landing-icons';
 import { apiRequest } from '../../lib/api/client';
+import { useAuth } from '../auth/auth-provider';
+import styles from './dashboard.module.css';
 import type { AdminDashboard } from './dashboard.types';
 
 const statusColors = {
-  ACTIVE: '#059669',
-  PENDING: '#0284c7',
-  SUSPENDED: '#d97706',
-  CANCELLED: '#64748b',
+  ACTIVE: '#0b8791',
+  PENDING: '#55bcc3',
+  SUSPENDED: '#e49a26',
+  CANCELLED: '#94a3b8',
 };
+
+const adminNav = [
+  { href: '/admin/customers', label: 'Customers' },
+  { href: '/admin/plans', label: 'Plans' },
+  { href: '/admin/subscriptions', label: 'Subscriptions' },
+  { href: '/admin/invoices', label: 'Invoices' },
+  { href: '/admin/coverage', label: 'Coverage' },
+  { href: '/admin/users', label: 'Team' },
+];
 
 function formatMoney(cents: number) {
   return new Intl.NumberFormat('en-AU', {
@@ -39,6 +51,7 @@ export function AdminDashboardView() {
     queryFn: () => apiRequest<AdminDashboard>('/dashboard/admin', {}, accessToken),
     enabled: Boolean(accessToken && (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')),
   });
+
   if (isLoading) return <Status message="Restoring your session…" />;
   if (!user) return <Status message="Sign in to view the dashboard." />;
   if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN')
@@ -51,154 +64,203 @@ export function AdminDashboardView() {
         onRetry={() => void dashboardQuery.refetch()}
       />
     );
+
   const dashboard = dashboardQuery.data;
   const trend = dashboard.invoiceTrend.map((point) => ({
     ...point,
     totalDollars: point.totalCents / 100,
   }));
+
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-6 py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-end">
-        <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM · ADMIN</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-            Business dashboard
-          </h1>
-          <p className="mt-2 text-slate-600">
-            A current operational view of customers, subscriptions, and invoices.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link className="button-secondary" href="/admin/customers">
-            Customers
-          </Link>
-          <Link className="button-secondary" href="/admin/plans">
-            Plans
-          </Link>
-          <Link className="button-secondary" href="/admin/subscriptions">
-            Subscriptions
-          </Link>
-          <Link className="button-secondary" href="/admin/invoices">
-            Invoices
-          </Link>
-          <Link className="button-secondary" href="/admin/coverage">
-            Coverage
-          </Link>
-          <Link className="button-secondary" href="/admin/users">
-            Team
-          </Link>
-          <button className="button-primary" onClick={() => void logout()} type="button">
-            Sign out
-          </button>
-        </div>
-      </header>
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric
-          label="Customers"
-          value={String(dashboard.metrics.customerCount)}
-          detail="Customer accounts"
-        />
-        <Metric
-          label="Active services"
-          value={String(dashboard.metrics.activeSubscriptions)}
-          detail="Current subscriptions"
-        />
-        <Metric
-          label="Monthly recurring revenue"
-          value={formatMoney(dashboard.metrics.monthlyRecurringRevenueCents)}
-          detail="Active plan value"
-        />
-        <Metric
-          label="Outstanding invoices"
-          value={formatMoney(dashboard.metrics.outstandingInvoiceCents)}
-          detail="Issued and overdue"
-        />
-        <Metric
-          label="Overdue invoices"
-          value={String(dashboard.metrics.overdueInvoiceCount)}
-          detail="Requires follow-up"
-          warning
-        />
-      </section>
-      <section className="mt-8 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <Panel title="Invoice value by month">
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={trend} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
-                <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value: number) => `$${value}`}
-                />
-                <Tooltip
-                  formatter={(value) => [`$${Number(value ?? 0).toFixed(2)}`, 'Invoice value']}
-                />
-                <Bar dataKey="totalDollars" fill="#0284c7" radius={[5, 5, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+    <main className={styles.page}>
+      <div className={styles.shell}>
+        <header className={styles.topbar}>
+          <Brand />
+          <nav aria-label="Administrator navigation" className={styles.nav}>
+            {adminNav.map((item) => (
+              <Link className={styles.navLink} href={item.href} key={item.href}>
+                {item.label}
+              </Link>
+            ))}
+            <button className={styles.signOut} onClick={() => void logout()} type="button">
+              Sign out
+            </button>
+          </nav>
+        </header>
+
+        <section className={styles.hero}>
+          <span aria-hidden="true" className={styles.heroGlow} />
+          <div className={styles.heroContent}>
+            <p className={styles.eyebrow}>
+              {user.role === 'SUPER_ADMIN' ? 'Super admin control centre' : 'Admin control centre'}
+            </p>
+            <h1>Business dashboard</h1>
+            <p className={styles.heroDescription}>
+              A current operational view of customers, active services, revenue and invoices.
+            </p>
           </div>
-        </Panel>
-        <Panel title="Subscriptions by status">
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={dashboard.subscriptionsByStatus}
-                  dataKey="count"
-                  nameKey="status"
-                  cx="50%"
-                  cy="46%"
-                  outerRadius={82}
-                  label={({ name, value }) => `${name}: ${value}`}
-                >
-                  {dashboard.subscriptionsByStatus.map((entry) => (
-                    <Cell fill={statusColors[entry.status]} key={entry.status} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className={styles.heroAside}>
+            <p className={styles.heroAsideLabel}>Signed in as</p>
+            <p className={styles.heroAsideValue}>{user.email}</p>
           </div>
-        </Panel>
-      </section>
-      <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
-          <h2 className="font-semibold text-slate-950">Recent invoices</h2>
-          <span className="text-sm text-slate-500">Latest five records</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-150 text-left text-sm">
-            <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-6 py-3">Invoice</th>
-                <th className="px-6 py-3">Customer</th>
-                <th className="px-6 py-3">Issue date</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dashboard.recentInvoices.map((invoice) => (
-                <tr className="border-b border-slate-100 last:border-0" key={invoice.id}>
-                  <td className="px-6 py-4 font-medium text-slate-900">{invoice.invoiceNumber}</td>
-                  <td className="px-6 py-4 text-slate-700">{invoice.customerName}</td>
-                  <td className="px-6 py-4 text-slate-600">
-                    {new Date(invoice.issueDate).toLocaleDateString('en-AU')}
-                  </td>
-                  <td className="px-6 py-4">
-                    <StatusBadge status={invoice.status} />
-                  </td>
-                  <td className="px-6 py-4 text-right font-medium text-slate-900">
-                    {formatMoney(invoice.totalCents)}
-                  </td>
+        </section>
+
+        <section aria-label="Business metrics" className={styles.metricGrid}>
+          <Metric
+            detail="Customer accounts"
+            icon="users"
+            label="Customers"
+            value={String(dashboard.metrics.customerCount)}
+          />
+          <Metric
+            detail="Current subscriptions"
+            icon="activity"
+            label="Active services"
+            value={String(dashboard.metrics.activeSubscriptions)}
+          />
+          <Metric
+            detail="Active plan value"
+            icon="gauge"
+            label="Monthly recurring revenue"
+            value={formatMoney(dashboard.metrics.monthlyRecurringRevenueCents)}
+          />
+          <Metric
+            detail="Issued and overdue"
+            icon="credit-card"
+            label="Outstanding invoices"
+            value={formatMoney(dashboard.metrics.outstandingInvoiceCents)}
+          />
+          <Metric
+            detail="Requires follow-up"
+            icon="shield"
+            label="Overdue invoices"
+            value={String(dashboard.metrics.overdueInvoiceCount)}
+            warning
+          />
+        </section>
+
+        <section className={styles.contentGrid}>
+          <Panel meta="Issued invoice totals" title="Invoice value by month">
+            <div className={styles.chart}>
+              <ResponsiveContainer height="100%" width="100%">
+                <BarChart data={trend} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
+                  <XAxis
+                    axisLine={false}
+                    dataKey="label"
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                    tickFormatter={(value: number) => `$${value}`}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      border: '1px solid #dbe4e7',
+                      borderRadius: 12,
+                      boxShadow: '0 12px 28px rgba(15, 23, 42, 0.1)',
+                      fontSize: 12,
+                    }}
+                    cursor={{ fill: 'rgba(11, 135, 145, 0.06)' }}
+                    formatter={(value) => [`$${Number(value ?? 0).toFixed(2)}`, 'Invoice value']}
+                  />
+                  <Bar dataKey="totalDollars" fill="#0b8791" radius={[7, 7, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Panel>
+
+          <Panel meta="Current service mix" title="Subscriptions by status">
+            <div className={styles.chart}>
+              <ResponsiveContainer height="100%" width="100%">
+                <PieChart>
+                  <Pie
+                    cx="50%"
+                    cy="48%"
+                    data={dashboard.subscriptionsByStatus}
+                    dataKey="count"
+                    innerRadius={50}
+                    label={({ name, value }) => `${name}: ${value}`}
+                    nameKey="status"
+                    outerRadius={82}
+                    paddingAngle={3}
+                  >
+                    {dashboard.subscriptionsByStatus.map((entry) => (
+                      <Cell fill={statusColors[entry.status]} key={entry.status} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      border: '1px solid #dbe4e7',
+                      borderRadius: 12,
+                      boxShadow: '0 12px 28px rgba(15, 23, 42, 0.1)',
+                      fontSize: 12,
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </Panel>
+        </section>
+
+        <section className={styles.tablePanel}>
+          <div className={styles.tableHeader}>
+            <div>
+              <h2>Recent invoices</h2>
+              <p>Latest five billing records</p>
+            </div>
+            <Link className={styles.tableLink} href="/admin/invoices">
+              View all invoices
+            </Link>
+          </div>
+          <div className={styles.tableScroll}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Customer</th>
+                  <th>Issue date</th>
+                  <th>Status</th>
+                  <th className={styles.alignRight}>Total</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {dashboard.recentInvoices.map((invoice) => (
+                  <tr key={invoice.id}>
+                    <td className={styles.tableStrong}>{invoice.invoiceNumber}</td>
+                    <td>{invoice.customerName}</td>
+                    <td className={styles.tableMuted}>
+                      {new Date(invoice.issueDate).toLocaleDateString('en-AU')}
+                    </td>
+                    <td>
+                      <StatusBadge status={invoice.status} />
+                    </td>
+                    <td className={`${styles.tableStrong} ${styles.alignRight}`}>
+                      {formatMoney(invoice.totalCents)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
     </main>
+  );
+}
+
+function Brand() {
+  return (
+    <Link aria-label="Mero Telecom home" className={styles.brand} href="/">
+      <span className={styles.brandMark}>
+        <LandingIcon name="wifi" size={19} />
+      </span>
+      <span>
+        Mero<span>Telecom</span>
+      </span>
+    </Link>
   );
 }
 
@@ -206,49 +268,65 @@ function Metric({
   label,
   value,
   detail,
+  icon,
   warning = false,
-}: Readonly<{ label: string; value: string; detail: string; warning?: boolean }>) {
+}: Readonly<{
+  label: string;
+  value: string;
+  detail: string;
+  icon: LandingIconName;
+  warning?: boolean;
+}>) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className={`mt-3 text-2xl font-bold ${warning ? 'text-amber-700' : 'text-slate-950'}`}>
-        {value}
-      </p>
-      <p className="mt-2 text-xs text-slate-500">{detail}</p>
+    <article className={styles.metric} data-warning={warning}>
+      <div className={styles.metricTop}>
+        <p className={styles.metricLabel}>{label}</p>
+        <span className={styles.metricIcon}>
+          <LandingIcon name={icon} size={17} />
+        </span>
+      </div>
+      <p className={styles.metricValue}>{value}</p>
+      <p className={styles.metricDetail}>{detail}</p>
     </article>
   );
 }
-function Panel({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
+
+function Panel({
+  title,
+  meta,
+  children,
+}: Readonly<{ title: string; meta: string; children: React.ReactNode }>) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="font-semibold text-slate-950">{title}</h2>
-      <div className="mt-4">{children}</div>
+    <section className={styles.panel}>
+      <div className={styles.panelHeader}>
+        <div>
+          <h2 className={styles.panelTitle}>{title}</h2>
+          <p className={styles.panelMeta}>{meta}</p>
+        </div>
+      </div>
+      <div className={styles.panelBody}>{children}</div>
     </section>
   );
 }
+
 function StatusBadge({ status }: Readonly<{ status: string }>) {
-  const colors: Record<string, string> = {
-    PAID: 'bg-emerald-100 text-emerald-800',
-    ISSUED: 'bg-sky-100 text-sky-800',
-    OVERDUE: 'bg-amber-100 text-amber-800',
-    CANCELLED: 'bg-slate-100 text-slate-700',
-    DRAFT: 'bg-slate-100 text-slate-700',
-  };
   return (
-    <span
-      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${colors[status] ?? 'bg-slate-100 text-slate-700'}`}
-    >
+    <span className={styles.badge} data-status={status}>
       {status}
     </span>
   );
 }
+
 function Status({ message, onRetry }: Readonly<{ message: string; onRetry?: () => void }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
-      <div>
+    <main className={styles.statusPage}>
+      <div className={styles.statusCard}>
+        <span className={styles.statusMark}>
+          <LandingIcon name="wifi" size={20} />
+        </span>
         <p>{message}</p>
         {onRetry ? (
-          <button className="button-secondary mt-4" onClick={onRetry} type="button">
+          <button className="button-secondary" onClick={onRetry} type="button">
             Retry
           </button>
         ) : null}

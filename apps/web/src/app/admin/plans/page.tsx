@@ -12,6 +12,7 @@ interface Plan {
   id: string;
   name: string;
   description: string | null;
+  highlights: string[];
   downloadMbps: number;
   uploadMbps: number;
   monthlyCents: number;
@@ -21,9 +22,23 @@ interface Plan {
   tierRank: number;
 }
 
+function parseHighlights(value: string): string[] {
+  return value
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 const planSchema = z.object({
   name: z.string().trim().min(2, 'Enter a plan name.').max(150),
   description: z.string().trim().max(2000).optional(),
+  highlightsText: z
+    .string()
+    .refine((value) => parseHighlights(value).length <= 5, 'Add no more than five highlights.')
+    .refine(
+      (value) => parseHighlights(value).every((item) => item.length <= 100),
+      'Each highlight must be 100 characters or fewer.',
+    ),
   downloadMbps: z.coerce.number().int().min(1, 'Must be at least 1 Mbps.'),
   uploadMbps: z.coerce.number().int().min(1, 'Must be at least 1 Mbps.'),
   monthlyPrice: z.coerce.number().positive('Enter a price greater than zero.'),
@@ -51,6 +66,7 @@ export default function AdminPlansPage() {
     defaultValues: {
       name: '',
       description: '',
+      highlightsText: '',
       downloadMbps: 50,
       uploadMbps: 20,
       monthlyPrice: 59,
@@ -60,10 +76,12 @@ export default function AdminPlansPage() {
     },
   });
 
+  const canManagePlans = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+
   const plansQuery = useQuery({
     queryKey: ['plans'],
     queryFn: () => apiRequest<Plan[]>('/plans', {}, accessToken ?? ''),
-    enabled: Boolean(accessToken && (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')),
+    enabled: Boolean(accessToken && canManagePlans),
   });
 
   const createMutation = useMutation({
@@ -75,6 +93,7 @@ export default function AdminPlansPage() {
           body: JSON.stringify({
             name: values.name,
             description: values.description || undefined,
+            highlights: parseHighlights(values.highlightsText),
             downloadMbps: values.downloadMbps,
             uploadMbps: values.uploadMbps,
             monthlyCents: Math.round(values.monthlyPrice * 100),
@@ -86,7 +105,10 @@ export default function AdminPlansPage() {
         accessToken ?? '',
       ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['plans'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['plans'] }),
+        queryClient.invalidateQueries({ queryKey: ['public-plans'] }),
+      ]);
       form.reset();
     },
   });
@@ -100,6 +122,7 @@ export default function AdminPlansPage() {
           body: JSON.stringify({
             name: values.name,
             description: values.description || null,
+            highlights: parseHighlights(values.highlightsText),
             downloadMbps: values.downloadMbps,
             uploadMbps: values.uploadMbps,
             monthlyCents: Math.round(values.monthlyPrice * 100),
@@ -111,7 +134,10 @@ export default function AdminPlansPage() {
         accessToken ?? '',
       ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['plans'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['plans'] }),
+        queryClient.invalidateQueries({ queryKey: ['public-plans'] }),
+      ]);
       setEditingPlan(null);
       form.reset();
     },
@@ -124,7 +150,12 @@ export default function AdminPlansPage() {
         { method: 'PATCH', body: JSON.stringify(changes) },
         accessToken ?? '',
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plans'] }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['plans'] }),
+        queryClient.invalidateQueries({ queryKey: ['public-plans'] }),
+      ]);
+    },
   });
 
   if (isLoading) {
@@ -143,7 +174,7 @@ export default function AdminPlansPage() {
     );
   }
 
-  if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+  if (!canManagePlans) {
     return (
       <main className="grid min-h-screen place-items-center px-6 text-slate-600">
         Administrator access is required.
@@ -213,6 +244,19 @@ export default function AdminPlansPage() {
             <label className="block text-sm font-medium text-slate-700">
               Description <span className="text-slate-400">(optional)</span>
               <textarea className="field mt-1 min-h-24" {...form.register('description')} />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Best-for highlights <span className="text-slate-400">(one per line, up to five)</span>
+              <textarea
+                className="field mt-1 min-h-28"
+                placeholder={'Multiple devices at once\nHD streaming\nWorking from home'}
+                {...form.register('highlightsText')}
+              />
+              {form.formState.errors.highlightsText ? (
+                <span className="mt-1 block text-sm text-rose-700">
+                  {form.formState.errors.highlightsText.message}
+                </span>
+              ) : null}
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm font-medium text-slate-700">
@@ -325,6 +369,18 @@ export default function AdminPlansPage() {
                   {plan.description && (
                     <p className="mt-2 text-sm text-slate-500">{plan.description}</p>
                   )}
+                  {plan.highlights.length ? (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {plan.highlights.map((highlight) => (
+                        <span
+                          className="rounded-full bg-teal-50 px-2.5 py-1 text-xs text-teal-800"
+                          key={highlight}
+                        >
+                          {highlight}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -334,6 +390,7 @@ export default function AdminPlansPage() {
                       form.reset({
                         name: plan.name,
                         description: plan.description ?? '',
+                        highlightsText: plan.highlights.join('\n'),
                         downloadMbps: plan.downloadMbps,
                         uploadMbps: plan.uploadMbps,
                         monthlyPrice: plan.monthlyCents / 100,

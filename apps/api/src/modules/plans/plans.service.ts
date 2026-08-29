@@ -48,6 +48,11 @@ export class PlansService {
     return plan;
   }
 
+  updateHighlights(id: string, highlights: string[]) {
+    const normalizedHighlights = highlights.map((highlight) => highlight.trim()).filter(Boolean);
+    return this.update(id, { highlights: normalizedHighlights });
+  }
+
   async remove(id: string) {
     await this.findOne(id);
     const plan = await this.prisma.internetPlan

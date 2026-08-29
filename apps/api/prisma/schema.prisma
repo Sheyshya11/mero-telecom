@@ -230,6 +230,7 @@ model InternetPlan {
   id                   String                @id @default(uuid()) @db.Uuid
   name                 String                @unique @db.VarChar(150)
   description          String?               @db.Text
+  highlights           String[]              @default([])
   downloadMbps         Int
   uploadMbps           Int
   monthlyCents         Int

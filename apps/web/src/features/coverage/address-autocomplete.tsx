@@ -3,7 +3,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 
+import { LandingIcon } from '../../components/landing/landing-icons';
 import { ApiError, apiRequest } from '../../lib/api/client';
+import styles from '../../styles/landing.module.css';
 import type { AddressSuggestion, AddressSuggestionsResponse } from './coverage.types';
 
 const minimumCharacters = 3;
@@ -16,15 +18,18 @@ export function AddressAutocomplete({
   label,
   placeholder = 'Start typing an Australian street address',
   selectedMessage = 'Address selected.',
+  variant = 'default',
   onInputChange,
   onSelectionChange,
 }: Readonly<{
   label: string;
   placeholder?: string;
   selectedMessage?: string;
+  variant?: 'default' | 'landing';
   onInputChange?: () => void;
   onSelectionChange: (selection: AddressSuggestion | null) => void;
 }>) {
+  const isLanding = variant === 'landing';
   const queryClient = useQueryClient();
   const inputId = useId();
   const listboxId = `${inputId}-suggestions`;
@@ -101,10 +106,18 @@ export function AddressAutocomplete({
   const showMinimumHint = normalizedQuery.length > 0 && normalizedQuery.length < minimumCharacters;
 
   return (
-    <div className="relative">
-      <label className="block text-sm font-medium text-slate-700" htmlFor={inputId}>
+    <div className={isLanding ? styles.addressAutocomplete : 'relative'}>
+      <label
+        className={isLanding ? styles.addressLabel : 'block text-sm font-medium text-slate-700'}
+        htmlFor={inputId}
+      >
         {label}
       </label>
+      {isLanding ? (
+        <span className={styles.addressSearchIcon}>
+          <LandingIcon name="search" size={20} />
+        </span>
+      ) : null}
       <input
         aria-activedescendant={
           isOpen && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined
@@ -113,7 +126,7 @@ export function AddressAutocomplete({
         aria-controls={listboxId}
         aria-expanded={isOpen}
         autoComplete="street-address"
-        className="field mt-1"
+        className={isLanding ? styles.addressInput : 'field mt-1'}
         id={inputId}
         maxLength={150}
         onChange={(event) => changeQuery(event.target.value)}
@@ -123,19 +136,28 @@ export function AddressAutocomplete({
         role="combobox"
         value={query}
       />
+      {isLanding && suggestionsQuery.isFetching ? (
+        <span aria-hidden="true" className={styles.addressSpinner} />
+      ) : null}
       {isOpen ? (
         <ul
           aria-label={`${label} suggestions`}
-          className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          className={
+            isLanding
+              ? styles.suggestionList
+              : 'absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg'
+          }
           id={listboxId}
           role="listbox"
         >
           {suggestions.map((suggestion, index) => (
             <li
               aria-selected={index === activeIndex}
-              className={`cursor-pointer px-4 py-3 text-sm ${
-                index === activeIndex ? 'bg-sky-50 text-sky-950' : 'text-slate-700'
-              }`}
+              className={
+                isLanding
+                  ? `${styles.suggestionItem} ${index === activeIndex ? styles.suggestionItemActive : ''}`
+                  : `cursor-pointer px-4 py-3 text-sm ${index === activeIndex ? 'bg-sky-50 text-sky-950' : 'text-slate-700'}`
+              }
               id={`${listboxId}-option-${index}`}
               key={suggestion.selectionToken}
               onMouseDown={(event) => {
@@ -144,17 +166,25 @@ export function AddressAutocomplete({
               }}
               role="option"
             >
+              {isLanding ? <LandingIcon name="pin" size={16} /> : null}
               <span className="font-medium">{suggestion.formattedAddress}</span>
             </li>
           ))}
           {suggestionsQuery.isSuccess && suggestions.length === 0 ? (
-            <li aria-selected={false} className="px-4 py-3 text-sm text-slate-500" role="option">
+            <li
+              aria-selected={false}
+              className={isLanding ? styles.suggestionItem : 'px-4 py-3 text-sm text-slate-500'}
+              role="option"
+            >
               No matching Australian addresses found.
             </li>
           ) : null}
         </ul>
       ) : null}
-      <div className="mt-2 min-h-6 text-sm" aria-live="polite">
+      <div
+        className={isLanding ? styles.addressMessage : 'mt-2 min-h-6 text-sm'}
+        aria-live="polite"
+      >
         {showMinimumHint ? (
           <p className="text-slate-500">Enter at least three characters.</p>
         ) : suggestionsQuery.isFetching ? (

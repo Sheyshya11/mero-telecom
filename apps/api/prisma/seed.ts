@@ -69,6 +69,7 @@ async function main(): Promise<void> {
       data: {
         name: 'Essential 50',
         description: 'Reliable everyday internet for a connected household.',
+        highlights: ['Multiple devices at once', 'HD streaming', 'Working from home'],
         downloadMbps: 50,
         uploadMbps: 20,
         monthlyCents: 6900,
@@ -79,6 +80,7 @@ async function main(): Promise<void> {
       data: {
         name: 'Family 100',
         description: 'Extra capacity for streaming, gaming, and working from home.',
+        highlights: ['4K streaming', 'Online gaming', 'Larger households'],
         downloadMbps: 100,
         uploadMbps: 20,
         monthlyCents: 7900,
@@ -89,6 +91,7 @@ async function main(): Promise<void> {
       data: {
         name: 'Business 250',
         description: 'High-performance connectivity for small businesses.',
+        highlights: ['Heavy streaming', 'Fast downloads', 'Power users and creators'],
         downloadMbps: 250,
         uploadMbps: 25,
         monthlyCents: 10900,

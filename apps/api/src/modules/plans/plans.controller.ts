@@ -14,7 +14,7 @@ import { Role } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CreatePlanDto, UpdatePlanDto } from './dto/plan.dto';
+import { CreatePlanDto, UpdatePlanDto, UpdatePlanHighlightsDto } from './dto/plan.dto';
 import { PlansService } from './plans.service';
 
 @ApiTags('plans')
@@ -42,6 +42,16 @@ export class PlansController {
     @Body() input: CreatePlanDto,
   ) {
     return this.plans.create(input);
+  }
+  @Patch(':planId/highlights')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiBearerAuth()
+  updateHighlights(
+    @Param('planId', new ParseUUIDPipe()) id: string,
+    @Body() input: UpdatePlanHighlightsDto,
+  ) {
+    return this.plans.updateHighlights(id, input.highlights);
   }
   @Patch(':planId') @UseGuards(JwtAuthGuard, RolesGuard) @Roles(Role.ADMIN) @ApiBearerAuth() update(
     @Param('planId', new ParseUUIDPipe()) id: string,
