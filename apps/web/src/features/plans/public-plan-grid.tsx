@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { LandingIcon } from '../../components/landing/landing-icons';
 import { apiRequest } from '../../lib/api/client';
 import styles from '../../styles/landing.module.css';
+import { getDashboardRoute } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
 
 interface PublicPlan {
@@ -45,7 +46,7 @@ function getPlanHighlights(downloadMbps: number): string[] {
 export function PublicPlanGrid({
   variant = 'default',
 }: Readonly<{ variant?: 'default' | 'landing' }>) {
-  const { user } = useAuth();
+  const { isLoading, user } = useAuth();
   const isLanding = variant === 'landing';
   const query = useQuery({
     queryKey: ['public-plans'],
@@ -187,21 +188,40 @@ export function PublicPlanGrid({
                 </p>
               </>
             )}
-            <Link
-              className={
-                isLanding
-                  ? styles.planButton
-                  : 'button-primary mt-5 inline-flex w-full justify-center'
-              }
-              href={
-                user?.role === 'CUSTOMER'
-                  ? `/customer/subscription?planId=${encodeURIComponent(plan.id)}`
-                  : `/checkout?planId=${encodeURIComponent(plan.id)}`
-              }
-            >
-              {user?.role === 'CUSTOMER' ? 'Review this plan' : 'Choose plan'}
-              {isLanding ? <LandingIcon name="arrow" size={16} /> : null}
-            </Link>
+            {isLoading ? (
+              <span
+                aria-label="Restoring session"
+                className={
+                  isLanding
+                    ? styles.planButton
+                    : 'button-primary mt-5 inline-flex w-full justify-center'
+                }
+              >
+                Checking account…
+              </span>
+            ) : (
+              <Link
+                className={
+                  isLanding
+                    ? styles.planButton
+                    : 'button-primary mt-5 inline-flex w-full justify-center'
+                }
+                href={
+                  user?.role === 'CUSTOMER'
+                    ? `/customer/subscription?planId=${encodeURIComponent(plan.id)}`
+                    : user
+                      ? getDashboardRoute(user.role)
+                      : `/checkout?planId=${encodeURIComponent(plan.id)}`
+                }
+              >
+                {user?.role === 'CUSTOMER'
+                  ? 'Review this plan'
+                  : user
+                    ? 'Go to Dashboard'
+                    : 'Choose plan'}
+                {isLanding ? <LandingIcon name="arrow" size={16} /> : null}
+              </Link>
+            )}
           </article>
         );
       })}

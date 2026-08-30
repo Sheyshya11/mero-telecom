@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { LandingIcon } from '../../components/landing/landing-icons';
 import { apiDownload, apiRequest } from '../../lib/api/client';
 import { useAuth } from '../auth/auth-provider';
+import { getDashboardRoute, PUBLIC_WEBSITE_ROUTE } from '../auth/auth-navigation';
 import { StripeCheckoutButton } from '../payments/stripe-checkout-button';
 import styles from './dashboard.module.css';
 import type { CustomerDashboard, CustomerInvoice } from './customer-dashboard.types';
@@ -89,13 +90,16 @@ export function CustomerDashboardView() {
     <main className={styles.page}>
       <div className={styles.shell}>
         <header className={styles.topbar}>
-          <Brand />
+          <Brand role={user.role} />
           <nav aria-label="Customer account navigation" className={styles.nav}>
             {customerNav.map((item) => (
               <Link className={styles.navLink} href={item.href} key={item.href}>
                 {item.label}
               </Link>
             ))}
+            <Link className={styles.navLink} href={PUBLIC_WEBSITE_ROUTE}>
+              Visit Website
+            </Link>
             <button className={styles.signOut} onClick={() => void logout()} type="button">
               Sign out
             </button>
@@ -321,9 +325,9 @@ export function InvoiceRow({ invoice }: Readonly<{ invoice: CustomerInvoice }>) 
   );
 }
 
-function Brand() {
+function Brand({ role }: Readonly<{ role: 'CUSTOMER' }>) {
   return (
-    <Link aria-label="Mero Telecom home" className={styles.brand} href="/">
+    <Link aria-label="Mero Telecom home" className={styles.brand} href={getDashboardRoute(role)}>
       <span className={styles.brandMark}>
         <LandingIcon name="wifi" size={19} />
       </span>

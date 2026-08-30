@@ -41,6 +41,9 @@ The API suite verifies:
 - customer uniqueness/validation and staff restrictions on protected fields;
 - passwordless admin customer creation, invitation replacement, token activation/replay rejection,
   and login only after activation;
+- enumeration-safe password-reset requests, token hashing/expiry/replacement/replay rejection,
+  Redis email/IP limits, session revocation, and role/status preservation for customer, staff,
+  admin, super-admin, and suspended accounts;
 - public checkout rejection for an existing identity, with no duplicate customer account;
 - active plan, subscription, and invoice creation through HTTP;
 - deterministic GST cents, duplicate monthly invoice conflict, and authorized PDF bytes;
@@ -60,14 +63,15 @@ External systems are not contacted in this suite. Stripe cryptographic/event beh
 composition/deduplication, private object-storage behavior, Redis cache fallback, PDF rendering,
 guards, and configuration validation are exercised with focused tests and injected fakes.
 
-Frontend Vitest/Testing Library checks prove the three-character threshold, 400 ms debounce,
+Frontend Vitest/Testing Library checks prove forgot-password acknowledgement, reset-link
+validation, password matching, and successful reset navigation, plus the three-character threshold, 400 ms debounce,
 keyboard selection, loading/safe provider errors, selection requirement, result clearing on input
 change, compatible-plan actions, and available/coming-soon/outside/manual-review rendering. Guest
 checkout tests cover a direct visit that cannot proceed without qualification, landing-page
 context restoration, and distinct residential/billing tokens without browser-posted address
 objects.
 
-Email queue tests prove that recipient data and activation tokens are not visible in Redis job
+Email queue tests prove that recipient data, activation tokens, and reset tokens are not visible in Redis job
 payloads, deterministic IDs prevent duplicate enqueueing, exponential retry settings are applied,
 valid invitations record SMTP delivery evidence, and revoked invitations are skipped. The E2E
 suite waits for the fake SMTP worker to mark an invitation sent, covering NestJS, BullMQ, Redis,

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
+import { getHomeRoute, PUBLIC_WEBSITE_ROUTE } from '../../features/auth/auth-navigation';
+import { type AppRole, useAuth } from '../../features/auth/auth-provider';
 import styles from '../../styles/landing.module.css';
 import { LandingIcon } from './landing-icons';
 
@@ -27,14 +29,44 @@ const navigation = [
   ['Help', '#faq'],
 ] as const;
 
+const accountNavigation: Record<AppRole, ReadonlyArray<readonly [string, string]>> = {
+  CUSTOMER: [
+    ['Dashboard', '/customer/dashboard'],
+    ['My Plan', '/customer/subscription'],
+    ['Invoices', '/customer/invoices'],
+    ['Profile', '/customer/profile'],
+  ],
+  STAFF: [
+    ['Customers', '/staff/customers'],
+    ['Plans', '/staff/plans'],
+    ['Coverage', '/staff/coverage'],
+  ],
+  ADMIN: [
+    ['Dashboard', '/admin/dashboard'],
+    ['Customers', '/admin/customers'],
+    ['Plans', '/admin/plans'],
+    ['Invoices', '/admin/invoices'],
+    ['Team', '/admin/users'],
+  ],
+  SUPER_ADMIN: [
+    ['Dashboard', '/admin/dashboard'],
+    ['Customers', '/admin/customers'],
+    ['Plans', '/admin/plans'],
+    ['Invoices', '/admin/invoices'],
+    ['Team', '/admin/users'],
+  ],
+};
+
 export function LandingBrand() {
   return <Brand />;
 }
 
 export function LandingHeader() {
+  const { isLoading, logout, user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const scrolledRef = useRef(false);
+  const visibleNavigation = isLoading ? [] : user ? accountNavigation[user.role] : navigation;
 
   useEffect(() => {
     let frame = 0;
@@ -61,23 +93,46 @@ export function LandingHeader() {
   return (
     <header className={`${styles.header} ${scrolled ? styles.headerScrolled : ''}`}>
       <nav aria-label="Main navigation" className={styles.nav}>
-        <Link aria-label="Mero Telecom home" href="/" onClick={() => setMenuOpen(false)}>
+        <Link
+          aria-label="Mero Telecom home"
+          href={getHomeRoute(user)}
+          onClick={() => setMenuOpen(false)}
+        >
           <Brand />
         </Link>
         <div className={styles.navLinks}>
-          {navigation.map(([label, href]) => (
-            <a href={href} key={href}>
+          {visibleNavigation.map(([label, href]) => (
+            <Link href={href} key={href}>
               {label}
-            </a>
+            </Link>
           ))}
         </div>
         <div className={styles.navActions}>
-          <Link className={styles.signInLink} href="/login">
-            Sign In
-          </Link>
-          <a className={`${styles.button} ${styles.buttonSmall}`} href="#coverage">
-            Check Your Address
-          </a>
+          {isLoading ? (
+            <span aria-label="Restoring session" className={styles.navSessionPlaceholder} />
+          ) : user ? (
+            <>
+              <Link className={styles.signInLink} href={PUBLIC_WEBSITE_ROUTE}>
+                Visit Website
+              </Link>
+              <button
+                className={`${styles.button} ${styles.buttonSmall}`}
+                onClick={() => void logout()}
+                type="button"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link className={styles.signInLink} href="/login">
+                Sign In
+              </Link>
+              <a className={`${styles.button} ${styles.buttonSmall}`} href="#coverage">
+                Check Your Address
+              </a>
+            </>
+          )}
           <button
             aria-controls="mobile-navigation"
             aria-expanded={menuOpen}
@@ -92,17 +147,36 @@ export function LandingHeader() {
       </nav>
       {menuOpen ? (
         <div className={styles.mobileMenuPanel} id="mobile-navigation">
-          {navigation.map(([label, href]) => (
-            <a href={href} key={href} onClick={() => setMenuOpen(false)}>
+          {visibleNavigation.map(([label, href]) => (
+            <Link href={href} key={href} onClick={() => setMenuOpen(false)}>
               {label}
-            </a>
+            </Link>
           ))}
-          <Link className={styles.mobileOutlineButton} href="/login">
-            Sign In
-          </Link>
-          <a className={styles.button} href="#coverage" onClick={() => setMenuOpen(false)}>
-            Check Your Address
-          </a>
+          {isLoading ? (
+            <span aria-label="Restoring session" className={styles.mobileSessionPlaceholder} />
+          ) : user ? (
+            <>
+              <Link
+                className={styles.mobileOutlineButton}
+                href={PUBLIC_WEBSITE_ROUTE}
+                onClick={() => setMenuOpen(false)}
+              >
+                Visit Website
+              </Link>
+              <button className={styles.button} onClick={() => void logout()} type="button">
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link className={styles.mobileOutlineButton} href="/login">
+                Sign In
+              </Link>
+              <a className={styles.button} href="#coverage" onClick={() => setMenuOpen(false)}>
+                Check Your Address
+              </a>
+            </>
+          )}
         </div>
       ) : null}
     </header>

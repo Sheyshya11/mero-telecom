@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en-AU">
+    <html data-scroll-behavior="smooth" lang="en-AU">
       <body className={jakarta.variable}>
         <Providers>{children}</Providers>
       </body>

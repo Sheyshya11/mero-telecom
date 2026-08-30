@@ -102,6 +102,25 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async incrementWithExpiry(
+    key: string,
+    ttlSeconds: number,
+  ): Promise<{ available: boolean; count: number; ttlSeconds: number }> {
+    if (!this.client.isReady) return { available: false, count: 0, ttlSeconds: 0 };
+    try {
+      const result = (await this.client.eval(
+        `local count = redis.call('INCR', KEYS[1])
+if count == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+return {count, redis.call('TTL', KEYS[1])}`,
+        { keys: [key], arguments: [String(ttlSeconds)] },
+      )) as [number, number];
+      return { available: true, count: Number(result[0]), ttlSeconds: Number(result[1]) };
+    } catch {
+      this.warnUnavailable();
+      return { available: false, count: 0, ttlSeconds: 0 };
+    }
+  }
+
   async ping(): Promise<boolean> {
     if (!this.client.isReady) return false;
     try {

@@ -147,23 +147,24 @@ enum CoverageResultStatus {
 }
 
 model User {
-  id                       String              @id @default(uuid()) @db.Uuid
-  email                    String              @unique @db.VarChar(320)
-  displayName              String?             @db.VarChar(200)
-  passwordHash             String?             @db.VarChar(255)
-  role                     Role                @default(CUSTOMER)
-  isActive                 Boolean             @default(true)
-  status                   UserStatus          @default(ACTIVE)
+  id                       String               @id @default(uuid()) @db.Uuid
+  email                    String               @unique @db.VarChar(320)
+  displayName              String?              @db.VarChar(200)
+  passwordHash             String?              @db.VarChar(255)
+  role                     Role                 @default(CUSTOMER)
+  isActive                 Boolean              @default(true)
+  status                   UserStatus           @default(ACTIVE)
   emailVerifiedAt          DateTime?
-  createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @updatedAt
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
   customer                 Customer?
   refreshSessions          RefreshSession[]
-  auditLogs                AuditLog[]          @relation("AuditActor")
-  invitations              AccountInvitation[] @relation("InvitationUser")
-  issuedInvitations        AccountInvitation[] @relation("InvitationIssuer")
-  staffInvitationsIssued   StaffInvitation[]   @relation("StaffInvitationIssuer")
-  staffInvitationsAccepted StaffInvitation[]   @relation("StaffInvitationAcceptor")
+  passwordResetTokens      PasswordResetToken[]
+  auditLogs                AuditLog[]           @relation("AuditActor")
+  invitations              AccountInvitation[]  @relation("InvitationUser")
+  issuedInvitations        AccountInvitation[]  @relation("InvitationIssuer")
+  staffInvitationsIssued   StaffInvitation[]    @relation("StaffInvitationIssuer")
+  staffInvitationsAccepted StaffInvitation[]    @relation("StaffInvitationAcceptor")
 }
 
 model Customer {
@@ -494,6 +495,20 @@ model RefreshSession {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique @db.Char(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model AuditLog {

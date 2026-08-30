@@ -14,6 +14,10 @@ import {
   renderPlanChangeEmail,
   type PlanChangeEmailEvent,
 } from './templates/plan-change-email.template';
+import {
+  renderPasswordChangedEmail,
+  renderPasswordResetEmail,
+} from './templates/password-email.template';
 import type { AccountInvitationReason } from '@prisma/client';
 
 export interface InvoiceEmailData {
@@ -130,6 +134,39 @@ export class NotificationService {
       { to: recipient, ...template },
       { purpose, planChangeRequestId: input.planChangeRequestId },
       `plan-change-${input.planChangeRequestId}-${input.event.toLowerCase()}`,
+    );
+    return { recipient, messageId: `queued:${result.jobId}` };
+  }
+
+  async sendPasswordReset(input: {
+    displayName: string;
+    email: string;
+    resetUrl: string;
+    expiresAt: Date;
+    passwordResetTokenId: string;
+  }): Promise<InvoiceEmailResult> {
+    const recipient = this.invoiceRecipient(input.email);
+    const template = renderPasswordResetEmail(input);
+    const result = await this.emailQueue.enqueue(
+      { to: recipient, ...template },
+      { purpose: 'PASSWORD_RESET', passwordResetTokenId: input.passwordResetTokenId },
+      `password-reset-${input.passwordResetTokenId}`,
+    );
+    return { recipient, messageId: `queued:${result.jobId}` };
+  }
+
+  async sendPasswordChanged(input: {
+    displayName: string;
+    email: string;
+    userId: string;
+    passwordResetTokenId: string;
+  }): Promise<InvoiceEmailResult> {
+    const recipient = this.invoiceRecipient(input.email);
+    const template = renderPasswordChangedEmail(input);
+    const result = await this.emailQueue.enqueue(
+      { to: recipient, ...template },
+      { purpose: 'PASSWORD_CHANGED', userId: input.userId },
+      `password-changed-${input.passwordResetTokenId}`,
     );
     return { recipient, messageId: `queued:${result.jobId}` };
   }

@@ -23,12 +23,12 @@ export class JwtAuthGuard implements CanActivate {
         secret: this.configService.getOrThrow('jwt').accessSecret,
       });
 
-      if (payload.type !== 'access' || !payload.sub) {
+      if (payload.type !== 'access' || !payload.sub || !payload.sid) {
         throw new UnauthorizedException('Access token is invalid.');
       }
 
       request.user = {
-        ...(await this.authService.getAuthenticatedUser(payload.sub)),
+        ...(await this.authService.getAuthenticatedUser(payload.sub, payload.sid)),
         authenticatedAt: payload.authTime ?? 0,
       };
       return true;

@@ -1,5 +1,14 @@
 import { IsEmail, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
+import {
+  PASSWORD_LOWERCASE_PATTERN,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_NUMBER_PATTERN,
+  PASSWORD_SYMBOL_PATTERN,
+  PASSWORD_UPPERCASE_PATTERN,
+} from '../../../common/security/password';
+
 export class VerifyAccountActivationDto {
   @IsString()
   @MinLength(32)
@@ -9,12 +18,12 @@ export class VerifyAccountActivationDto {
 
 export class ActivateAccountDto extends VerifyAccountActivationDto {
   @IsString()
-  @MinLength(12)
-  @MaxLength(128)
-  @Matches(/[a-z]/, { message: 'Password must include a lowercase letter.' })
-  @Matches(/[A-Z]/, { message: 'Password must include an uppercase letter.' })
-  @Matches(/\d/, { message: 'Password must include a number.' })
-  @Matches(/[^A-Za-z0-9]/, { message: 'Password must include a symbol.' })
+  @MinLength(PASSWORD_MIN_LENGTH)
+  @MaxLength(PASSWORD_MAX_LENGTH)
+  @Matches(PASSWORD_LOWERCASE_PATTERN, { message: 'Password must include a lowercase letter.' })
+  @Matches(PASSWORD_UPPERCASE_PATTERN, { message: 'Password must include an uppercase letter.' })
+  @Matches(PASSWORD_NUMBER_PATTERN, { message: 'Password must include a number.' })
+  @Matches(PASSWORD_SYMBOL_PATTERN, { message: 'Password must include a symbol.' })
   password!: string;
 }
 

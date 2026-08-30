@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2180" height="1480" viewBox="0 0 2180 1480" role="img" aria-label="Use Case Diagram 3 — Staff, Administrator and Security Operations">
+    <defs>
+    <marker id="arrowhead" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#475467"/>
+    </marker>
+    <marker id="hollow-triangle" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 1 1 L 13 7 L 1 13 z" fill="#ffffff" stroke="#344054" stroke-width="1.6"/>
+    </marker>
+    <filter id="soft-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#101828" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+    <rect width="2180" height="1480" fill="#ffffff"/>
+    <text x="1090" y="34" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="25" font-weight="700" fill="#0f172a"><tspan x="1090" dy="0">Use Case Diagram 3 — Staff, Administrator and Security Operations</tspan></text>
+    <rect x="300" y="72" width="1550" height="1360" rx="8" fill="#f8fafc" stroke="#1e293b" stroke-width="3" filter="url(#soft-shadow)"/>
+    <rect x="318" y="86" width="390" height="36" rx="5" fill="#e9eef7"/>
+    <text x="332" y="105" text-anchor="start" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" fill="#172033"><tspan x="332" dy="0">Mero Telecom ISP Management Platform</tspan></text>
+    <line x1="154" y1="325" x2="523.2958717481085" y2="185.9657600899612" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="325" x2="446.68846659326687" y2="309.99866531061633" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="325" x2="496.1155782662199" y2="418.27202347064343" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="325" x2="546.9867827918423" y2="556.5644153589367" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="325" x2="567.807266442218" y2="700.1264141002006" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="325" x2="578.4832680826204" y2="844.6240764192678" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="325" x2="585.2454175795274" y2="999.3837130480955" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="755" x2="1035.667396061269" y2="283.4792122538293" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="755" x2="1017.9850994900227" y2="411.8016961161137" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="755" x2="986.0556646417208" y2="552.3233865399955" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="755" x2="940.2008705734355" y2="684.67543025346" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="755" x2="931.1701970293855" y2="805.5248579965471" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="755" x2="1004.59377254368" y2="1039.8204790699397" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="755" x2="1027.105346889321" y2="1167.271788399287" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="1105" x2="1384.3247684756545" y2="976.4445667103182" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="1105" x2="1365.408732206232" y2="1092.4590319407573" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="1105" x2="1376.2268097120623" y2="1207.3133444143148" stroke="#667085" stroke-width="2"/>
+<line x1="154" y1="1325" x2="928.3461843643508" y2="1362.9937218107898" stroke="#667085" stroke-width="2"/>
+<line x1="2006" y1="715" x2="1684.6747539931537" y2="670.2544655590415" stroke="#667085" stroke-width="2"/>
+<line x1="2006" y1="715" x2="760.3092345768475" y2="863.1821835438492" stroke="#667085" stroke-width="2"/>
+    <g>
+    <line x1="120" y1="688" x2="120" y2="402" stroke="#344054" stroke-width="2.5" marker-end="url(#hollow-triangle)"/>
+    <text x="174" y="545" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#344054"><tspan x="174" dy="0">«generalization»</tspan></text>
+  </g>
+<g>
+    <line x1="120" y1="1038" x2="120" y2="832" stroke="#344054" stroke-width="2.5" marker-end="url(#hollow-triangle)"/>
+    <text x="174" y="935" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#344054"><tspan x="174" dy="0">«generalization»</tspan></text>
+  </g>
+    <g aria-label="Use case Manage authenticated session">
+    <ellipse cx="610" cy="155" rx="170" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="610" y="144.63" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="610" dy="0">Manage authenticated</tspan><tspan x="610" dy="20.74">session</tspan></text>
+  </g>
+<g aria-label="Use case Manage customer records">
+    <ellipse cx="610" cy="300" rx="170" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="610" y="300" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="610" dy="0">Manage customer records</tspan></text>
+  </g>
+<g aria-label="Use case Manage subscription status and history">
+    <ellipse cx="610" cy="445" rx="170" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="610" y="434.63" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="610" dy="0">Manage subscription</tspan><tspan x="610" dy="20.74">status and history</tspan></text>
+  </g>
+<g aria-label="Use case Generate monthly invoice">
+    <ellipse cx="610" cy="590" rx="170" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="610" y="590" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="610" dy="0">Generate monthly invoice</tspan></text>
+  </g>
+<g aria-label="Use case View invoice">
+    <ellipse cx="610" cy="735" rx="170" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="610" y="735" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="610" dy="0">View invoice</tspan></text>
+  </g>
+<g aria-label="Use case Email invoice PDF">
+    <ellipse cx="610" cy="880" rx="170" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="610" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="610" dy="0">Email invoice PDF</tspan></text>
+  </g>
+<g aria-label="Use case View coverage configuration and analytics">
+    <ellipse cx="610" cy="1035" rx="170" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="610" y="1024.63" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="610" dy="0">View coverage configuration</tspan><tspan x="610" dy="20.74">and analytics</tspan></text>
+  </g>
+<g aria-label="Use case Create pending customer">
+    <ellipse cx="1100" cy="250" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1100" y="250" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1100" dy="0">Create pending customer</tspan></text>
+  </g>
+<g aria-label="Use case Resend customer activation">
+    <ellipse cx="1100" cy="380" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1100" y="380" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1100" dy="0">Resend customer activation</tspan></text>
+  </g>
+<g aria-label="Use case Manage internet plans">
+    <ellipse cx="1100" cy="525" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1100" y="525" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1100" dy="0">Manage internet plans</tspan></text>
+  </g>
+<g aria-label="Use case Manage coverage rules">
+    <ellipse cx="1100" cy="670" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1100" y="670" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1100" dy="0">Manage coverage rules</tspan></text>
+  </g>
+<g aria-label="Use case View operational dashboard">
+    <ellipse cx="1100" cy="815" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1100" y="815" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1100" dy="0">View operational dashboard</tspan></text>
+  </g>
+<g aria-label="Use case Download invoice PDF">
+    <ellipse cx="1100" cy="940" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1100" y="940" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1100" dy="0">Download invoice PDF</tspan></text>
+  </g>
+<g aria-label="Use case Invite staff user">
+    <ellipse cx="1100" cy="1070" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1100" y="1070" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1100" dy="0">Invite staff user</tspan></text>
+  </g>
+<g aria-label="Use case Manage staff status">
+    <ellipse cx="1100" cy="1200" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1100" y="1200" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1100" dy="0">Manage staff status</tspan></text>
+  </g>
+<g aria-label="Use case Send account notification">
+    <ellipse cx="1540" cy="650" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1540" y="650" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1540" dy="0">Send account notification</tspan></text>
+  </g>
+<g aria-label="Use case Invite administrator">
+    <ellipse cx="1540" cy="960" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1540" y="960" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1540" dy="0">Invite administrator</tspan></text>
+  </g>
+<g aria-label="Use case Manage privileged user">
+    <ellipse cx="1540" cy="1090" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1540" y="1090" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1540" dy="0">Manage privileged user</tspan></text>
+  </g>
+<g aria-label="Use case View security audit logs">
+    <ellipse cx="1540" cy="1220" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1540" y="1220" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1540" dy="0">View security audit logs</tspan></text>
+  </g>
+<g aria-label="Use case Accept staff invitation">
+    <ellipse cx="1100" cy="1370" rx="175" ry="36" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+    <text x="1100" y="1370" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500" fill="#172033"><tspan x="1100" dy="0">Accept staff invitation</tspan></text>
+  </g>
+    <g>
+    <line x1="943.2271870806221" y1="265.99722580809976" x2="763.1476535954369" y2="284.3726884086289" stroke="#475467" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#arrowhead)"/>
+    <rect x="737.0874203380295" y="245.1849571083643" width="232.2" height="24" rx="5" fill="#ffffff" opacity="0.96"/>
+    <text x="853.1874203380295" y="257.1849571083643" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15" font-weight="600" fill="#475467"><tspan x="853.1874203380295" dy="0">«extend» administrator only</tspan></text>
+  </g>
+<g>
+    <line x1="1138.6234825950141" y1="285.11225690455836" x2="1501.3765174049859" y2="614.8877430954417" stroke="#475467" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#arrowhead)"/>
+    <rect x="1274" y="420" width="92" height="24" rx="5" fill="#ffffff" opacity="0.96"/>
+    <text x="1320" y="432" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15" font-weight="600" fill="#475467"><tspan x="1320" dy="0">«include»</tspan></text>
+  </g>
+<g>
+    <line x1="1155.6242198636605" y1="414.13304400724627" x2="1484.3757801363395" y2="615.8669559927538" stroke="#475467" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#arrowhead)"/>
+    <rect x="1274" y="519" width="92" height="24" rx="5" fill="#ffffff" opacity="0.96"/>
+    <text x="1320" y="531" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15" font-weight="600" fill="#475467"><tspan x="1320" dy="0">«include»</tspan></text>
+  </g>
+<g>
+    <line x1="1022.7811954640728" y1="907.6941736125202" x2="686.7739796842811" y2="767.1197261944441" stroke="#475467" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#arrowhead)"/>
+    <rect x="808.777587574177" y="807.4069499034822" width="92" height="24" rx="5" fill="#ffffff" opacity="0.96"/>
+    <text x="854.777587574177" y="819.4069499034822" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15" font-weight="600" fill="#475467"><tspan x="854.777587574177" dy="0">«extend»</tspan></text>
+  </g>
+<g>
+    <line x1="610" y1="844" x2="610" y2="771" stroke="#475467" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#arrowhead)"/>
+    <rect x="494" y="795.5" width="92" height="24" rx="5" fill="#ffffff" opacity="0.96"/>
+    <text x="540" y="807.5" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15" font-weight="600" fill="#475467"><tspan x="540" dy="0">«include»</tspan></text>
+  </g>
+<g>
+    <line x1="1136.867845281042" y1="1034.807965868096" x2="1503.132154718958" y2="685.1920341319038" stroke="#475467" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#arrowhead)"/>
+    <rect x="1274" y="865" width="92" height="24" rx="5" fill="#ffffff" opacity="0.96"/>
+    <text x="1320" y="877" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15" font-weight="600" fill="#475467"><tspan x="1320" dy="0">«include»</tspan></text>
+  </g>
+<g>
+    <line x1="1540" y1="924" x2="1540" y2="686" stroke="#475467" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#arrowhead)"/>
+    <rect x="1494" y="811" width="92" height="24" rx="5" fill="#ffffff" opacity="0.96"/>
+    <text x="1540" y="823" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15" font-weight="600" fill="#475467"><tspan x="1540" dy="0">«include»</tspan></text>
+  </g>
+    <g aria-label="Actor Staff">
+    <circle cx="120" cy="282" r="18" fill="#ffffff" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="300" x2="120" y2="358" stroke="#263247" stroke-width="3"/>
+    <line x1="90" y1="324" x2="150" y2="324" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="358" x2="93" y2="395" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="358" x2="147" y2="395" stroke="#263247" stroke-width="3"/>
+    <text x="120" y="440" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#172033"><tspan x="120" dy="0">Staff</tspan></text>
+  </g>
+<g aria-label="Actor Administrator">
+    <circle cx="120" cy="712" r="18" fill="#ffffff" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="730" x2="120" y2="788" stroke="#263247" stroke-width="3"/>
+    <line x1="90" y1="754" x2="150" y2="754" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="788" x2="93" y2="825" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="788" x2="147" y2="825" stroke="#263247" stroke-width="3"/>
+    <text x="120" y="870" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#172033"><tspan x="120" dy="0">Administrator</tspan></text>
+  </g>
+<g aria-label="Actor Super,administrator">
+    <circle cx="120" cy="1062" r="18" fill="#ffffff" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="1080" x2="120" y2="1138" stroke="#263247" stroke-width="3"/>
+    <line x1="90" y1="1104" x2="150" y2="1104" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="1138" x2="93" y2="1175" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="1138" x2="147" y2="1175" stroke="#263247" stroke-width="3"/>
+    <text x="120" y="1209.02" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#172033"><tspan x="120" dy="0">Super</tspan><tspan x="120" dy="21.96">administrator</tspan></text>
+  </g>
+<g aria-label="Actor Invited user">
+    <circle cx="120" cy="1282" r="18" fill="#ffffff" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="1300" x2="120" y2="1358" stroke="#263247" stroke-width="3"/>
+    <line x1="90" y1="1324" x2="150" y2="1324" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="1358" x2="93" y2="1395" stroke="#263247" stroke-width="3"/>
+    <line x1="120" y1="1358" x2="147" y2="1395" stroke="#263247" stroke-width="3"/>
+    <text x="120" y="1440" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#172033"><tspan x="120" dy="0">Invited user</tspan></text>
+  </g>
+    <g aria-label="Actor SMTP,provider">
+    <circle cx="2040" cy="672" r="18" fill="#ffffff" stroke="#263247" stroke-width="3"/>
+    <line x1="2040" y1="690" x2="2040" y2="748" stroke="#263247" stroke-width="3"/>
+    <line x1="2010" y1="714" x2="2070" y2="714" stroke="#263247" stroke-width="3"/>
+    <line x1="2040" y1="748" x2="2013" y2="785" stroke="#263247" stroke-width="3"/>
+    <line x1="2040" y1="748" x2="2067" y2="785" stroke="#263247" stroke-width="3"/>
+    <text x="2040" y="819.02" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#172033"><tspan x="2040" dy="0">SMTP</tspan><tspan x="2040" dy="21.96">provider</tspan></text>
+  </g>
+  </svg>

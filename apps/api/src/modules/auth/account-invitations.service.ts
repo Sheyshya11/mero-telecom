@@ -8,9 +8,9 @@ import {
   Role,
   UserStatus,
 } from '@prisma/client';
-import { hash } from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 
+import { hashPassword } from '../../common/security/password';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
@@ -177,7 +177,7 @@ export class AccountInvitationsService {
 
   async activate(token: string, password: string): Promise<void> {
     const tokenHash = this.hashToken(token);
-    const passwordHash = await hash(password, 12);
+    const passwordHash = await hashPassword(password);
 
     await this.prisma.$transaction(async (transaction) => {
       const invitation = await transaction.accountInvitation.findUnique({

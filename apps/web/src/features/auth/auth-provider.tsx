@@ -9,6 +9,8 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 
 import { apiRequest, setAccessTokenRefreshHandler } from '../../lib/api/client';
 
@@ -35,26 +37,65 @@ interface AuthResponse {
   user: SessionUser;
 }
 
+function withAuthSessionLock<T>(operation: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    const lockedOperation = navigator.locks.request(
+      'mero-telecom-auth-session',
+      { mode: 'exclusive' },
+      operation,
+    );
+    return lockedOperation.then((result) => result);
+  }
+  return operation();
+}
+
 export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const refreshPromise = useRef<Promise<string | null> | null>(null);
+  const broadcastChannel = useRef<BroadcastChannel | null>(null);
+  const sessionGeneration = useRef(0);
+  const hadAuthenticatedSession = useRef(false);
+
+  const clearClientSession = useCallback(
+    (destination: '/' | '/login?reason=session-expired') => {
+      sessionGeneration.current += 1;
+      setAccessToken(null);
+      setUser(null);
+      queryClient.clear();
+      router.replace(destination);
+      router.refresh();
+    },
+    [queryClient, router],
+  );
 
   const refresh = useCallback((): Promise<string | null> => {
     if (refreshPromise.current) return refreshPromise.current;
+    const generation = sessionGeneration.current;
     refreshPromise.current = (async () => {
       try {
-        const session = await apiRequest<AuthResponse | undefined>('/auth/refresh', {
-          method: 'POST',
-        });
-        if (!session) return null;
+        const session = await withAuthSessionLock(() =>
+          apiRequest<AuthResponse | undefined>('/auth/refresh', { method: 'POST' }),
+        );
+        if (!session || generation !== sessionGeneration.current) return null;
         setAccessToken(session.accessToken);
         setUser(session.user);
+        hadAuthenticatedSession.current = true;
         return session.accessToken;
       } catch {
-        setAccessToken(null);
-        setUser(null);
+        if (generation === sessionGeneration.current) {
+          if (hadAuthenticatedSession.current) {
+            hadAuthenticatedSession.current = false;
+            clearClientSession('/login?reason=session-expired');
+            broadcastChannel.current?.postMessage({ type: 'session-expired' });
+          } else {
+            setAccessToken(null);
+            setUser(null);
+          }
+        }
         return null;
       } finally {
         setIsLoading(false);
@@ -62,7 +103,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       }
     })();
     return refreshPromise.current;
-  }, []);
+  }, [clearClientSession]);
 
   useEffect(() => {
     setAccessTokenRefreshHandler(refresh);
@@ -70,24 +111,51 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     return () => setAccessTokenRefreshHandler(null);
   }, [refresh]);
 
-  const login = useCallback(async (email: string, password: string): Promise<SessionUser> => {
-    const session = await apiRequest<AuthResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    setAccessToken(session.accessToken);
-    setUser(session.user);
-    return session.user;
-  }, []);
+  useEffect(() => {
+    if (!('BroadcastChannel' in window)) return;
+    const channel = new BroadcastChannel('mero-telecom-auth');
+    broadcastChannel.current = channel;
+    channel.onmessage = (event: MessageEvent<{ type?: string }>) => {
+      if (event.data.type === 'logout') {
+        hadAuthenticatedSession.current = false;
+        clearClientSession('/');
+      } else if (event.data.type === 'session-expired') {
+        hadAuthenticatedSession.current = false;
+        clearClientSession('/login?reason=session-expired');
+      }
+    };
+    return () => {
+      broadcastChannel.current = null;
+      channel.close();
+    };
+  }, [clearClientSession]);
+
+  const login = useCallback(
+    async (email: string, password: string): Promise<SessionUser> => {
+      const session = await apiRequest<AuthResponse>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      sessionGeneration.current += 1;
+      queryClient.clear();
+      setAccessToken(session.accessToken);
+      setUser(session.user);
+      hadAuthenticatedSession.current = true;
+      return session.user;
+    },
+    [queryClient],
+  );
 
   const logout = useCallback(async () => {
+    hadAuthenticatedSession.current = false;
+    clearClientSession('/');
+    broadcastChannel.current?.postMessage({ type: 'logout' });
     try {
-      await apiRequest<void>('/auth/logout', { method: 'POST' });
-    } finally {
-      setAccessToken(null);
-      setUser(null);
+      await withAuthSessionLock(() => apiRequest<void>('/auth/logout', { method: 'POST' }));
+    } catch {
+      // Local sign-out remains complete even if the idempotent server request cannot be reached.
     }
-  }, []);
+  }, [clearClientSession]);
 
   const value = useMemo(
     () => ({ accessToken, user, isLoading, login, logout }),

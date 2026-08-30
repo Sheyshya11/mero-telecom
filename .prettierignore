@@ -5,6 +5,7 @@ dist/
 /apps/api/coverage/
 /apps/web/coverage/
 apps/web/next-env.d.ts
+sites/
 .playwright-cli/
 .agents/
 .claude/

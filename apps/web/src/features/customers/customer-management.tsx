@@ -115,15 +115,22 @@ export function CustomerManagement() {
               Dashboard
             </Link>
           ) : null}
+          <Link className="button-secondary" href="/website">
+            Visit Website
+          </Link>
           <button className="button-secondary" onClick={() => void logout()} type="button">
             Sign out
           </button>
-          <Link className="button-secondary" href="/admin/subscriptions">
-            Subscriptions
-          </Link>
-          <Link className="button-secondary" href="/admin/invoices">
-            Invoices
-          </Link>
+          {isAdmin ? (
+            <>
+              <Link className="button-secondary" href="/admin/subscriptions">
+                Subscriptions
+              </Link>
+              <Link className="button-secondary" href="/admin/invoices">
+                Invoices
+              </Link>
+            </>
+          ) : null}
           <Link className="button-secondary" href={isAdmin ? '/admin/coverage' : '/staff/coverage'}>
             Coverage
           </Link>

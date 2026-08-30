@@ -160,6 +160,7 @@ owner. Follow the [deployment runbook](docs/deployment.md); do not run the seed 
 ## Documentation index
 
 - [System architecture](docs/architecture/system-architecture.md)
+- [Requirements UML diagrams](docs/architecture/requirements-uml.md)
 - [Address lookup and coverage qualification](docs/api/coverage.md)
 - [API overview and RBAC matrix](docs/api/README.md)
 - [Database design and ERD](docs/database/erd.md)

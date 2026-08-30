@@ -20,6 +20,7 @@ describe('AuthService', () => {
     const prisma = {
       user: {
         findUnique: jest.fn().mockResolvedValue({ ...user, passwordHash }),
+        findFirst: jest.fn().mockResolvedValue(user),
       },
       refreshSession: {
         create: jest.fn().mockResolvedValue({}),
@@ -100,5 +101,29 @@ describe('AuthService', () => {
       service.login({ email: user.email, password: 'StrongPassword1!' }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.refreshSession.create).not.toHaveBeenCalled();
+  });
+
+  it('only authenticates an access token while its server session remains active', async () => {
+    const passwordHash = await hash('ChangeMe123!', 12);
+    const { prisma, service } = await createService(passwordHash);
+
+    await expect(service.getAuthenticatedUser(user.id, 'active-session')).resolves.toMatchObject({
+      id: user.id,
+      role: 'ADMIN',
+    });
+    expect(prisma.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          refreshSessions: {
+            some: expect.objectContaining({ id: 'active-session', revokedAt: null }),
+          },
+        }),
+      }),
+    );
+
+    prisma.user.findFirst.mockResolvedValueOnce(null);
+    await expect(service.getAuthenticatedUser(user.id, 'revoked-session')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 });

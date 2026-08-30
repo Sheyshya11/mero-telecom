@@ -13,9 +13,9 @@ import {
   UserStatus,
   type StaffInvitation,
 } from '@prisma/client';
-import { hash } from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 
+import { hashPassword } from '../../common/security/password';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -248,7 +248,7 @@ export class StaffInvitationsService {
 
   async accept(token: string, password: string, context: AuditRequestContext): Promise<void> {
     const tokenHash = this.hashToken(token);
-    const passwordHash = await hash(password, 12);
+    const passwordHash = await hashPassword(password);
     await this.prisma.$transaction(async (transaction) => {
       const invitation = await transaction.staffInvitation.findUnique({ where: { tokenHash } });
       const now = new Date();

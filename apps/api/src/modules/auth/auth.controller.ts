@@ -34,7 +34,17 @@ import {
   VerifyAccountActivationDto,
 } from './dto/account-activation.dto';
 import { LoginDto } from './dto/login.dto';
+import {
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  ValidatePasswordResetDto,
+} from './dto/password-reset.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import {
+  FORGOT_PASSWORD_RESPONSE,
+  PasswordResetService,
+  type PasswordResetRequestContext,
+} from './password-reset.service';
 import { TrustedOriginGuard } from './trusted-origin.guard';
 
 interface AuthResponse {
@@ -50,8 +60,50 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly invitations: AccountInvitationsService,
+    private readonly passwordResets: PasswordResetService,
     private readonly configService: ConfigService<AppConfig, true>,
   ) {}
+
+  @Post('forgot-password')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseGuards(TrustedOriginGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request a password reset without disclosing account existence.' })
+  @ApiOkResponse({ description: 'The generic password-reset acknowledgement.' })
+  async forgotPassword(
+    @Body() input: ForgotPasswordDto,
+    @Req() request: Request,
+  ): Promise<{ message: string }> {
+    await this.passwordResets.request(input.email, this.getRequestContext(request));
+    return { message: FORGOT_PASSWORD_RESPONSE };
+  }
+
+  @Post('reset-password/validate')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @UseGuards(TrustedOriginGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Validate a password reset token without consuming it.' })
+  validatePasswordReset(@Body() input: ValidatePasswordResetDto): Promise<{ valid: boolean }> {
+    return this.passwordResets.validate(input.token);
+  }
+
+  @Post('reset-password')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseGuards(TrustedOriginGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Consume a one-time token and set a new password.' })
+  async resetPassword(
+    @Body() input: ResetPasswordDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.passwordResets.reset(
+      input.token,
+      input.newPassword,
+      this.getRequestContext(request),
+    );
+    response.clearCookie(this.refreshCookieName, this.getRefreshCookieOptions());
+  }
 
   @Post('activation/verify')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
@@ -154,6 +206,15 @@ export class AuthController {
       sameSite: isProduction ? 'none' : 'lax',
       path: '/api/v1/auth',
       maxAge: this.authService.getRefreshTokenLifetimeMilliseconds(),
+    };
+  }
+
+  private getRequestContext(request: Request): PasswordResetRequestContext {
+    const requestId = request.headers['x-request-id'];
+    return {
+      requestId: Array.isArray(requestId) ? requestId[0] : requestId,
+      ipAddress: request.ip,
+      userAgent: request.get('user-agent'),
     };
   }
 }

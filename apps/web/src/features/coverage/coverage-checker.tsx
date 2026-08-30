@@ -7,6 +7,7 @@ import { useState } from 'react';
 
 import { ApiError, apiRequest } from '../../lib/api/client';
 import styles from '../../styles/landing.module.css';
+import { getDashboardRoute } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
 import type {
   AddressSuggestion,
@@ -39,7 +40,7 @@ function errorMessage(error: unknown, fallback: string): string {
 export function CoverageChecker({
   variant = 'default',
 }: Readonly<{ variant?: 'default' | 'landing' }>) {
-  const { user } = useAuth();
+  const { isLoading, user } = useAuth();
   const router = useRouter();
   const isLanding = variant === 'landing';
   const [selected, setSelected] = useState<AddressSuggestion | null>(null);
@@ -216,7 +217,18 @@ export function CoverageChecker({
                       ${(plan.monthlyCents / 100).toFixed(2)}
                       <span className="text-sm font-normal text-slate-500">/month</span>
                     </p>
-                    {user?.role === 'CUSTOMER' ? (
+                    {isLoading ? (
+                      <span
+                        aria-label="Restoring session"
+                        className={
+                          isLanding
+                            ? styles.primaryButton
+                            : 'button-primary mt-4 inline-flex w-full justify-center'
+                        }
+                      >
+                        Checking account…
+                      </span>
+                    ) : user?.role === 'CUSTOMER' ? (
                       <Link
                         className={
                           isLanding
@@ -226,6 +238,17 @@ export function CoverageChecker({
                         href={`/customer/subscription?planId=${encodeURIComponent(plan.id)}`}
                       >
                         Review this plan
+                      </Link>
+                    ) : user ? (
+                      <Link
+                        className={
+                          isLanding
+                            ? styles.primaryButton
+                            : 'button-primary mt-4 inline-flex w-full justify-center'
+                        }
+                        href={getDashboardRoute(user.role)}
+                      >
+                        Go to Dashboard
                       </Link>
                     ) : (
                       <button

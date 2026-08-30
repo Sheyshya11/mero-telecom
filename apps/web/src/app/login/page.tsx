@@ -3,11 +3,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { LandingIcon } from '../../components/landing/landing-icons';
+import { getHomeRoute, getPostLoginRoute } from '../../features/auth/auth-navigation';
 import { useAuth } from '../../features/auth/auth-provider';
 import { ApiError } from '../../lib/api/client';
 import styles from './login.module.css';
@@ -18,7 +19,7 @@ const loginSchema = z.object({
 });
 
 type LoginValues = z.infer<typeof loginSchema>;
-type Toast = { message: string; tone: 'info' | 'success' };
+type Toast = { message: string; tone: 'success' };
 
 const trustItems = [
   { icon: 'shield' as const, label: 'Secure account access' },
@@ -35,11 +36,13 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
-  const { login } = useAuth();
+  const { isLoading, login, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = safeReturnTo(searchParams.get('returnTo'));
+  const returnTo = searchParams.get('returnTo');
+  const sessionExpired = searchParams.get('reason') === 'session-expired';
   const [error, setError] = useState<string | null>(null);
+  const submittedLogin = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const form = useForm<LoginValues>({
@@ -53,23 +56,24 @@ function LoginContent() {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
+  useEffect(() => {
+    if (!isLoading && user && !submittedLogin.current) router.replace(getHomeRoute(user));
+  }, [isLoading, router, user]);
+
   async function submit(values: LoginValues) {
     setError(null);
+    submittedLogin.current = true;
     try {
       const user = await login(values.email, values.password);
       setToast({ message: 'Welcome back to Mero Telecom!', tone: 'success' });
-      await new Promise((resolve) => window.setTimeout(resolve, 450));
-      router.push(
-        user.role === 'CUSTOMER'
-          ? (returnTo ?? '/customer/dashboard')
-          : user.role === 'STAFF'
-            ? '/staff/customers'
-            : '/admin/dashboard',
-      );
+      router.replace(getPostLoginRoute(user, returnTo));
     } catch (reason) {
+      submittedLogin.current = false;
       setError(reason instanceof ApiError ? reason.message : 'Unable to sign in.');
     }
   }
+
+  if (isLoading || user) return <LoginLoadingState />;
 
   return (
     <main className={styles.page}>
@@ -85,6 +89,12 @@ function LoginContent() {
               <h1 id="sign-in-heading">Sign In</h1>
               <p>Sign in to manage your service, billing and account.</p>
             </header>
+
+            {sessionExpired ? (
+              <p aria-live="polite" className={styles.formError} role="status">
+                Your session has expired. Please sign in again.
+              </p>
+            ) : null}
 
             <form className={styles.form} onSubmit={form.handleSubmit(submit)}>
               <div className={styles.fieldGroup}>
@@ -105,18 +115,9 @@ function LoginContent() {
               <div className={styles.fieldGroup}>
                 <div className={styles.labelRow}>
                   <label htmlFor="login-password">Password</label>
-                  <button
-                    className={styles.forgotButton}
-                    onClick={() =>
-                      setToast({
-                        message: 'Password reset is not available in this demo.',
-                        tone: 'info',
-                      })
-                    }
-                    type="button"
-                  >
+                  <Link className={styles.forgotButton} href="/forgot-password">
                     Forgot password?
-                  </button>
+                  </Link>
                 </div>
                 <div className={styles.passwordWrap}>
                   <input
@@ -189,7 +190,7 @@ function LoginContent() {
       {toast ? (
         <div aria-live="polite" className={styles.toast} data-tone={toast.tone} role="status">
           <span className={styles.toastIcon}>
-            <LandingIcon name={toast.tone === 'success' ? 'check' : 'shield'} size={16} />
+            <LandingIcon name="check" size={16} />
           </span>
           {toast.message}
         </div>
@@ -257,9 +258,4 @@ function LoginLoadingState() {
       <span>Preparing sign in…</span>
     </main>
   );
-}
-
-function safeReturnTo(value: string | null): string | null {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
-  return value;
 }

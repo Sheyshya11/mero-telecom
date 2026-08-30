@@ -138,6 +138,9 @@ export function InvoiceManagement() {
           <Link className="button-secondary" href="/admin/subscriptions">
             Subscriptions
           </Link>
+          <Link className="button-secondary" href="/website">
+            Visit Website
+          </Link>
           <button className="button-secondary" onClick={() => void logout()} type="button">
             Sign out
           </button>

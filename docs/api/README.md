@@ -35,6 +35,8 @@ The public webhook row does not mean anonymous callers are trusted: raw request 
 - `/coverage-management/*` — Admin configuration/analytics and Staff read-only views.
 - `/plans/public`, `/plans` — public catalogue and protected plan management; see [plans](plans.md).
 - `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me` — authentication lifecycle.
+- `/auth/forgot-password`, `/auth/reset-password/validate`, `/auth/reset-password` —
+  enumeration-safe, rate-limited, single-use password recovery for eligible local accounts.
 - `/customers`, `/customers/me` — operations and self-service customer data.
 - `/subscriptions`, `/subscriptions/me` — operational status management and customer history.
 - `/subscriptions/:id/plan-change/*`, `/plan-change-requests` — owned upgrade/downgrade previews,
@@ -57,12 +59,17 @@ the final protection against duplicate invoice, payment, and webhook processing.
 
 - Access tokens expire after the configured short lifetime (15 minutes by default).
 - Refresh cookies rotate on every successful refresh. Reusing the previous cookie returns `401`.
+- Password-reset links expire after 30 minutes. Completing a reset revokes every refresh session
+  without changing the account role, status, or activation state. `ACTIVE` and `SUSPENDED` users
+  may reset; invited users must activate, and deactivated users require administrative recovery.
 - A refresh call without a cookie is a no-op response so an anonymous frontend bootstrap does not
   generate a console error; a supplied invalid or expired cookie still returns `401`.
 - Role or ownership violations return `403`; missing records return `404`; conflicting uniqueness
   or state transitions return `409`; invalid payloads return `400`.
 - Login is limited to 10 attempts per minute, refresh to 30 per minute, coverage to 20 per minute,
   and other endpoints inherit the configurable global throttle.
+- Forgot-password requests additionally use Redis counters: three requests per normalized email
+  per 30 minutes and five requests per source IP per 15 minutes. Redis unavailability fails closed.
 
 ## Private document delivery
 

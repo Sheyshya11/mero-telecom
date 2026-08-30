@@ -328,7 +328,13 @@ describe('Mero Telecom API (e2e)', () => {
       .set('Cookie', firstCookie)
       .expect(200);
     const rotatedCookie = cookieFrom(refreshed.headers['set-cookie']);
+    const rotatedAccessToken = refreshed.body.accessToken as string;
     expect(rotatedCookie).not.toBe(firstCookie);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${rotatedAccessToken}`)
+      .expect(200);
 
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
@@ -341,6 +347,10 @@ describe('Mero Telecom API (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set('Cookie', rotatedCookie)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${rotatedAccessToken}`)
       .expect(401);
   });
 

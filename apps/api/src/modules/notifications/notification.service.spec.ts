@@ -146,4 +146,40 @@ describe('NotificationService', () => {
       'plan-change-plan-change-id-applied',
     );
   });
+
+  it('queues password reset and password-changed messages through the encrypted email queue', async () => {
+    const { service, emailQueue } = createService('development', 'direct');
+    const expiresAt = new Date('2026-08-29T12:30:00.000Z');
+
+    await service.sendPasswordReset({
+      displayName: 'Maya <Patel>',
+      email: 'maya@example.com',
+      resetUrl: 'http://localhost:3000/reset-password?token=raw-token',
+      expiresAt,
+      passwordResetTokenId: 'reset-id',
+    });
+    await service.sendPasswordChanged({
+      displayName: 'Maya <Patel>',
+      email: 'maya@example.com',
+      userId: 'user-id',
+      passwordResetTokenId: 'reset-id',
+    });
+
+    expect(emailQueue.enqueue).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        to: 'maya@example.com',
+        subject: 'Reset your Mero Telecom password',
+        html: expect.stringContaining('Maya &lt;Patel&gt;'),
+      }),
+      { purpose: 'PASSWORD_RESET', passwordResetTokenId: 'reset-id' },
+      'password-reset-reset-id',
+    );
+    expect(emailQueue.enqueue).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ subject: 'Your Mero Telecom password was changed' }),
+      { purpose: 'PASSWORD_CHANGED', userId: 'user-id' },
+      'password-changed-reset-id',
+    );
+  });
 });

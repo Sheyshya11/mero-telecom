@@ -16,6 +16,7 @@ export interface AuthenticatedRequest extends Request {
 
 export interface AccessTokenPayload {
   sub: string;
+  sid: string;
   email: string;
   role: Role;
   type: 'access';

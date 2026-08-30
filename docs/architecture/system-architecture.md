@@ -57,6 +57,11 @@ rate limits, structured request logs, and administrative audit records.
 6. `POST /auth/refresh` rotates the cookie and revokes the previous refresh session, preventing
    replay of the old token.
 7. `POST /auth/logout` revokes the current refresh session and clears the cookie.
+8. `POST /auth/forgot-password` always returns the same acknowledgement. For an eligible account,
+   it stores only a SHA-256 hash of a 32-byte random token and queues a 30-minute reset URL.
+9. `POST /auth/reset-password` atomically consumes that token, replaces the bcrypt password hash,
+   revokes every refresh session and other reset token, and queues a password-changed warning.
+   The transaction never updates role, account status, or `isActive`.
 
 In production the refresh cookie is `Secure` and `SameSite=None`; the API accepts credentialed
 CORS requests only from the configured frontend origin. Login, refresh, and logout also use a
@@ -65,9 +70,9 @@ in addition to the global throttle.
 
 ## Email delivery lifecycle
 
-Account invitations and paid-subscription confirmations use BullMQ on Redis. Business operations
+Account invitations, password recovery/security messages, and paid-subscription confirmations use BullMQ on Redis. Business operations
 enqueue a deterministic job and return without waiting for Gmail or another SMTP provider. The
-worker decrypts the job in memory, rejects revoked or expired invitations, and calls the existing
+worker decrypts the job in memory, rejects revoked or expired invitations/reset tokens, and calls the existing
 Nodemailer adapter. Temporary failures are retried with configurable exponential backoff. A final
 success or failure creates safe audit evidence without logging recipients, message bodies,
 activation URLs, or credentials; `AccountInvitation.sentAt` is set only after SMTP accepts the

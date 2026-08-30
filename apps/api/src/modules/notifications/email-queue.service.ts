@@ -17,6 +17,8 @@ import { EmailProvider, type EmailSendResult } from './email-provider';
 export type EmailPurpose =
   | 'ACCOUNT_INVITATION'
   | 'STAFF_INVITATION'
+  | 'PASSWORD_RESET'
+  | 'PASSWORD_CHANGED'
   | 'SUBSCRIPTION_CONFIRMATION'
   | 'PLAN_CHANGE_SCHEDULED'
   | 'PLAN_CHANGE_APPLIED'
@@ -36,6 +38,8 @@ interface EmailJobContext {
   staffInvitationId?: string;
   checkoutApplicationId?: string;
   planChangeRequestId?: string;
+  passwordResetTokenId?: string;
+  userId?: string;
 }
 
 interface EmailJobPayload {
@@ -184,6 +188,15 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         return { messageId: 'skipped-invalid-invitation', skipped: true };
       }
     }
+    if (payload.context.purpose === 'PASSWORD_RESET' && payload.context.passwordResetTokenId) {
+      const token = await this.prisma.passwordResetToken.findUnique({
+        where: { id: payload.context.passwordResetTokenId },
+        select: { usedAt: true, revokedAt: true, expiresAt: true },
+      });
+      if (!token || token.usedAt || token.revokedAt || token.expiresAt <= new Date()) {
+        return { messageId: 'skipped-invalid-password-reset', skipped: true };
+      }
+    }
 
     const delivery = await this.emailProvider.send(payload.message);
     await this.recordSuccess(job, payload.context, delivery.messageId);
@@ -211,7 +224,9 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
       context.invitationId ??
       context.staffInvitationId ??
       context.checkoutApplicationId ??
-      context.planChangeRequestId;
+      context.planChangeRequestId ??
+      context.passwordResetTokenId ??
+      context.userId;
     if (!entityId) return;
     await this.prisma.auditLog.create({
       data: {
@@ -222,7 +237,11 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
             ? 'StaffInvitation'
             : context.checkoutApplicationId
               ? 'CheckoutApplication'
-              : 'PlanChangeRequest',
+              : context.planChangeRequestId
+                ? 'PlanChangeRequest'
+                : context.passwordResetTokenId
+                  ? 'PasswordResetToken'
+                  : 'User',
         entityId,
         metadata: {
           purpose: context.purpose,
@@ -244,7 +263,9 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         context.invitationId ??
         context.staffInvitationId ??
         context.checkoutApplicationId ??
-        context.planChangeRequestId;
+        context.planChangeRequestId ??
+        context.passwordResetTokenId ??
+        context.userId;
       if (!entityId) return;
       await this.prisma.auditLog.create({
         data: {
@@ -255,7 +276,11 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
               ? 'StaffInvitation'
               : context.checkoutApplicationId
                 ? 'CheckoutApplication'
-                : 'PlanChangeRequest',
+                : context.planChangeRequestId
+                  ? 'PlanChangeRequest'
+                  : context.passwordResetTokenId
+                    ? 'PasswordResetToken'
+                    : 'User',
           entityId,
           metadata: {
             purpose: context.purpose,

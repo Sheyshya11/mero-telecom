@@ -115,6 +115,19 @@
   align-items: center;
   gap: 28px;
 }
+.navSessionPlaceholder,
+.mobileSessionPlaceholder {
+  border-radius: 8px;
+  background: #e8eef2;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.navSessionPlaceholder {
+  width: 132px;
+  height: 40px;
+}
+.mobileSessionPlaceholder {
+  height: 44px;
+}
 .button {
   min-height: 48px;
   padding: 0 32px;
@@ -156,6 +169,13 @@
 .buttonWhite {
   background: white;
   color: var(--landing-ink) !important;
+}
+.accountActionPlaceholder {
+  width: 148px;
+  height: 48px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.28);
+  animation: pulse 1.4s ease-in-out infinite;
 }
 .mobileMenuButton {
   display: none;

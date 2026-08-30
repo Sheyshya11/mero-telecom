@@ -6,6 +6,7 @@ import { compare, hash } from 'bcryptjs';
 import { randomUUID } from 'crypto';
 
 import type { AppConfig } from '../../config/configuration';
+import { verifyPassword } from '../../common/security/password';
 import { PrismaService } from '../../database/prisma.service';
 import type {
   AccessTokenPayload,
@@ -35,7 +36,7 @@ export class AuthService {
       !user.isActive ||
       user.status !== UserStatus.ACTIVE ||
       !user.passwordHash ||
-      !(await compare(loginDto.password, user.passwordHash))
+      !(await verifyPassword(loginDto.password, user.passwordHash))
     ) {
       throw new UnauthorizedException('Invalid email or password.');
     }
@@ -113,9 +114,16 @@ export class AuthService {
     }
   }
 
-  async getAuthenticatedUser(userId: string): Promise<AuthenticatedUser> {
+  async getAuthenticatedUser(userId: string, sessionId: string): Promise<AuthenticatedUser> {
     const user = await this.prisma.user.findFirst({
-      where: { id: userId, isActive: true, status: UserStatus.ACTIVE },
+      where: {
+        id: userId,
+        isActive: true,
+        status: UserStatus.ACTIVE,
+        refreshSessions: {
+          some: { id: sessionId, revokedAt: null, expiresAt: { gt: new Date() } },
+        },
+      },
       select: { id: true, email: true, role: true },
     });
 
@@ -132,8 +140,10 @@ export class AuthService {
 
   private async createTokens(user: User, authenticatedAt: number): Promise<AuthTokens> {
     const jwtConfig = this.configService.getOrThrow('jwt');
+    const sessionId = randomUUID();
     const accessPayload: AccessTokenPayload = {
       sub: user.id,
+      sid: sessionId,
       email: user.email,
       role: user.role,
       type: 'access',
@@ -141,7 +151,7 @@ export class AuthService {
     };
     const refreshPayload: RefreshTokenPayload = {
       sub: user.id,
-      sid: randomUUID(),
+      sid: sessionId,
       type: 'refresh',
       authTime: authenticatedAt,
     };

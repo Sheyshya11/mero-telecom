@@ -236,6 +236,9 @@ export function CoverageManagement() {
           <Link className="button-secondary" href={isAdmin ? '/admin/plans' : '/staff/plans'}>
             Plans
           </Link>
+          <Link className="button-secondary" href="/website">
+            Visit Website
+          </Link>
           <button className="button-primary" onClick={() => void logout()} type="button">
             Sign out
           </button>

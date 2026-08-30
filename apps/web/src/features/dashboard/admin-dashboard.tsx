@@ -17,6 +17,7 @@ import {
 import { LandingIcon, type LandingIconName } from '../../components/landing/landing-icons';
 import { apiRequest } from '../../lib/api/client';
 import { useAuth } from '../auth/auth-provider';
+import { getDashboardRoute, PUBLIC_WEBSITE_ROUTE } from '../auth/auth-navigation';
 import styles from './dashboard.module.css';
 import type { AdminDashboard } from './dashboard.types';
 
@@ -75,13 +76,16 @@ export function AdminDashboardView() {
     <main className={styles.page}>
       <div className={styles.shell}>
         <header className={styles.topbar}>
-          <Brand />
+          <Brand role={user.role} />
           <nav aria-label="Administrator navigation" className={styles.nav}>
             {adminNav.map((item) => (
               <Link className={styles.navLink} href={item.href} key={item.href}>
                 {item.label}
               </Link>
             ))}
+            <Link className={styles.navLink} href={PUBLIC_WEBSITE_ROUTE}>
+              Visit Website
+            </Link>
             <button className={styles.signOut} onClick={() => void logout()} type="button">
               Sign out
             </button>
@@ -251,9 +255,9 @@ export function AdminDashboardView() {
   );
 }
 
-function Brand() {
+function Brand({ role }: Readonly<{ role: 'ADMIN' | 'SUPER_ADMIN' }>) {
   return (
-    <Link aria-label="Mero Telecom home" className={styles.brand} href="/">
+    <Link aria-label="Mero Telecom home" className={styles.brand} href={getDashboardRoute(role)}>
       <span className={styles.brandMark}>
         <LandingIcon name="wifi" size={19} />
       </span>

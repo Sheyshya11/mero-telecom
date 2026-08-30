@@ -1,8 +1,14 @@
 import Link from 'next/link';
 
 import { LandingBrand, LandingHeader } from '../components/landing/landing-header';
+import {
+  LandingAccountAction,
+  LandingFooterAccountLink,
+  LandingHomeLink,
+} from '../components/landing/landing-auth-actions';
 import { LandingIcon, type LandingIconName } from '../components/landing/landing-icons';
 import { CoverageChecker } from '../features/coverage/coverage-checker';
+import { HomeRouteGate } from '../features/auth/home-route-gate';
 import { PublicPlanGrid } from '../features/plans/public-plan-grid';
 import styles from '../styles/landing.module.css';
 
@@ -70,303 +76,303 @@ const faqs = [
 
 export default function HomePage() {
   return (
-    <div className={styles.landing}>
-      <LandingHeader />
+    <HomeRouteGate>
+      <div className={styles.landing}>
+        <LandingHeader />
 
-      <main>
-        <section className={styles.hero}>
-          <div className={styles.heroGlow} aria-hidden="true" />
-          <div className={`${styles.container} ${styles.heroGrid}`}>
-            <div className={styles.heroCopy}>
-              <p className={styles.pill}>
-                <span />
-                NBN plans for Australian homes
-              </p>
-              <h1>Fast, simple NBN internet for your home.</h1>
-              <p className={styles.heroLead}>
-                Straightforward NBN plans, reliable connectivity and simple online signup with Mero
-                Telecom.
-              </p>
-              <div className={styles.heroButtons}>
-                <a className={styles.button} href="#coverage">
-                  Check Your Address
-                </a>
-                <a className={`${styles.button} ${styles.buttonSecondary}`} href="#plans">
-                  View NBN Plans
-                </a>
+        <main>
+          <section className={styles.hero}>
+            <div className={styles.heroGlow} aria-hidden="true" />
+            <div className={`${styles.container} ${styles.heroGrid}`}>
+              <div className={styles.heroCopy}>
+                <p className={styles.pill}>
+                  <span />
+                  NBN plans for Australian homes
+                </p>
+                <h1>Fast, simple NBN internet for your home.</h1>
+                <p className={styles.heroLead}>
+                  Straightforward NBN plans, reliable connectivity and simple online signup with
+                  Mero Telecom.
+                </p>
+                <div className={styles.heroButtons}>
+                  <a className={styles.button} href="#coverage">
+                    Check Your Address
+                  </a>
+                  <a className={`${styles.button} ${styles.buttonSecondary}`} href="#plans">
+                    View NBN Plans
+                  </a>
+                </div>
+                <div className={styles.heroBenefits}>
+                  <span>
+                    <LandingIcon name="shield" size={16} />
+                    No confusing setup
+                  </span>
+                  <span>
+                    <LandingIcon name="pin" size={16} />
+                    Simple online signup
+                  </span>
+                  <span>
+                    <LandingIcon name="headphones" size={16} />
+                    Australian support
+                  </span>
+                </div>
               </div>
-              <div className={styles.heroBenefits}>
-                <span>
-                  <LandingIcon name="shield" size={16} />
-                  No confusing setup
-                </span>
-                <span>
-                  <LandingIcon name="pin" size={16} />
-                  Simple online signup
-                </span>
-                <span>
-                  <LandingIcon name="headphones" size={16} />
-                  Australian support
-                </span>
-              </div>
-            </div>
 
-            <div aria-label="Mero Network connected" className={styles.networkCard}>
-              <i className={styles.networkAccentTop} aria-hidden="true" />
-              <i className={styles.networkAccentBottom} aria-hidden="true" />
-              <div className={styles.networkTop}>
-                <span>
-                  <i>
-                    <LandingIcon name="wifi" size={18} />
+              <div aria-label="Mero Network connected" className={styles.networkCard}>
+                <i className={styles.networkAccentTop} aria-hidden="true" />
+                <i className={styles.networkAccentBottom} aria-hidden="true" />
+                <div className={styles.networkTop}>
+                  <span>
+                    <i>
+                      <LandingIcon name="wifi" size={18} />
+                    </i>
+                    Mero Network
+                  </span>
+                  <b>
+                    <i />
+                    Connected
+                  </b>
+                </div>
+                <div className={styles.meterRow}>
+                  <span>Download</span>
+                  <strong>85 Mbps</strong>
+                  <i className={styles.meter}>
+                    <b className={styles.downloadMeter} />
                   </i>
-                  Mero Network
-                </span>
-                <b>
-                  <i />
-                  Connected
-                </b>
-              </div>
-              <div className={styles.meterRow}>
-                <span>Download</span>
-                <strong>85 Mbps</strong>
-                <i className={styles.meter}>
-                  <b className={styles.downloadMeter} />
-                </i>
-              </div>
-              <div className={styles.meterRow}>
-                <span>Upload</span>
-                <strong>40 Mbps</strong>
-                <i className={styles.meter}>
-                  <b className={styles.uploadMeter} />
-                </i>
-              </div>
-              <div className={styles.networkStatus}>
-                <span>
-                  Streaming<strong>Active</strong>
-                </span>
-                <span>
-                  Gaming<strong>Active</strong>
-                </span>
-                <span>
-                  Work<strong>Active</strong>
-                </span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className={`${styles.section} ${styles.softSection}`} id="coverage">
-          <div className={`${styles.container} ${styles.coverageWrap}`}>
-            <CoverageChecker variant="landing" />
-          </div>
-        </section>
-
-        <section className={styles.section} id="plans">
-          <div className={styles.container}>
-            <div className={styles.sectionHeading}>
-              <h2>Internet plans that keep things simple</h2>
-              <p>
-                Choose from a range of straightforward NBN plans. No lock-in contracts, unlimited
-                data and simple online signup.
-              </p>
-            </div>
-            <PublicPlanGrid variant="landing" />
-            <p className={styles.planDisclaimer}>
-              Actual speeds may vary depending on NBN technology type, your location, network
-              conditions, equipment and other factors. Prices are in AUD and include GST.
-            </p>
-          </div>
-        </section>
-
-        <section className={`${styles.section} ${styles.stepsSection}`}>
-          <div className={styles.container}>
-            <h2 className={styles.centerHeading}>Getting connected is simple</h2>
-            <div className={styles.steps}>
-              {[
-                [
-                  'pin',
-                  'Check your address',
-                  'Select your recognised Australian address and confirm Mero Telecom availability.',
-                ],
-                [
-                  'cursor',
-                  'Choose your plan',
-                  'Compare compatible plans and select the one that suits your household.',
-                ],
-                [
-                  'rocket',
-                  'Get connected',
-                  'Continue through the existing secure signup and checkout flow.',
-                ],
-              ].map(([icon, title, text], index) => (
-                <article key={title}>
-                  <div className={styles.stepIcon}>
-                    <span>{index + 1}</span>
-                    <LandingIcon name={icon as LandingIconName} size={40} />
-                  </div>
-                  <h3>{title}</h3>
-                  <p>{text}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.section} id="why-mero">
-          <div className={styles.container}>
-            <div className={styles.sectionHeading}>
-              <h2>Internet without the unnecessary complexity</h2>
-              <p>
-                Mero Telecom is built around a simple idea: straightforward NBN internet that&apos;s
-                easy to sign up for and manage.
-              </p>
-            </div>
-            <div className={styles.featureGrid}>
-              {features.map(([icon, title, text]) => (
-                <article key={title}>
+                </div>
+                <div className={styles.meterRow}>
+                  <span>Upload</span>
+                  <strong>40 Mbps</strong>
+                  <i className={styles.meter}>
+                    <b className={styles.uploadMeter} />
+                  </i>
+                </div>
+                <div className={styles.networkStatus}>
                   <span>
-                    <LandingIcon name={icon} size={25} />
+                    Streaming<strong>Active</strong>
                   </span>
-                  <h3>{title}</h3>
-                  <p>{text}</p>
-                </article>
-              ))}
+                  <span>
+                    Gaming<strong>Active</strong>
+                  </span>
+                  <span>
+                    Work<strong>Active</strong>
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section className={`${styles.section} ${styles.speedSection}`} id="internet">
-          <div className={styles.container}>
-            <div className={styles.sectionHeading}>
-              <h2>Finding the right NBN speed</h2>
-              <p>
-                Different speed tiers suit different households. Here&apos;s a general guide to help
-                you decide.
+          <section className={`${styles.section} ${styles.softSection}`} id="coverage">
+            <div className={`${styles.container} ${styles.coverageWrap}`}>
+              <CoverageChecker variant="landing" />
+            </div>
+          </section>
+
+          <section className={styles.section} id="plans">
+            <div className={styles.container}>
+              <div className={styles.sectionHeading}>
+                <h2>Internet plans that keep things simple</h2>
+                <p>
+                  Choose from a range of straightforward NBN plans. No lock-in contracts, unlimited
+                  data and simple online signup.
+                </p>
+              </div>
+              <PublicPlanGrid variant="landing" />
+              <p className={styles.planDisclaimer}>
+                Actual speeds may vary depending on NBN technology type, your location, network
+                conditions, equipment and other factors. Prices are in AUD and include GST.
               </p>
             </div>
-            <div className={styles.featureGrid}>
-              {speedGuide.map(([icon, tier, title, text]) => (
-                <article key={tier}>
-                  <span>
-                    <LandingIcon name={icon} size={25} />
-                  </span>
-                  <small>{tier}</small>
-                  <h3>{title}</h3>
-                  <p>{text}</p>
-                </article>
-              ))}
+          </section>
+
+          <section className={`${styles.section} ${styles.stepsSection}`}>
+            <div className={styles.container}>
+              <h2 className={styles.centerHeading}>Getting connected is simple</h2>
+              <div className={styles.steps}>
+                {[
+                  [
+                    'pin',
+                    'Check your address',
+                    'Select your recognised Australian address and confirm Mero Telecom availability.',
+                  ],
+                  [
+                    'cursor',
+                    'Choose your plan',
+                    'Compare compatible plans and select the one that suits your household.',
+                  ],
+                  [
+                    'rocket',
+                    'Get connected',
+                    'Continue through the existing secure signup and checkout flow.',
+                  ],
+                ].map(([icon, title, text], index) => (
+                  <article key={title}>
+                    <div className={styles.stepIcon}>
+                      <span>{index + 1}</span>
+                      <LandingIcon name={icon as LandingIconName} size={40} />
+                    </div>
+                    <h3>{title}</h3>
+                    <p>{text}</p>
+                  </article>
+                ))}
+              </div>
             </div>
-            <p className={styles.disclaimer}>
-              Actual speeds can vary depending on NBN technology type, your location, network
-              conditions, equipment in your home and other factors.
+          </section>
+
+          <section className={styles.section} id="why-mero">
+            <div className={styles.container}>
+              <div className={styles.sectionHeading}>
+                <h2>Internet without the unnecessary complexity</h2>
+                <p>
+                  Mero Telecom is built around a simple idea: straightforward NBN internet
+                  that&apos;s easy to sign up for and manage.
+                </p>
+              </div>
+              <div className={styles.featureGrid}>
+                {features.map(([icon, title, text]) => (
+                  <article key={title}>
+                    <span>
+                      <LandingIcon name={icon} size={25} />
+                    </span>
+                    <h3>{title}</h3>
+                    <p>{text}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className={`${styles.section} ${styles.speedSection}`} id="internet">
+            <div className={styles.container}>
+              <div className={styles.sectionHeading}>
+                <h2>Finding the right NBN speed</h2>
+                <p>
+                  Different speed tiers suit different households. Here&apos;s a general guide to
+                  help you decide.
+                </p>
+              </div>
+              <div className={styles.featureGrid}>
+                {speedGuide.map(([icon, tier, title, text]) => (
+                  <article key={tier}>
+                    <span>
+                      <LandingIcon name={icon} size={25} />
+                    </span>
+                    <small>{tier}</small>
+                    <h3>{title}</h3>
+                    <p>{text}</p>
+                  </article>
+                ))}
+              </div>
+              <p className={styles.disclaimer}>
+                Actual speeds can vary depending on NBN technology type, your location, network
+                conditions, equipment in your home and other factors.
+              </p>
+            </div>
+          </section>
+
+          <section className={styles.accountSection}>
+            <div className={styles.accountCard}>
+              <span className={styles.accountIcon}>
+                <LandingIcon name="login" size={29} />
+              </span>
+              <h2>Already with Mero Telecom?</h2>
+              <p>Sign in to manage your service, billing and account.</p>
+              <LandingAccountAction />
+            </div>
+          </section>
+
+          <section className={styles.faqSection} id="faq">
+            <div className={`${styles.container} ${styles.faqWrap}`}>
+              <h2>Frequently asked questions</h2>
+              <div className={styles.faqList}>
+                {faqs.map(([question, answer]) => (
+                  <details key={question}>
+                    <summary>
+                      <span>{question}</span>
+                      <LandingIcon name="chevron" size={17} />
+                    </summary>
+                    <p>{answer}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </section>
+        </main>
+
+        <footer className={styles.footer}>
+          <div className={`${styles.container} ${styles.footerGrid}`}>
+            <div className={styles.footerBrand}>
+              <LandingHomeLink>
+                <LandingBrand />
+              </LandingHomeLink>
+              <p>Fast, simple NBN internet for Australian homes.</p>
+            </div>
+            <div>
+              <h3>Mero Telecom</h3>
+              <ul>
+                <li>
+                  <a href="#why-mero">About</a>
+                </li>
+                <li>
+                  <a href="#why-mero">Why Mero</a>
+                </li>
+                <li>
+                  <a href="#faq">Contact</a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3>Internet</h3>
+              <ul>
+                <li>
+                  <a href="#plans">NBN Plans</a>
+                </li>
+                <li>
+                  <a href="#coverage">Check Coverage</a>
+                </li>
+                <li>
+                  <a href="#internet">Internet</a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3>Support</h3>
+              <ul>
+                <li>
+                  <a href="#faq">Help Centre</a>
+                </li>
+                <li>
+                  <a href="#faq">Contact Support</a>
+                </li>
+                <li>
+                  <LandingFooterAccountLink />
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3>Legal</h3>
+              <ul>
+                <li>
+                  <Link href="/privacy">Privacy Policy</Link>
+                </li>
+                <li>
+                  <Link href="/terms">Terms & Conditions</Link>
+                </li>
+                <li>
+                  <Link href="/terms">Critical Information Summary</Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div className={`${styles.container} ${styles.footerBottom}`}>
+            <p>
+              Mero Telecom is not affiliated with or endorsed by NBN Co. NBN serviceability and
+              speeds remain subject to address qualification.
             </p>
+            <p>© 2026 Mero Telecom. All rights reserved.</p>
           </div>
-        </section>
-
-        <section className={styles.accountSection}>
-          <div className={styles.accountCard}>
-            <span className={styles.accountIcon}>
-              <LandingIcon name="login" size={29} />
-            </span>
-            <h2>Already with Mero Telecom?</h2>
-            <p>Sign in to manage your service, billing and account.</p>
-            <Link className={`${styles.button} ${styles.buttonWhite}`} href="/login">
-              Sign In
-            </Link>
-          </div>
-        </section>
-
-        <section className={styles.faqSection} id="faq">
-          <div className={`${styles.container} ${styles.faqWrap}`}>
-            <h2>Frequently asked questions</h2>
-            <div className={styles.faqList}>
-              {faqs.map(([question, answer]) => (
-                <details key={question}>
-                  <summary>
-                    <span>{question}</span>
-                    <LandingIcon name="chevron" size={17} />
-                  </summary>
-                  <p>{answer}</p>
-                </details>
-              ))}
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <footer className={styles.footer}>
-        <div className={`${styles.container} ${styles.footerGrid}`}>
-          <div className={styles.footerBrand}>
-            <Link href="/">
-              <LandingBrand />
-            </Link>
-            <p>Fast, simple NBN internet for Australian homes.</p>
-          </div>
-          <div>
-            <h3>Mero Telecom</h3>
-            <ul>
-              <li>
-                <a href="#why-mero">About</a>
-              </li>
-              <li>
-                <a href="#why-mero">Why Mero</a>
-              </li>
-              <li>
-                <a href="#faq">Contact</a>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <h3>Internet</h3>
-            <ul>
-              <li>
-                <a href="#plans">NBN Plans</a>
-              </li>
-              <li>
-                <a href="#coverage">Check Coverage</a>
-              </li>
-              <li>
-                <a href="#internet">Internet</a>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <h3>Support</h3>
-            <ul>
-              <li>
-                <a href="#faq">Help Centre</a>
-              </li>
-              <li>
-                <a href="#faq">Contact Support</a>
-              </li>
-              <li>
-                <Link href="/login">Sign In</Link>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <h3>Legal</h3>
-            <ul>
-              <li>
-                <Link href="/privacy">Privacy Policy</Link>
-              </li>
-              <li>
-                <Link href="/terms">Terms & Conditions</Link>
-              </li>
-              <li>
-                <Link href="/terms">Critical Information Summary</Link>
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div className={`${styles.container} ${styles.footerBottom}`}>
-          <p>
-            Mero Telecom is not affiliated with or endorsed by NBN Co. NBN serviceability and speeds
-            remain subject to address qualification.
-          </p>
-          <p>© 2026 Mero Telecom. All rights reserved.</p>
-        </div>
-      </footer>
-    </div>
+        </footer>
+      </div>
+    </HomeRouteGate>
   );
 }

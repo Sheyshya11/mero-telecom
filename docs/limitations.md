@@ -11,8 +11,8 @@
 - The prototype does not provision routers, RADIUS/AAA access, network inventory, usage metering,
   outages, support tickets, or technician work orders.
 - Staff capability is intentionally narrow. Secure staff/admin provisioning and break-glass admin
-  recovery are implemented, but there is no customer self-service password reset, multi-factor
-  authentication, or fine-grained custom-role policy engine.
+  recovery and local-account password reset are implemented, but there is no multi-factor
+  authentication or fine-grained custom-role policy engine.
 - Audit records are database-backed but there is no audit-search UI, append-only external archive,
   SIEM export, tracing backend, or alerting integration.
 - Admin dashboard caching is single-key and short-lived; it does not provide analytics history or
@@ -26,9 +26,8 @@
 
 1. Replace the database qualification provider with an authorized nbn wholesale integration and
    retain appropriate result timestamp/evidence with an order.
-2. Add MFA, customer password reset, and optional verified external-IdP integration before handling
-   real customer data; preserve PostgreSQL as the sole role authority unless a deliberate migration
-   replaces it.
+2. Add MFA and optional verified external-IdP integration before handling real customer data;
+   preserve PostgreSQL as the sole role authority unless a deliberate migration replaces it.
 3. Add scheduled billing and reminder producers to the existing idempotent email queue, plus an
    operator UI for inspecting and replaying permanently failed jobs.
 4. Add object retention/deletion policies, storage encryption controls, and periodic private-document
