@@ -40,6 +40,7 @@ import type { CreatePublicPlanCheckoutSessionDto } from './dto/create-checkout-s
 import { StripeClientService } from './stripe-client.service';
 import { PlanChangesService } from '../plan-changes/plan-changes.service';
 import { PublicCheckoutContextService } from './public-checkout-context.service';
+import { RefundsService } from '../refunds/refunds.service';
 
 const planPurchaseInclude = {
   customer: true,
@@ -89,6 +90,7 @@ export class PaymentsService {
     private readonly invitations: AccountInvitationsService,
     private readonly notifications: NotificationService,
     private readonly planChanges: PlanChangesService,
+    private readonly refunds: RefundsService,
   ) {
     this.stripe = stripeClient.client;
   }
@@ -466,7 +468,21 @@ export class PaymentsService {
     try {
       event = this.stripe.webhooks.constructEvent(payload, signature, this.webhookSecret());
     } catch {
+      this.logger.warn(
+        JSON.stringify({ event: 'stripe.webhook.rejected', reason: 'invalid_signature' }),
+      );
       throw new BadRequestException('Invalid Stripe webhook signature.');
+    }
+    this.logger.log(
+      JSON.stringify({ event: 'stripe.webhook.received', eventId: event.id, type: event.type }),
+    );
+    if (
+      event.type === 'refund.created' ||
+      event.type === 'refund.updated' ||
+      event.type === 'refund.failed'
+    ) {
+      await this.refunds.processStripeEvent(event);
+      return;
     }
     if (
       event.type !== 'checkout.session.completed' &&

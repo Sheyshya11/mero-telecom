@@ -1,6 +1,6 @@
-import { Type } from 'class-transformer';
-import { IsDateString, IsEnum, IsOptional, IsUUID, Max, Min } from 'class-validator';
-import { SubscriptionStatus } from '@prisma/client';
+import { IsDateString, IsEnum, IsIn, IsOptional, IsUUID } from 'class-validator';
+import { BillingCycle, PaymentStatus, SubscriptionStatus } from '@prisma/client';
+import { ListQueryDto } from '../../../common/pagination';
 
 export class UpdateSubscriptionDto {
   @IsOptional() @IsEnum(SubscriptionStatus) status?: SubscriptionStatus;
@@ -8,8 +8,16 @@ export class UpdateSubscriptionDto {
   @IsOptional() @IsDateString() endDate?: string | null;
 }
 
-export class SubscriptionQueryDto {
+export class SubscriptionQueryDto extends ListQueryDto {
   @IsOptional() @IsUUID() customerId?: string;
-  @IsOptional() @Type(() => Number) @Min(1) page = 1;
-  @IsOptional() @Type(() => Number) @Min(1) @Max(100) limit = 20;
+  @IsOptional() @IsIn(['createdAt', 'startDate', 'currentPeriodEnd', 'status']) sortBy =
+    'createdAt';
+  @IsOptional() @IsEnum(SubscriptionStatus) status?: SubscriptionStatus;
+  @IsOptional() @IsUUID() planId?: string;
+  @IsOptional() @IsEnum(BillingCycle) billingCycle?: BillingCycle;
+  @IsOptional() @IsEnum(PaymentStatus) paymentStatus?: PaymentStatus;
+  @IsOptional() @IsDateString({ strict: true }) activatedFrom?: string;
+  @IsOptional() @IsDateString({ strict: true }) activatedTo?: string;
+  @IsOptional() @IsIn(['true', 'false']) cancelled?: string;
+  @IsOptional() @IsIn(['true', 'false']) pendingPlanChange?: string;
 }

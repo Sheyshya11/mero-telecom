@@ -1,6 +1,8 @@
 import { Type } from 'class-transformer';
 import {
   IsEmail,
+  IsDateString,
+  IsUUID,
   IsEnum,
   IsIn,
   IsInt,
@@ -13,6 +15,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { Role, StaffInvitationStatus, UserStatus } from '@prisma/client';
+import { ListQueryDto } from '../../../common/pagination';
 
 export class CreateStaffInvitationDto {
   @IsString()
@@ -53,11 +56,12 @@ export class StaffInvitationQueryDto {
   limit = 20;
 }
 
-export class SystemUserQueryDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  search?: string;
+export class SystemUserQueryDto extends ListQueryDto {
+  @IsOptional() @IsIn(['createdAt', 'updatedAt', 'displayName', 'email', 'role', 'status']) sortBy =
+    'createdAt';
+  @IsOptional() @IsDateString({ strict: true }) createdFrom?: string;
+  @IsOptional() @IsDateString({ strict: true }) createdTo?: string;
+  @IsOptional() @IsIn(['true', 'false']) active?: string;
 
   @IsOptional()
   @IsEnum(Role)
@@ -66,19 +70,6 @@ export class SystemUserQueryDto {
   @IsOptional()
   @IsEnum(UserStatus)
   status?: UserStatus;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limit = 20;
 }
 
 export class ChangeSystemRoleDto {
@@ -87,7 +78,13 @@ export class ChangeSystemRoleDto {
   role!: Extract<Role, 'SUPER_ADMIN' | 'ADMIN' | 'STAFF'>;
 }
 
-export class SecurityAuditQueryDto {
+export class SecurityAuditQueryDto extends ListQueryDto {
+  @IsOptional() @IsIn(['createdAt', 'action', 'entityType']) sortBy = 'createdAt';
+  @IsOptional() @IsUUID() actorUserId?: string;
+  @IsOptional() @IsEnum(Role) actorRole?: Role;
+  @IsOptional() @IsString() @MaxLength(255) entityId?: string;
+  @IsOptional() @IsDateString({ strict: true }) dateFrom?: string;
+  @IsOptional() @IsDateString({ strict: true }) dateTo?: string;
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -97,19 +94,6 @@ export class SecurityAuditQueryDto {
   @IsString()
   @MaxLength(100)
   entityType?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limit = 25;
 }
 
 export class ChangeSystemUserStatusDto {

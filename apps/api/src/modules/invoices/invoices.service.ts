@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InvoiceStatus, Prisma, Role, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { amountRange, buildPaginationMeta, dateRange } from '../../common/pagination';
 import { BillingService } from '../billing/billing.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
@@ -103,11 +104,43 @@ export class InvoicesService {
         : query.customerId
           ? { customerId: query.customerId }
           : {};
+    const conditions: Prisma.InvoiceWhereInput[] = [];
+    if (query.status === 'REFUNDED' || query.status === 'PARTIALLY_REFUNDED')
+      conditions.push({ payments: { some: { status: query.status } } });
+    else if (query.status === 'UNPAID') where.status = { in: ['ISSUED', 'OVERDUE'] };
+    else if (query.status) where.status = query.status;
+    const issueDate = dateRange(query.dateFrom, query.dateTo);
+    const totalCents = amountRange(query.minAmount, query.maxAmount);
+    if (issueDate) where.issueDate = issueDate;
+    if (totalCents) where.totalCents = totalCents;
+    const search = query.search?.trim();
+    if (search)
+      conditions.push({
+        OR: [
+          { invoiceNumber: { contains: search, mode: 'insensitive' } },
+          ...['firstName', 'lastName', 'email', 'customerNumber'].map((field) => ({
+            customer: { [field]: { contains: search, mode: 'insensitive' as const } },
+          })),
+        ],
+      });
+    if (conditions.length) where.AND = conditions;
     const [data, total] = await this.prisma.$transaction([
       this.prisma.invoice.findMany({
         where,
-        include: invoiceInclude,
-        orderBy: [{ issueDate: 'desc' }, { createdAt: 'desc' }],
+        include: {
+          customer: {
+            select: {
+              id: true,
+              customerNumber: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          subscription: { select: { id: true, plan: { select: { id: true, name: true } } } },
+          payments: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
+        orderBy: [{ [query.sortBy ?? 'createdAt']: query.sortOrder ?? 'desc' }, { id: 'asc' }],
         skip: (query.page - 1) * query.limit,
         take: query.limit,
       }),
@@ -115,12 +148,7 @@ export class InvoicesService {
     ]);
     return {
       data,
-      meta: {
-        page: query.page,
-        limit: query.limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / query.limit)),
-      },
+      meta: buildPaginationMeta(query, total),
     };
   }
 

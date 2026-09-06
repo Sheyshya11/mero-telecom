@@ -12,6 +12,7 @@ import {
   PlanChangeStatus,
   PlanChangeType,
   PostcodeCoverageStatus,
+  RefundReason,
   Role,
   SubscriptionStatus,
   UserStatus,
@@ -32,6 +33,7 @@ import {
 } from '../src/modules/coverage/coverage.types';
 import { StripeClientService } from '../src/modules/payments/stripe-client.service';
 import { PlanChangesService } from '../src/modules/plan-changes/plan-changes.service';
+import { RefundsService } from '../src/modules/refunds/refunds.service';
 
 const password = 'ChangeMe123!';
 const customerInput = {
@@ -155,6 +157,7 @@ describe('Mero Telecom API (e2e)', () => {
   let superAdminToken: string;
   let staffToken: string;
   let customerToken: string;
+  let customerBToken: string;
   let customerAId: string;
   let customerBId: string;
   let planId: string;
@@ -168,7 +171,9 @@ describe('Mero Telecom API (e2e)', () => {
   let invitedCustomerId: string;
   let invitedUserId: string;
   const stripeSessions = new Map<string, Stripe.Checkout.Session>();
+  const stripeRefunds = new Map<string, Stripe.Refund>();
   let stripeSessionSequence = 0;
+  let stripeRefundSequence = 0;
 
   const fakeStripeClient = {
     client: {
@@ -200,6 +205,39 @@ describe('Mero Telecom API (e2e)', () => {
             return session;
           }),
         },
+      },
+      refunds: {
+        create: jest.fn(
+          async (
+            input: Stripe.RefundCreateParams,
+            _options: Stripe.RequestOptions,
+          ): Promise<Stripe.Refund> => {
+            const id = `re_e2e_${++stripeRefundSequence}`;
+            const refund = {
+              id,
+              object: 'refund',
+              amount: input.amount,
+              balance_transaction: null,
+              charge: `ch_e2e_${stripeRefundSequence}`,
+              created: Math.floor(Date.now() / 1000),
+              currency: 'aud',
+              metadata: input.metadata ?? {},
+              payment_intent: input.payment_intent,
+              reason: input.reason ?? null,
+              receipt_number: null,
+              source_transfer_reversal: null,
+              status: 'pending',
+              transfer_reversal: null,
+            } as Stripe.Refund;
+            stripeRefunds.set(id, refund);
+            return refund;
+          },
+        ),
+        retrieve: jest.fn(async (id: string) => {
+          const refund = stripeRefunds.get(id);
+          if (!refund) throw new Error(`Unknown fake Stripe refund: ${id}`);
+          return refund;
+        }),
       },
       webhooks: {
         constructEvent: jest.fn((payload: Buffer, signature: string) => {
@@ -234,6 +272,7 @@ describe('Mero Telecom API (e2e)', () => {
     await prisma.accountInvitation.deleteMany();
     await prisma.staffInvitation.deleteMany();
     await prisma.checkoutApplication.deleteMany();
+    await prisma.refund.deleteMany();
     await prisma.payment.deleteMany();
     await prisma.invoiceDocument.deleteMany();
     await prisma.invoiceItem.deleteMany();
@@ -723,6 +762,172 @@ describe('Mero Telecom API (e2e)', () => {
       .expect(400);
   });
 
+  it('runs controlled partial and full refunds with ownership, RBAC, idempotency, and webhook reconciliation', async () => {
+    await prisma.invoice.update({
+      where: { id: invoiceAId },
+      data: { status: InvoiceStatus.PAID, paidAt: new Date() },
+    });
+    const payment = await prisma.payment.create({
+      data: {
+        invoiceId: invoiceAId,
+        customerId: customerAId,
+        provider: 'STRIPE',
+        providerPaymentId: 'pi_e2e_refundable',
+        amountCents: 6_900,
+        currency: 'AUD',
+        status: PaymentStatus.SUCCEEDED,
+        paidAt: new Date(),
+      },
+    });
+    customerBToken = await loginAs('customer-b@merotelecom.test');
+
+    const customerBUser = await prisma.user.findUniqueOrThrow({
+      where: { email: 'customer-b@merotelecom.test' },
+    });
+    await expect(
+      app
+        .get(RefundsService)
+        .request(
+          payment.id,
+          { reason: RefundReason.BILLING_ERROR },
+          { id: customerBUser.id, email: customerBUser.email, role: customerBUser.role },
+        ),
+    ).rejects.toThrow('Payment not found.');
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/payments/${payment.id}/refund-requests`)
+      .set('Authorization', `Bearer ${customerBToken}`)
+      .send({ reason: RefundReason.BILLING_ERROR })
+      .expect(404);
+
+    const requested = await request(app.getHttpServer())
+      .post(`/api/v1/payments/${payment.id}/refund-requests`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ reason: RefundReason.SERVICE_ISSUE, details: 'Service was unavailable.' })
+      .expect(201);
+    const refundId = requested.body.id as string;
+    expect(requested.body).not.toHaveProperty('internalNote');
+    expect(requested.body).not.toHaveProperty('stripePaymentIntentId');
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/payments/${payment.id}/refund-requests`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ reason: RefundReason.SERVICE_ISSUE })
+      .expect(409);
+    await request(app.getHttpServer())
+      .get(`/api/v1/me/refunds/${refundId}`)
+      .set('Authorization', `Bearer ${customerBToken}`)
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/refunds')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/refunds/${refundId}/review`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ internalNote: 'Verified the outage report.' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/refunds/${refundId}/process`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/refunds/${refundId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        type: 'PARTIAL',
+        amountCents: 2_000,
+        reason: RefundReason.SERVICE_ISSUE,
+        internalNote: 'Approved two days of service impact.',
+      })
+      .expect(201);
+    const processing = await request(app.getHttpServer())
+      .post(`/api/v1/admin/refunds/${refundId}/process`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    const firstStripeRefundId = processing.body.stripeRefundId as string;
+    expect(firstStripeRefundId).toMatch(/^re_e2e_/);
+    expect(fakeStripeClient.client.refunds.create.mock.calls.at(-1)?.[1]).toEqual({
+      idempotencyKey: `mero-refund-${refundId}-1`,
+    });
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/refunds/${refundId}/process`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(409);
+
+    const firstStripeRefund = stripeRefunds.get(firstStripeRefundId);
+    if (!firstStripeRefund) throw new Error('Expected first fake Stripe refund.');
+    firstStripeRefund.status = 'succeeded';
+    const succeededEvent = refundStripeEvent(
+      'evt_e2e_refund_partial',
+      'refund.created',
+      firstStripeRefund,
+    );
+    await postStripeEvent(succeededEvent).expect(200);
+    await postStripeEvent(succeededEvent).expect(200);
+    expect(await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).toEqual(
+      expect.objectContaining({
+        status: PaymentStatus.PARTIALLY_REFUNDED,
+        refundedCents: 2_000,
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/refunds')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ paymentId: payment.id, reason: RefundReason.BILLING_ERROR })
+      .expect(403);
+    const secondRequested = await request(app.getHttpServer())
+      .post('/api/v1/admin/refunds')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        paymentId: payment.id,
+        reason: RefundReason.BILLING_ERROR,
+        internalNote: 'Correct the remaining charge.',
+      })
+      .expect(201);
+    const secondRefundId = secondRequested.body.id as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/refunds/${secondRefundId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ type: 'PARTIAL', amountCents: 5_000 })
+      .expect(409);
+    const approvedRemaining = await request(app.getHttpServer())
+      .post(`/api/v1/admin/refunds/${secondRefundId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ type: 'FULL' })
+      .expect(201);
+    expect(approvedRemaining.body.refundAmountCents).toBe(4_900);
+    const secondProcessing = await request(app.getHttpServer())
+      .post(`/api/v1/admin/refunds/${secondRefundId}/process`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(201);
+    const secondStripeRefund = stripeRefunds.get(secondProcessing.body.stripeRefundId as string);
+    if (!secondStripeRefund) throw new Error('Expected second fake Stripe refund.');
+    secondStripeRefund.status = 'succeeded';
+    await postStripeEvent(
+      refundStripeEvent('evt_e2e_refund_full', 'refund.updated', secondStripeRefund),
+    ).expect(200);
+
+    expect(await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).toEqual(
+      expect.objectContaining({ status: PaymentStatus.REFUNDED, refundedCents: 6_900 }),
+    );
+    expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceAId } })).toEqual(
+      expect.objectContaining({ totalCents: 6_900, status: InvoiceStatus.PAID }),
+    );
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          entityType: 'Refund',
+          entityId: { in: [refundId, secondRefundId] },
+          action: { in: ['REFUND_REQUESTED', 'REFUND_APPROVED', 'REFUND_SUCCEEDED'] },
+        },
+      }),
+    ).toBe(6);
+  });
+
   it('previews and applies a paid upgrade exactly once through the verified webhook', async () => {
     await prisma.invoice.update({
       where: { id: invoiceAId },
@@ -907,7 +1112,6 @@ describe('Mero Telecom API (e2e)', () => {
   });
 
   it('reconciles an owned paid upgrade when the signed webhook was missed', async () => {
-    const customerBToken = await loginAs('customer-b@merotelecom.test');
     await prisma.invoice.update({
       where: { id: invoiceBId },
       data: { status: InvoiceStatus.PAID, paidAt: new Date() },
@@ -1618,6 +1822,24 @@ function stripeEvent(
     api_version: '2026-07-29.dahlia',
     created: Math.floor(Date.now() / 1000),
     data: { object: session },
+    livemode: false,
+    pending_webhooks: 1,
+    request: null,
+    type,
+  } as Stripe.Event;
+}
+
+function refundStripeEvent(
+  id: string,
+  type: 'refund.created' | 'refund.updated' | 'refund.failed',
+  refund: Stripe.Refund,
+): Stripe.Event {
+  return {
+    id,
+    object: 'event',
+    api_version: '2026-07-29.dahlia',
+    created: Math.floor(Date.now() / 1000),
+    data: { object: refund },
     livemode: false,
     pending_webhooks: 1,
     request: null,

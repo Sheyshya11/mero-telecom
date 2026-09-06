@@ -17,7 +17,6 @@ import {
 import { LandingIcon, type LandingIconName } from '../../components/landing/landing-icons';
 import { apiRequest } from '../../lib/api/client';
 import { useAuth } from '../auth/auth-provider';
-import { getDashboardRoute, PUBLIC_WEBSITE_ROUTE } from '../auth/auth-navigation';
 import styles from './dashboard.module.css';
 import type { AdminDashboard } from './dashboard.types';
 
@@ -28,15 +27,6 @@ const statusColors = {
   CANCELLED: '#94a3b8',
 };
 
-const adminNav = [
-  { href: '/admin/customers', label: 'Customers' },
-  { href: '/admin/plans', label: 'Plans' },
-  { href: '/admin/subscriptions', label: 'Subscriptions' },
-  { href: '/admin/invoices', label: 'Invoices' },
-  { href: '/admin/coverage', label: 'Coverage' },
-  { href: '/admin/users', label: 'Team' },
-];
-
 function formatMoney(cents: number) {
   return new Intl.NumberFormat('en-AU', {
     style: 'currency',
@@ -46,7 +36,7 @@ function formatMoney(cents: number) {
 }
 
 export function AdminDashboardView() {
-  const { accessToken, isLoading, logout, user } = useAuth();
+  const { accessToken, isLoading, user } = useAuth();
   const dashboardQuery = useQuery({
     queryKey: ['admin-dashboard'],
     queryFn: () => apiRequest<AdminDashboard>('/dashboard/admin', {}, accessToken),
@@ -75,23 +65,6 @@ export function AdminDashboardView() {
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-        <header className={styles.topbar}>
-          <Brand role={user.role} />
-          <nav aria-label="Administrator navigation" className={styles.nav}>
-            {adminNav.map((item) => (
-              <Link className={styles.navLink} href={item.href} key={item.href}>
-                {item.label}
-              </Link>
-            ))}
-            <Link className={styles.navLink} href={PUBLIC_WEBSITE_ROUTE}>
-              Visit Website
-            </Link>
-            <button className={styles.signOut} onClick={() => void logout()} type="button">
-              Sign out
-            </button>
-          </nav>
-        </header>
-
         <section className={styles.hero}>
           <span aria-hidden="true" className={styles.heroGlow} />
           <div className={styles.heroContent}>
@@ -141,13 +114,20 @@ export function AdminDashboardView() {
             value={String(dashboard.metrics.overdueInvoiceCount)}
             warning
           />
+          <Metric
+            detail={`${formatMoney(dashboard.metrics.refundedThisMonthCents)} this month · ${dashboard.metrics.failedRefunds} failed`}
+            icon="credit-card"
+            label="Pending refunds"
+            value={String(dashboard.metrics.pendingRefunds)}
+            warning={dashboard.metrics.failedRefunds > 0}
+          />
         </section>
 
         <section className={styles.contentGrid}>
           <Panel meta="Issued invoice totals" title="Invoice value by month">
             <div className={styles.chart}>
               <ResponsiveContainer height="100%" width="100%">
-                <BarChart data={trend} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
+                <BarChart data={trend} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <XAxis
                     axisLine={false}
                     dataKey="label"
@@ -186,7 +166,6 @@ export function AdminDashboardView() {
                     data={dashboard.subscriptionsByStatus}
                     dataKey="count"
                     innerRadius={50}
-                    label={({ name, value }) => `${name}: ${value}`}
                     nameKey="status"
                     outerRadius={82}
                     paddingAngle={3}
@@ -206,6 +185,14 @@ export function AdminDashboardView() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
+            <ul aria-label="Subscription status totals" className={styles.chartLegend}>
+              {dashboard.subscriptionsByStatus.map((entry) => (
+                <li key={entry.status}>
+                  <span aria-hidden="true" style={{ background: statusColors[entry.status] }} />
+                  {entry.status.toLowerCase()}: <strong>{entry.count}</strong>
+                </li>
+              ))}
+            </ul>
           </Panel>
         </section>
 
@@ -252,19 +239,6 @@ export function AdminDashboardView() {
         </section>
       </div>
     </main>
-  );
-}
-
-function Brand({ role }: Readonly<{ role: 'ADMIN' | 'SUPER_ADMIN' }>) {
-  return (
-    <Link aria-label="Mero Telecom home" className={styles.brand} href={getDashboardRoute(role)}>
-      <span className={styles.brandMark}>
-        <LandingIcon name="wifi" size={19} />
-      </span>
-      <span>
-        Mero<span>Telecom</span>
-      </span>
-    </Link>
   );
 }
 

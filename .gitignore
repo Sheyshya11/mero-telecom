@@ -4,6 +4,7 @@ node_modules/
 .pnpm-phase16/
 .playwright-cli/
 dist/
+.private/
 .next/
 /coverage/
 /apps/api/coverage/

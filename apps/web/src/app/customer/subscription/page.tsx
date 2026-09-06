@@ -1,7 +1,6 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '../../../features/auth/auth-provider';
@@ -252,15 +251,12 @@ export default function CustomerSubscriptionPage() {
   const mutationError = preview.error ?? requestChange.error ?? cancelChange.error;
 
   return (
-    <main className="mx-auto min-h-screen max-w-4xl px-6 py-10">
+    <main className="workspace-page mx-auto min-h-screen max-w-4xl px-6 py-10">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM</p>
           <h1 className="mt-2 text-3xl font-bold">My subscription</h1>
         </div>
-        <Link className="button-secondary" href="/customer/dashboard">
-          My dashboard
-        </Link>
       </header>
 
       {subscriptions.isPending ? (

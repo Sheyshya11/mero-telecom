@@ -1,31 +1,14 @@
 .page {
   position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 92% 4%, hsl(var(--primary) / 0.1), transparent 26rem),
-    hsl(var(--secondary) / 0.34);
-}
-
-.page::before {
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(hsl(var(--primary) / 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, hsl(var(--primary) / 0.045) 1px, transparent 1px);
-  background-size: 42px 42px;
-  content: '';
-  mask-image: linear-gradient(to bottom, black, transparent 72%);
-  pointer-events: none;
+  min-width: 0;
 }
 
 .shell {
   position: relative;
   z-index: 1;
-  width: min(100% - 2rem, 80rem);
+  width: 100%;
   margin: 0 auto;
-  padding: 1.25rem 0 3rem;
+  padding: 0;
 }
 
 .topbar {
@@ -242,7 +225,7 @@
 
 .metricGrid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   gap: 0.8rem;
   margin-top: 1rem;
 }
@@ -397,6 +380,31 @@
 
 .chart {
   height: 17rem;
+}
+
+.chartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #475569;
+  font-size: 0.75rem;
+}
+
+.chartLegend li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  text-transform: capitalize;
+}
+
+.chartLegend li > span {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
 }
 
 .tablePanel {
@@ -757,8 +765,8 @@
 
 @media (max-width: 48rem) {
   .shell {
-    width: min(100% - 1.25rem, 80rem);
-    padding-top: 0.65rem;
+    width: 100%;
+    padding-top: 0;
   }
 
   .topbar {

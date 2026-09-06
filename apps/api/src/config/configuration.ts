@@ -13,6 +13,16 @@ export interface AppConfig {
   cache: {
     adminDashboardTtlSeconds: number;
   };
+  refundAttachments: {
+    maxFiles: number;
+    maxFileSizeBytes: number;
+    maxTotalSizeBytes: number;
+  };
+  refundReconciliation: {
+    intervalMilliseconds: number;
+    staleAfterMilliseconds: number;
+    batchSize: number;
+  };
   addressLookup: {
     provider: 'geoapify';
     geoapifyApiKey: string;
@@ -57,6 +67,7 @@ export interface AppConfig {
     from: string;
     deliveryMode: 'redirect' | 'direct';
     developmentRecipient: string;
+    opsAlertRecipient: string;
     queue: {
       name: string;
       attempts: number;
@@ -97,6 +108,17 @@ export default (): AppConfig => ({
   },
   cache: {
     adminDashboardTtlSeconds: Number(process.env.ADMIN_DASHBOARD_CACHE_TTL_SECONDS ?? 60),
+  },
+  refundAttachments: {
+    maxFiles: Number(process.env.REFUND_MAX_FILES ?? 5),
+    maxFileSizeBytes: Number(process.env.REFUND_MAX_FILE_SIZE_MB ?? 10) * 1024 * 1024,
+    maxTotalSizeBytes: Number(process.env.REFUND_MAX_TOTAL_SIZE_MB ?? 25) * 1024 * 1024,
+  },
+  refundReconciliation: {
+    intervalMilliseconds: Number(process.env.REFUND_RECONCILIATION_INTERVAL_MS ?? 300_000),
+    staleAfterMilliseconds:
+      Number(process.env.REFUND_RECONCILIATION_STALE_AFTER_MINUTES ?? 10) * 60_000,
+    batchSize: Number(process.env.REFUND_RECONCILIATION_BATCH_SIZE ?? 50),
   },
   addressLookup: {
     provider: (process.env.ADDRESS_LOOKUP_PROVIDER ?? 'geoapify') as 'geoapify',
@@ -159,6 +181,7 @@ export default (): AppConfig => ({
         ? 'direct'
         : 'redirect',
     developmentRecipient: process.env.EMAIL_DEV_RECIPIENT ?? '',
+    opsAlertRecipient: process.env.REFUND_ALERT_EMAIL ?? '',
     queue: {
       name: 'mero-telecom-email',
       attempts: Number(process.env.EMAIL_QUEUE_ATTEMPTS ?? 3),

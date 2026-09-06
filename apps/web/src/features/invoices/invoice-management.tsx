@@ -1,9 +1,15 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
-import { useState } from 'react';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  DataTableControls,
+  DataTablePagination,
+  TableSkeleton,
+  useTableQueryParams,
+  type PageMeta,
+} from '../../components/data-table';
+import { useEffect, useId, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -29,8 +35,17 @@ const generateSchema = z.object({
 type GenerateValues = z.infer<typeof generateSchema>;
 
 export function InvoiceManagement() {
-  const { accessToken, isLoading, logout, user } = useAuth();
+  const { accessToken, isLoading, user } = useAuth();
   const queryClient = useQueryClient();
+  const table = useTableQueryParams(['status', 'dateFrom', 'dateTo', 'minAmount', 'maxAmount']);
+  const [subscriptionSearch, setSubscriptionSearch] = useState('');
+  const [subscriptionQuery, setSubscriptionQuery] = useState('');
+  const [selectedSubscription, setSelectedSubscription] = useState<InvoiceSubscription | null>(
+    null,
+  );
+  const [subscriptionPickerOpen, setSubscriptionPickerOpen] = useState(false);
+  const [highlightedSubscription, setHighlightedSubscription] = useState(0);
+  const subscriptionListId = useId();
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [invoiceToCancel, setInvoiceToCancel] = useState<Invoice | null>(null);
@@ -41,15 +56,35 @@ export function InvoiceManagement() {
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
   const canOperate = isAdmin || user?.role === 'STAFF';
+  useEffect(() => {
+    if (selectedSubscription) return;
+    const timer = setTimeout(() => setSubscriptionQuery(subscriptionSearch.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [selectedSubscription, subscriptionSearch]);
+
   const invoices = useQuery({
-    queryKey: ['invoices', 'operations'],
-    queryFn: () => apiRequest<InvoiceList>('/invoices?limit=100', {}, accessToken),
+    queryKey: ['invoices', 'operations', table.query],
+    placeholderData: keepPreviousData,
+    queryFn: () => apiRequest<InvoiceList>(`/invoices?${table.query}`, {}, accessToken),
     enabled: Boolean(accessToken && canOperate),
   });
   const subscriptions = useQuery({
-    queryKey: ['subscriptions', 'invoice-options'],
-    queryFn: () =>
-      apiRequest<{ data: InvoiceSubscription[] }>('/subscriptions?limit=100', {}, accessToken),
+    queryKey: ['subscriptions', 'invoice-options', subscriptionQuery],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '50',
+        status: 'ACTIVE',
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      });
+      if (subscriptionQuery) params.set('search', subscriptionQuery);
+      return apiRequest<{ data: InvoiceSubscription[]; meta: PageMeta }>(
+        `/subscriptions?${params.toString()}`,
+        {},
+        accessToken,
+      );
+    },
     enabled: Boolean(accessToken && canOperate),
   });
 
@@ -117,34 +152,23 @@ export function InvoiceManagement() {
   if (isLoading) return <Status message="Restoring your session…" />;
   if (!user || !canOperate) return <Status message="Staff or administrator access is required." />;
 
-  const activeSubscriptions =
-    subscriptions.data?.data.filter((subscription) => subscription.status === 'ACTIVE') ?? [];
+  const activeSubscriptions = subscriptions.data?.data ?? [];
+  const selectSubscription = (subscription: InvoiceSubscription) => {
+    setSelectedSubscription(subscription);
+    setSubscriptionSearch(subscriptionLabel(subscription));
+    setSubscriptionPickerOpen(false);
+    setHighlightedSubscription(0);
+    form.setValue('subscriptionId', subscription.id, { shouldValidate: true });
+  };
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-6 py-10">
+    <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM · BILLING</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Invoices</h1>
           <p className="mt-2 text-slate-600">Generate, review, deliver, and download invoices.</p>
         </div>
-        <nav className="flex flex-wrap gap-2" aria-label="Operations">
-          <Link
-            className="button-secondary"
-            href={isAdmin ? '/admin/dashboard' : '/staff/customers'}
-          >
-            {isAdmin ? 'Dashboard' : 'Customers'}
-          </Link>
-          <Link className="button-secondary" href="/admin/subscriptions">
-            Subscriptions
-          </Link>
-          <Link className="button-secondary" href="/website">
-            Visit Website
-          </Link>
-          <button className="button-secondary" onClick={() => void logout()} type="button">
-            Sign out
-          </button>
-        </nav>
       </header>
 
       {notice ? (
@@ -160,27 +184,122 @@ export function InvoiceManagement() {
 
       <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="font-semibold">Generate monthly invoice</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Find the customer, select their active service, and choose the billing date.
+        </p>
         <form
-          className="mt-5 grid gap-4 lg:grid-cols-[1fr_14rem_auto] lg:items-end"
+          className="mt-6 grid gap-x-4 gap-y-5 lg:grid-cols-[minmax(22rem,1fr)_14rem_auto] lg:items-start"
           onSubmit={form.handleSubmit((values) => generate.mutate(values))}
         >
-          <label className="grid gap-1.5 text-sm font-medium">
-            Active subscription
-            <select className="field" {...form.register('subscriptionId')}>
-              <option value="">Select subscription</option>
-              {activeSubscriptions.map((subscription) => (
-                <option key={subscription.id} value={subscription.id}>
-                  {subscription.customer.customerNumber} — {subscription.customer.firstName}{' '}
-                  {subscription.customer.lastName} — {subscription.plan.name}
-                </option>
-              ))}
-            </select>
+          <div
+            className="grid min-w-0 gap-1.5 text-sm font-medium"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setSubscriptionPickerOpen(false);
+              }
+            }}
+          >
+            <label htmlFor={`${subscriptionListId}-input`}>Active subscription</label>
+            <div className="relative">
+              <input
+                aria-autocomplete="list"
+                aria-controls={subscriptionListId}
+                aria-expanded={subscriptionPickerOpen}
+                aria-haspopup="listbox"
+                className="field"
+                id={`${subscriptionListId}-input`}
+                onChange={(event) => {
+                  setSelectedSubscription(null);
+                  setSubscriptionSearch(event.target.value);
+                  setSubscriptionPickerOpen(true);
+                  setHighlightedSubscription(0);
+                  form.setValue('subscriptionId', '');
+                }}
+                onFocus={() => setSubscriptionPickerOpen(true)}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setSubscriptionPickerOpen(true);
+                    setHighlightedSubscription((current) =>
+                      Math.min(current + 1, Math.max(activeSubscriptions.length - 1, 0)),
+                    );
+                  } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setHighlightedSubscription((current) => Math.max(current - 1, 0));
+                  } else if (event.key === 'Enter' && subscriptionPickerOpen) {
+                    const highlighted = activeSubscriptions[highlightedSubscription];
+                    if (highlighted) {
+                      event.preventDefault();
+                      selectSubscription(highlighted);
+                    }
+                  } else if (event.key === 'Escape') {
+                    setSubscriptionPickerOpen(false);
+                  }
+                }}
+                placeholder="Search name, email or account number"
+                role="combobox"
+                value={subscriptionSearch}
+              />
+              {subscriptionPickerOpen ? (
+                <div
+                  className="absolute top-full z-20 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+                  id={subscriptionListId}
+                  role="listbox"
+                >
+                  {subscriptions.isPending || subscriptions.isFetching ? (
+                    <p className="px-3 py-3 text-sm font-normal text-slate-500">
+                      Searching active subscriptions…
+                    </p>
+                  ) : subscriptions.isError ? (
+                    <p className="px-3 py-3 text-sm font-normal text-rose-700">
+                      Unable to load active subscriptions.
+                    </p>
+                  ) : activeSubscriptions.length ? (
+                    activeSubscriptions.map((subscription, index) => (
+                      <button
+                        aria-selected={selectedSubscription?.id === subscription.id}
+                        className={`grid w-full gap-0.5 rounded-lg px-3 py-2.5 text-left font-normal ${
+                          index === highlightedSubscription
+                            ? 'bg-teal-50 text-teal-950'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                        key={subscription.id}
+                        onClick={() => selectSubscription(subscription)}
+                        onMouseEnter={() => setHighlightedSubscription(index)}
+                        role="option"
+                        type="button"
+                      >
+                        <span className="font-semibold text-slate-900">
+                          {subscription.customer.firstName} {subscription.customer.lastName}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {subscription.customer.customerNumber} · {subscription.plan.name}
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-3 py-3 text-sm font-normal text-slate-500">
+                      No active subscriptions match this search.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            <span className="min-h-4 text-xs font-normal text-slate-500" role="status">
+              {selectedSubscription
+                ? `${selectedSubscription.customer.customerNumber} selected.`
+                : subscriptions.isFetching
+                  ? 'Searching active subscriptions…'
+                  : subscriptionQuery
+                    ? `${subscriptions.data?.meta.total ?? 0} active subscription${subscriptions.data?.meta.total === 1 ? '' : 's'} found.`
+                    : 'Type to search, then choose one active service.'}
+            </span>
             {form.formState.errors.subscriptionId ? (
               <span className="text-xs text-rose-700">
                 {form.formState.errors.subscriptionId.message}
               </span>
             ) : null}
-          </label>
+          </div>
           <label className="grid gap-1.5 text-sm font-medium">
             Billing date
             <input className="field" type="date" {...form.register('issueDate')} />
@@ -190,10 +309,20 @@ export function InvoiceManagement() {
               </span>
             ) : null}
           </label>
-          <button className="button-primary" disabled={generate.isPending} type="submit">
+          <button
+            className="button-primary w-full whitespace-nowrap lg:mt-[1.625rem] lg:min-w-40 lg:w-auto"
+            disabled={generate.isPending}
+            type="submit"
+          >
             {generate.isPending ? 'Generating…' : 'Generate invoice'}
           </button>
         </form>
+        {subscriptions.data && subscriptions.data.meta.total > activeSubscriptions.length ? (
+          <p className="mt-4 text-sm text-slate-500">
+            Showing the first {activeSubscriptions.length} matches. Refine the customer search to
+            find another subscription.
+          </p>
+        ) : null}
         {!subscriptions.isPending && activeSubscriptions.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">
             No active subscriptions are available for billing.
@@ -212,7 +341,32 @@ export function InvoiceManagement() {
             Refresh
           </button>
         </div>
-        {invoices.isPending ? <p className="p-6 text-slate-600">Loading invoices…</p> : null}
+        <DataTableControls
+          state={table}
+          sorts={['createdAt', 'issueDate', 'dueDate', 'totalCents']}
+          placeholder="Search invoice number, customer, email or account…"
+          fields={[
+            {
+              key: 'status',
+              label: 'Status',
+              options: [
+                'DRAFT',
+                'ISSUED',
+                'PAID',
+                'OVERDUE',
+                'CANCELLED',
+                'UNPAID',
+                'REFUNDED',
+                'PARTIALLY_REFUNDED',
+              ],
+            },
+            { key: 'dateFrom', label: 'Invoice date from', type: 'date' },
+            { key: 'dateTo', label: 'Invoice date to', type: 'date' },
+            { key: 'minAmount', label: 'Minimum amount (cents)', type: 'number' },
+            { key: 'maxAmount', label: 'Maximum amount (cents)', type: 'number' },
+          ]}
+        />
+        {invoices.isPending ? <TableSkeleton /> : null}
         {invoices.isError ? <p className="p-6 text-rose-700">Unable to load invoices.</p> : null}
         {invoices.data?.data.length ? (
           <div className="overflow-x-auto">
@@ -250,6 +404,15 @@ export function InvoiceManagement() {
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold">
                         {invoice.status}
                       </span>
+                      {invoice.payments[0]?.refundedCents ? (
+                        <p className="mt-2 text-xs text-slate-600">
+                          Refunded:{' '}
+                          {new Intl.NumberFormat('en-AU', {
+                            style: 'currency',
+                            currency: invoice.currency,
+                          }).format(invoice.payments[0].refundedCents / 100)}
+                        </p>
+                      ) : null}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex flex-wrap justify-end gap-2">
@@ -301,6 +464,12 @@ export function InvoiceManagement() {
           <p className="p-6 text-slate-600">No invoices have been generated.</p>
         ) : null}
       </section>
+      <DataTablePagination
+        state={table}
+        meta={invoices.data?.meta}
+        busy={invoices.isFetching}
+        noun="invoices"
+      />
       <AlertDialog
         open={Boolean(invoiceToCancel)}
         onOpenChange={(open) => {
@@ -339,4 +508,8 @@ function Status({ message }: Readonly<{ message: string }>) {
       {message}
     </main>
   );
+}
+
+function subscriptionLabel(subscription: InvoiceSubscription) {
+  return `${subscription.customer.firstName} ${subscription.customer.lastName} — ${subscription.customer.customerNumber} — ${subscription.plan.name}`;
 }

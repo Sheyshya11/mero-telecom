@@ -7,16 +7,9 @@ import { useEffect, useState } from 'react';
 import { LandingIcon } from '../../components/landing/landing-icons';
 import { apiDownload, apiRequest } from '../../lib/api/client';
 import { useAuth } from '../auth/auth-provider';
-import { getDashboardRoute, PUBLIC_WEBSITE_ROUTE } from '../auth/auth-navigation';
 import { StripeCheckoutButton } from '../payments/stripe-checkout-button';
 import styles from './dashboard.module.css';
 import type { CustomerDashboard, CustomerInvoice } from './customer-dashboard.types';
-
-const customerNav = [
-  { href: '/customer/subscription', label: 'My subscription' },
-  { href: '/customer/invoices', label: 'Invoice history' },
-  { href: '/customer/profile', label: 'My profile' },
-];
 
 function formatMoney(cents: number) {
   return new Intl.NumberFormat('en-AU', {
@@ -31,7 +24,7 @@ function formatDate(value: string) {
 }
 
 export function CustomerDashboardView() {
-  const { accessToken, isLoading, logout, user } = useAuth();
+  const { accessToken, isLoading, user } = useAuth();
   const queryClient = useQueryClient();
   const [paymentReturn, setPaymentReturn] = useState<'success' | 'cancelled' | null>(null);
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
@@ -89,27 +82,10 @@ export function CustomerDashboardView() {
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-        <header className={styles.topbar}>
-          <Brand role={user.role} />
-          <nav aria-label="Customer account navigation" className={styles.nav}>
-            {customerNav.map((item) => (
-              <Link className={styles.navLink} href={item.href} key={item.href}>
-                {item.label}
-              </Link>
-            ))}
-            <Link className={styles.navLink} href={PUBLIC_WEBSITE_ROUTE}>
-              Visit Website
-            </Link>
-            <button className={styles.signOut} onClick={() => void logout()} type="button">
-              Sign out
-            </button>
-          </nav>
-        </header>
-
         <section className={styles.hero}>
           <span aria-hidden="true" className={styles.heroGlow} />
           <div className={styles.heroContent}>
-            <p className={styles.eyebrow}>Your account is connected</p>
+            <p className={styles.eyebrow}>Your Mero Telecom account</p>
             <h1>Welcome back, {dashboard.profile.firstName}</h1>
             <p className={styles.heroDescription}>
               Manage your internet service, invoices and account details in one place.
@@ -307,7 +283,13 @@ export function InvoiceRow({ invoice }: Readonly<{ invoice: CustomerInvoice }>) 
         <StatusBadge status={invoice.status} />
       </td>
       <td className={`${styles.invoiceCell} ${styles.tableMuted}`}>
-        {invoice.paymentStatus ?? 'No payment recorded'}
+        <p>{invoice.paymentStatus?.replaceAll('_', ' ') ?? 'No payment recorded'}</p>
+        {invoice.payment?.refundedCents ? (
+          <p className="mt-1 text-xs">
+            Refunded: {formatMoney(invoice.payment.refundedCents)} · Net:{' '}
+            {formatMoney(invoice.payment.amountCents - invoice.payment.refundedCents)}
+          </p>
+        ) : null}
       </td>
       <td className={`${styles.invoiceCell} ${styles.tableStrong} ${styles.alignRight}`}>
         {formatMoney(invoice.totalCents)}
@@ -322,19 +304,6 @@ export function InvoiceRow({ invoice }: Readonly<{ invoice: CustomerInvoice }>) 
         </button>
       </td>
     </tr>
-  );
-}
-
-function Brand({ role }: Readonly<{ role: 'CUSTOMER' }>) {
-  return (
-    <Link aria-label="Mero Telecom home" className={styles.brand} href={getDashboardRoute(role)}>
-      <span className={styles.brandMark}>
-        <LandingIcon name="wifi" size={19} />
-      </span>
-      <span>
-        Mero<span>Telecom</span>
-      </span>
-    </Link>
   );
 }
 

@@ -6,6 +6,7 @@ export function getCustomers(
   accessToken: string,
   page: number,
   search: string,
+  query?: string,
 ): Promise<PaginatedCustomers> {
   const params = new URLSearchParams({ page: String(page), limit: '10' });
 
@@ -13,7 +14,11 @@ export function getCustomers(
     params.set('search', search);
   }
 
-  return apiRequest<PaginatedCustomers>(`/customers?${params.toString()}`, {}, accessToken);
+  return apiRequest<PaginatedCustomers>(
+    `/customers?${query ?? params.toString()}`,
+    {},
+    accessToken,
+  );
 }
 
 export function createCustomer(accessToken: string, input: CustomerFormValues): Promise<Customer> {

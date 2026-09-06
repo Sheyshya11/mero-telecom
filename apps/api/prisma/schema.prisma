@@ -107,7 +107,36 @@ enum PaymentStatus {
   PENDING
   SUCCEEDED
   FAILED
+  PARTIALLY_REFUNDED
   REFUNDED
+}
+
+enum RefundType {
+  FULL
+  PARTIAL
+}
+
+enum RefundReason {
+  DUPLICATE_PAYMENT
+  SERVICE_UNAVAILABLE
+  BILLING_ERROR
+  CANCELLED_BEFORE_ACTIVATION
+  SERVICE_ISSUE
+  GOODWILL
+  OTHER
+}
+
+enum RefundStatus {
+  DRAFT
+  REQUESTED
+  UNDER_REVIEW
+  MORE_INFORMATION_REQUIRED
+  APPROVED
+  REJECTED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
 }
 
 enum AccessTechnology {
@@ -165,6 +194,13 @@ model User {
   issuedInvitations        AccountInvitation[]  @relation("InvitationIssuer")
   staffInvitationsIssued   StaffInvitation[]    @relation("StaffInvitationIssuer")
   staffInvitationsAccepted StaffInvitation[]    @relation("StaffInvitationAcceptor")
+  refundRequests           Refund[]             @relation("RefundRequester")
+  refundApprovals          Refund[]             @relation("RefundApprover")
+  refundsProcessed         Refund[]             @relation("RefundProcessor")
+  refundsRejected          Refund[]             @relation("RefundRejector")
+  refundAttachments        RefundAttachment[]   @relation("RefundAttachmentUploader")
+
+  @@index([createdAt, id])
 }
 
 model Customer {
@@ -192,9 +228,12 @@ model Customer {
   checkoutApplications CheckoutApplication[]
   planChangeRequests   PlanChangeRequest[]
   coverageSearches     CoverageSearch[]
+  refunds              Refund[]
 
   @@index([lastName, firstName])
   @@index([status])
+  @@index([createdAt, id])
+  @@index([state, postcode])
 }
 
 model CustomerAddress {
@@ -272,9 +311,11 @@ model Subscription {
   checkoutApplication CheckoutApplication?
   sourcePlanChanges   PlanChangeRequest[]  @relation("PlanChangeSourceSubscription")
   resultingPlanChange PlanChangeRequest?   @relation("PlanChangeResultSubscription")
+  refunds             Refund[]
 
   @@index([customerId, status])
   @@index([planId])
+  @@index([createdAt, id])
 }
 
 model Invoice {
@@ -303,8 +344,10 @@ model Invoice {
   documents           InvoiceDocument[]
   checkoutApplication CheckoutApplication?
   planChangeRequest   PlanChangeRequest?
+  refunds             Refund[]
 
   @@unique([subscriptionId, issueDate])
+  @@index([createdAt, id])
   @@index([customerId, status])
   @@index([dueDate, status])
   @@index([subscriptionId])
@@ -333,6 +376,7 @@ model Payment {
   amountCents         Int
   currency            String                @default("AUD") @db.Char(3)
   status              PaymentStatus         @default(PENDING)
+  refundedCents       Int                   @default(0)
   paidAt              DateTime?
   createdAt           DateTime              @default(now())
   invoice             Invoice               @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
@@ -340,10 +384,82 @@ model Payment {
   webhookEvents       PaymentWebhookEvent[]
   checkoutApplication CheckoutApplication?
   planChangeRequest   PlanChangeRequest?
+  refunds             Refund[]
 
   @@unique([provider, providerPaymentId])
   @@index([invoiceId, status])
   @@index([customerId])
+}
+
+model Refund {
+  id                    String                @id @default(uuid()) @db.Uuid
+  customerId            String                @db.Uuid
+  paymentId             String                @db.Uuid
+  invoiceId             String?               @db.Uuid
+  subscriptionId        String?               @db.Uuid
+  stripePaymentIntentId String                @db.VarChar(255)
+  stripeChargeId        String?               @db.VarChar(255)
+  stripeRefundId        String?               @unique @db.VarChar(255)
+  originalAmountCents   Int
+  refundAmountCents     Int
+  currency              String                @db.Char(3)
+  type                  RefundType
+  reason                RefundReason
+  customerReason        String?               @db.VarChar(2000)
+  internalNote          String?               @db.VarChar(2000)
+  customerMessage       String?               @db.VarChar(2000)
+  status                RefundStatus          @default(REQUESTED)
+  requestedByUserId     String?               @db.Uuid
+  approvedByUserId      String?               @db.Uuid
+  processedByUserId     String?               @db.Uuid
+  rejectedByUserId      String?               @db.Uuid
+  requestedAt           DateTime              @default(now())
+  approvedAt            DateTime?
+  processedAt           DateTime?
+  rejectedAt            DateTime?
+  failedAt              DateTime?
+  failureReason         String?               @db.VarChar(500)
+  processingAttempt     Int                   @default(0)
+  metadata              Json?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  customer              Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  payment               Payment               @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  invoice               Invoice?              @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  subscription          Subscription?         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  requestedBy           User?                 @relation("RefundRequester", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  approvedBy            User?                 @relation("RefundApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  processedBy           User?                 @relation("RefundProcessor", fields: [processedByUserId], references: [id], onDelete: SetNull)
+  rejectedBy            User?                 @relation("RefundRejector", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+  webhookEvents         PaymentWebhookEvent[]
+  attachments           RefundAttachment[]
+
+  @@index([customerId, createdAt])
+  @@index([paymentId, status])
+  @@index([invoiceId])
+  @@index([subscriptionId])
+  @@index([status, createdAt])
+  @@index([reason, createdAt])
+  @@index([createdAt, id])
+}
+
+model RefundAttachment {
+  id             String   @id @default(uuid()) @db.Uuid
+  refundId       String   @db.Uuid
+  originalName   String   @db.VarChar(255)
+  storageKey     String   @db.VarChar(500)
+  mimeType       String   @db.VarChar(120)
+  fileSize       Int
+  uploadedById   String   @db.Uuid
+  uploadedByRole Role
+  createdAt      DateTime @default(now())
+  deletedAt      DateTime?
+
+  refund     Refund @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  uploadedBy User   @relation("RefundAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([refundId, createdAt])
+  @@index([uploadedById, createdAt])
 }
 
 model CheckoutApplication {
@@ -433,12 +549,15 @@ model PaymentWebhookEvent {
   eventType           String             @db.VarChar(100)
   paymentId           String?            @db.Uuid
   planChangeRequestId String?            @db.Uuid
+  refundId            String?            @db.Uuid
   processedAt         DateTime           @default(now())
   payment             Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   planChangeRequest   PlanChangeRequest? @relation(fields: [planChangeRequestId], references: [id], onDelete: SetNull)
+  refund              Refund?            @relation(fields: [refundId], references: [id], onDelete: SetNull)
 
   @@index([paymentId])
   @@index([planChangeRequestId])
+  @@index([refundId])
 }
 
 model PlanChangeRequest {
@@ -523,6 +642,7 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([actorUserId, createdAt])
+  @@index([createdAt, id])
 }
 
 model OperatingRegion {

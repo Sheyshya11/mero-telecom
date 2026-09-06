@@ -34,7 +34,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html data-scroll-behavior="smooth" lang="en-AU">
-      <body className={jakarta.variable}>
+      {/* Browser extensions can add attributes to <body> before React hydrates it. */}
+      <body className={jakarta.variable} suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -21,7 +21,13 @@ export interface Invoice {
     id: string;
     plan: { id: string; name: string };
   } | null;
-  payments: Array<{ id: string; status: string }>;
+  payments: Array<{
+    id: string;
+    status: string;
+    amountCents: number;
+    refundedCents: number;
+    currency: string;
+  }>;
 }
 
 export interface InvoiceList {

@@ -1,22 +1,26 @@
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { CustomerStatus, SubscriptionStatus } from '@prisma/client';
+import {
+  IsDateString,
+  IsEnum,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
+import { ListQueryDto } from '../../../common/pagination';
 
-export class PaginationQueryDto {
+export class PaginationQueryDto extends ListQueryDto {
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page = 1;
-
+  @IsIn(['createdAt', 'updatedAt', 'firstName', 'lastName', 'email', 'status'])
+  sortBy = 'createdAt';
+  @IsOptional() @IsEnum(CustomerStatus) status?: CustomerStatus;
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limit = 20;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  search?: string;
+  @IsIn([...Object.values(SubscriptionStatus), 'NO_SUBSCRIPTION'])
+  subscriptionStatus?: SubscriptionStatus | 'NO_SUBSCRIPTION';
+  @IsOptional() @IsUUID() planId?: string;
+  @IsOptional() @IsIn(['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA']) state?: string;
+  @IsOptional() @IsString() @MaxLength(10) postcode?: string;
+  @IsOptional() @IsDateString({ strict: true }) createdFrom?: string;
+  @IsOptional() @IsDateString({ strict: true }) createdTo?: string;
 }

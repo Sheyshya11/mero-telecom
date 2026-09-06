@@ -26,6 +26,8 @@ import { RequestLoggingInterceptor } from './common/interceptors/request-logging
 import { AdministrativeAuditInterceptor } from './common/interceptors/administrative-audit.interceptor';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from './config/configuration';
+import { RefundsModule } from './modules/refunds/refunds.module';
+import { BillingReportsModule } from './modules/billing-reports/billing-reports.module';
 
 @Module({
   imports: [
@@ -65,6 +67,8 @@ import type { AppConfig } from './config/configuration';
     InvoicesModule,
     DashboardModule,
     PaymentsModule,
+    RefundsModule,
+    BillingReportsModule,
     PlanChangesModule,
     CoverageModule,
     SystemUsersModule,

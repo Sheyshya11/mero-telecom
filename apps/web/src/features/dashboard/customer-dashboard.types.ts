@@ -29,10 +29,13 @@ export interface CustomerInvoice {
   dueDate: string;
   totalCents: number;
   status: 'DRAFT' | 'ISSUED' | 'PAID' | 'OVERDUE' | 'CANCELLED';
-  paymentStatus: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED' | null;
+  paymentStatus: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'PARTIALLY_REFUNDED' | 'REFUNDED' | null;
   payment?: {
     amountCents: number;
-    status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED';
+    id: string;
+    status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'PARTIALLY_REFUNDED' | 'REFUNDED';
+    refundedCents: number;
+    currency: string;
     paidAt: string | null;
   } | null;
 }

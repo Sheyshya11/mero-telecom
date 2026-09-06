@@ -1,7 +1,6 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useState } from 'react';
 
 import { useAuth } from '../../../features/auth/auth-provider';
@@ -115,7 +114,7 @@ export default function StaffPlansPage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-6 py-10">
+    <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">
@@ -127,12 +126,6 @@ export default function StaffPlansPage() {
             administrator-controlled.
           </p>
         </div>
-        <Link
-          className="button-secondary self-start sm:self-auto"
-          href={isAdmin ? '/admin/dashboard' : '/staff/customers'}
-        >
-          {isAdmin ? 'Dashboard' : 'Customers'}
-        </Link>
       </header>
 
       <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

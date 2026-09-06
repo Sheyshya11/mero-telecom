@@ -2,7 +2,6 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -77,16 +76,13 @@ export function CustomerProfile() {
     return <Status message="Unable to load your profile." onRetry={() => void profile.refetch()} />;
 
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-6 py-10">
+    <main className="workspace-page mx-auto min-h-screen max-w-3xl px-6 py-10">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">My profile</h1>
           <p className="mt-2 text-slate-600">Keep your contact and service address current.</p>
         </div>
-        <Link className="button-secondary" href="/customer/dashboard">
-          Back to dashboard
-        </Link>
       </header>
       <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="grid gap-4 border-b border-slate-100 pb-5 sm:grid-cols-3">

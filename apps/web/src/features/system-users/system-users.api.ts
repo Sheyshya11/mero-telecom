@@ -10,18 +10,19 @@ import type {
 
 export function listSystemUsers(
   accessToken: string,
-  filters: { search?: string; role?: string; status?: string },
+  filters: string | { search?: string; role?: string; status?: string },
 ) {
-  const query = new URLSearchParams({ limit: '100' });
-  if (filters.search) query.set('search', filters.search);
-  if (filters.role) query.set('role', filters.role);
-  if (filters.status) query.set('status', filters.status);
+  const query = new URLSearchParams(
+    typeof filters === 'string'
+      ? filters
+      : Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
+  );
   return apiRequest<Paginated<SystemUser>>(`/admin/users?${query}`, {}, accessToken);
 }
 
-export function listStaffInvitations(accessToken: string) {
+export function listStaffInvitations(accessToken: string, page = 1, limit = 20) {
   return apiRequest<Paginated<StaffInvitation>>(
-    '/admin/users/invitations?limit=100',
+    `/admin/users/invitations?page=${page}&limit=${limit}`,
     {},
     accessToken,
   );
@@ -66,8 +67,8 @@ export function changeSystemUserRole(
   );
 }
 
-export function listSecurityAuditLogs(accessToken: string) {
-  return apiRequest<Paginated<SecurityAuditLog>>('/admin/audit-logs?limit=50', {}, accessToken);
+export function listSecurityAuditLogs(accessToken: string, query = '') {
+  return apiRequest<Paginated<SecurityAuditLog>>(`/admin/audit-logs?${query}`, {}, accessToken);
 }
 
 export function changeSystemUserStatus(

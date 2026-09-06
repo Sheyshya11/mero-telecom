@@ -19,6 +19,7 @@ import {
   renderPasswordResetEmail,
 } from './templates/password-email.template';
 import type { AccountInvitationReason } from '@prisma/client';
+import { renderRefundEmail, type RefundEmailData } from './templates/refund-email.template';
 
 export interface InvoiceEmailData {
   invoiceNumber: string;
@@ -171,6 +172,58 @@ export class NotificationService {
     return { recipient, messageId: `queued:${result.jobId}` };
   }
 
+  sendRefundRequested(input: RefundEmailData & { customerEmail: string }) {
+    return this.sendRefundNotification(input, 'REQUESTED');
+  }
+
+  sendRefundMoreInformation(input: RefundEmailData & { customerEmail: string }) {
+    return this.sendRefundNotification(input, 'MORE_INFORMATION_REQUIRED');
+  }
+
+  sendRefundApproved(input: RefundEmailData & { customerEmail: string }) {
+    return this.sendRefundNotification(input, 'APPROVED');
+  }
+
+  sendRefundRejected(input: RefundEmailData & { customerEmail: string }) {
+    return this.sendRefundNotification(input, 'REJECTED');
+  }
+
+  sendRefundSucceeded(input: RefundEmailData & { customerEmail: string }) {
+    return this.sendRefundNotification(input, 'SUCCEEDED');
+  }
+
+  sendRefundFailed(input: RefundEmailData & { customerEmail: string }) {
+    return this.sendRefundNotification(input, 'FAILED');
+  }
+
+  async sendRefundReconciliationAlert(input: {
+    refundId: string;
+    stripeRefundId: string | null;
+    reason: string;
+  }) {
+    const email = this.configService.getOrThrow('email');
+    if (!email.opsAlertRecipient) return null;
+    const recipient = this.invoiceRecipient(email.opsAlertRecipient);
+    const subject = `Refund reconciliation alert: ${input.refundId}`;
+    const text = [
+      'A Mero Telecom refund requires attention.',
+      `Refund ID: ${input.refundId}`,
+      `Stripe refund ID: ${input.stripeRefundId ?? 'missing'}`,
+      `Reason: ${input.reason}`,
+    ].join('\n');
+    const result = await this.emailQueue.enqueue(
+      {
+        to: recipient,
+        subject,
+        text,
+        html: `<p>A Mero Telecom refund requires attention.</p><p><strong>Refund ID:</strong> ${input.refundId}<br/><strong>Stripe refund ID:</strong> ${input.stripeRefundId ?? 'missing'}<br/><strong>Reason:</strong> ${input.reason}</p>`,
+      },
+      { purpose: 'REFUND_RECONCILIATION_ALERT', refundId: input.refundId },
+      `refund-reconciliation-alert-${input.refundId}-${new Date().toISOString().slice(0, 10)}`,
+    );
+    return { recipient, messageId: `queued:${result.jobId}` };
+  }
+
   async sendInvoice(invoice: InvoiceEmailData, pdf: Buffer): Promise<InvoiceEmailResult> {
     const recipient = this.invoiceRecipient(invoice.customer.email);
     const template = renderInvoiceEmail({
@@ -192,5 +245,25 @@ export class NotificationService {
       ],
     });
     return { recipient, messageId: result.messageId };
+  }
+
+  private async sendRefundNotification(
+    input: RefundEmailData & { customerEmail: string },
+    event:
+      | 'REQUESTED'
+      | 'MORE_INFORMATION_REQUIRED'
+      | 'APPROVED'
+      | 'REJECTED'
+      | 'SUCCEEDED'
+      | 'FAILED',
+  ): Promise<InvoiceEmailResult> {
+    const recipient = this.invoiceRecipient(input.customerEmail);
+    const template = renderRefundEmail(input, event);
+    const result = await this.emailQueue.enqueue(
+      { to: recipient, ...template },
+      { purpose: `REFUND_${event}`, refundId: input.refundId },
+      `refund-${input.refundId}-${event.toLowerCase()}`,
+    );
+    return { recipient, messageId: `queued:${result.jobId}` };
   }
 }

@@ -1,10 +1,17 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState } from 'react';
+import {
+  DataTableControls,
+  DataTablePagination,
+  TableSkeleton,
+  useTableQueryParams,
+  type PageMeta,
+} from '../../../components/data-table';
 
 import { useAuth } from '../../../features/auth/auth-provider';
+import { usePlanOptions } from '../../../features/plans/use-plan-options';
 import { ApiError, apiRequest } from '../../../lib/api/client';
 
 type Customer = { id: string; customerNumber?: string; firstName: string; lastName: string };
@@ -58,25 +65,47 @@ type PlanChange = {
 export default function AdminSubscriptionsPage() {
   const { accessToken, isLoading, user } = useAuth();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const planOptions = usePlanOptions(
+    accessToken,
+    Boolean(user && ['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(user.role)),
+  );
+  const table = useTableQueryParams([
+    'status',
+    'planId',
+    'billingCycle',
+    'paymentStatus',
+    'activatedFrom',
+    'activatedTo',
+    'cancelled',
+    'pendingPlanChange',
+  ]);
+  const changeTable = useTableQueryParams(['status', 'type'], 'changes_');
 
   const subscriptions = useQuery({
-    queryKey: ['subscriptions'],
+    queryKey: ['subscriptions', table.query],
+    placeholderData: keepPreviousData,
     queryFn: () =>
-      apiRequest<{ data: Subscription[] }>('/subscriptions?limit=100', {}, accessToken),
+      apiRequest<{ data: Subscription[]; meta: PageMeta }>(
+        `/subscriptions?${table.query}`,
+        {},
+        accessToken,
+      ),
     enabled: Boolean(
       accessToken &&
       (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'STAFF'),
     ),
   });
   const planChanges = useQuery({
-    queryKey: ['plan-change-requests', statusFilter, typeFilter],
+    queryKey: ['plan-change-requests', changeTable.query],
+    placeholderData: keepPreviousData,
     queryFn: () => {
-      const query = new URLSearchParams({ limit: '100' });
-      if (statusFilter) query.set('status', statusFilter);
-      if (typeFilter) query.set('type', typeFilter);
-      return apiRequest<{ data: PlanChange[] }>(
+      const query = new URLSearchParams({
+        page: String(changeTable.page),
+        limit: String(changeTable.limit),
+      });
+      if (changeTable.values.status) query.set('status', changeTable.values.status);
+      if (changeTable.values.type) query.set('type', changeTable.values.type);
+      return apiRequest<{ data: PlanChange[]; meta: PageMeta }>(
         `/plan-change-requests?${query.toString()}`,
         {},
         accessToken,
@@ -119,15 +148,17 @@ export default function AdminSubscriptionsPage() {
   const error = transition.error;
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-6 py-10">
+    <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
       <header className="border-b border-slate-200 pb-6">
-        <p className="text-sm font-semibold tracking-wide text-sky-700">
-          MERO TELECOM · OPERATIONS
-        </p>
-        <h1 className="mt-2 text-3xl font-bold">Subscriptions</h1>
-        <p className="mt-2 text-slate-600">
-          Review service history, lifecycle status, and customer-requested plan changes.
-        </p>
+        <div>
+          <p className="text-sm font-semibold tracking-wide text-sky-700">
+            MERO TELECOM · OPERATIONS
+          </p>
+          <h1 className="mt-2 text-3xl font-bold">Subscriptions</h1>
+          <p className="mt-2 text-slate-600">
+            Review service history, lifecycle status, and customer-requested plan changes.
+          </p>
+        </div>
       </header>
 
       {subscriptions.isError || planChanges.isError ? (
@@ -155,10 +186,43 @@ export default function AdminSubscriptionsPage() {
         <div className="border-b border-slate-200 px-6 py-5">
           <h2 className="font-semibold">Subscription history</h2>
         </div>
-        {subscriptions.isPending ? (
-          <p className="p-6 text-slate-600">Loading subscriptions…</p>
-        ) : null}
+        <DataTableControls
+          state={table}
+          sorts={['createdAt', 'startDate', 'currentPeriodEnd', 'status']}
+          placeholder="Search customer, email, account or subscription ID…"
+          fields={[
+            {
+              key: 'status',
+              label: 'Status',
+              options: ['PENDING', 'ACTIVE', 'SUSPENDED', 'CANCELLED'],
+            },
+            { key: 'planId', label: 'Plan', options: planOptions },
+            { key: 'billingCycle', label: 'Billing cycle', options: ['MONTHLY'] },
+            {
+              key: 'paymentStatus',
+              label: 'Payment status',
+              options: ['PENDING', 'SUCCEEDED', 'FAILED', 'PARTIALLY_REFUNDED', 'REFUNDED'],
+            },
+            { key: 'activatedFrom', label: 'Service start from', type: 'date' },
+            { key: 'activatedTo', label: 'Service start to', type: 'date' },
+            { key: 'cancelled', label: 'Cancelled', options: ['true', 'false'] },
+            { key: 'pendingPlanChange', label: 'Pending plan change', options: ['true', 'false'] },
+          ]}
+        />
+        {subscriptions.isPending ? <TableSkeleton /> : null}
         <div className="divide-y divide-slate-100">
+          {subscriptions.isError && (
+            <p role="alert" className="p-6 text-rose-700">
+              Unable to load subscriptions. Check the filters and try again.
+            </p>
+          )}
+          {subscriptions.data?.data.length === 0 && (
+            <p className="p-6 text-slate-600">
+              {table.values.search
+                ? 'No subscriptions match your search.'
+                : 'No subscriptions match the selected filters.'}
+            </p>
+          )}
           {subscriptions.data?.data.map((subscription) => (
             <article
               className="flex flex-wrap items-center justify-between gap-4 p-6"
@@ -215,55 +279,44 @@ export default function AdminSubscriptionsPage() {
             </article>
           ))}
         </div>
+        <DataTablePagination
+          state={table}
+          meta={subscriptions.data?.meta}
+          busy={subscriptions.isFetching}
+          noun="subscriptions"
+        />
       </section>
 
       <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 px-6 py-5">
+        <div className="border-b border-slate-200 px-6 py-5">
           <div>
             <h2 className="font-semibold">Plan-change requests</h2>
             <p className="mt-1 text-sm text-slate-600">
               Payment, scheduling, application, and failure visibility for operations.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <label className="text-sm text-slate-700">
-              Status
-              <select
-                className="field mt-1 min-w-44"
-                onChange={(event) => setStatusFilter(event.target.value)}
-                value={statusFilter}
-              >
-                <option value="">All statuses</option>
-                {[
-                  'PENDING',
-                  'CHECKOUT_CREATED',
-                  'PROCESSING',
-                  'SCHEDULED',
-                  'APPLIED',
-                  'FAILED',
-                  'CANCELLED',
-                  'EXPIRED',
-                ].map((status) => (
-                  <option key={status} value={status}>
-                    {status.replaceAll('_', ' ')}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm text-slate-700">
-              Type
-              <select
-                className="field mt-1 min-w-40"
-                onChange={(event) => setTypeFilter(event.target.value)}
-                value={typeFilter}
-              >
-                <option value="">All types</option>
-                <option value="UPGRADE">Upgrade</option>
-                <option value="DOWNGRADE">Downgrade</option>
-              </select>
-            </label>
-          </div>
         </div>
+        <DataTableControls
+          searchable={false}
+          state={changeTable}
+          fields={[
+            {
+              key: 'status',
+              label: 'Status',
+              options: [
+                'PENDING',
+                'CHECKOUT_CREATED',
+                'PROCESSING',
+                'SCHEDULED',
+                'APPLIED',
+                'FAILED',
+                'CANCELLED',
+                'EXPIRED',
+              ],
+            },
+            { key: 'type', label: 'Type', options: ['UPGRADE', 'DOWNGRADE'] },
+          ]}
+        />
         {planChanges.isPending ? <p className="p-6 text-slate-600">Loading plan changes…</p> : null}
         {planChanges.data?.data.length === 0 ? (
           <p className="p-6 text-slate-600">No plan changes match these filters.</p>
@@ -357,6 +410,12 @@ export default function AdminSubscriptionsPage() {
             </article>
           ))}
         </div>
+        <DataTablePagination
+          state={changeTable}
+          meta={planChanges.data?.meta}
+          busy={planChanges.isFetching}
+          noun="plan changes"
+        />
       </section>
     </main>
   );

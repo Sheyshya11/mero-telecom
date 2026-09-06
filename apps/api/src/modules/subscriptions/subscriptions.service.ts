@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, Role, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { buildPaginationMeta, dateRange } from '../../common/pagination';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import { SubscriptionQueryDto, UpdateSubscriptionDto } from './dto/subscription.dto';
@@ -23,11 +24,40 @@ export class SubscriptionsService {
     const where: Prisma.SubscriptionWhereInput = query.customerId
       ? { customerId: query.customerId }
       : {};
+    if (query.status) where.status = query.status;
+    if (query.planId) where.planId = query.planId;
+    if (query.billingCycle) where.billingCycle = query.billingCycle;
+    if (query.paymentStatus)
+      where.invoices = { some: { payments: { some: { status: query.paymentStatus } } } };
+    const startDate = dateRange(query.activatedFrom, query.activatedTo);
+    if (startDate) where.startDate = startDate;
+    if (query.cancelled)
+      where.AND = [{ status: query.cancelled === 'true' ? 'CANCELLED' : { not: 'CANCELLED' } }];
+    if (query.pendingPlanChange) {
+      const pending = {
+        status: { in: ['PENDING', 'CHECKOUT_CREATED', 'PROCESSING', 'SCHEDULED'] as const },
+      };
+      const condition: Prisma.PlanChangeRequestWhereInput = {
+        status: { in: [...pending.status.in] },
+      };
+      where.sourcePlanChanges =
+        query.pendingPlanChange === 'true' ? { some: condition } : { none: condition };
+    }
+    const search = query.search?.trim();
+    if (search)
+      where.OR = [
+        ...(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search)
+          ? [{ id: search }]
+          : []),
+        ...['firstName', 'lastName', 'email', 'customerNumber'].map((field) => ({
+          customer: { [field]: { contains: search, mode: 'insensitive' as const } },
+        })),
+      ];
     const [data, total] = await this.prisma.$transaction([
       this.prisma.subscription.findMany({
         where,
         include,
-        orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
+        orderBy: [{ [query.sortBy ?? 'createdAt']: query.sortOrder ?? 'desc' }, { id: 'asc' }],
         skip: (query.page - 1) * query.limit,
         take: query.limit,
       }),
@@ -35,12 +65,7 @@ export class SubscriptionsService {
     ]);
     return {
       data,
-      meta: {
-        page: query.page,
-        limit: query.limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / query.limit)),
-      },
+      meta: buildPaginationMeta(query, total),
     };
   }
 

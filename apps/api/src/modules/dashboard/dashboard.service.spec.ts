@@ -12,6 +12,9 @@ const cachedSummary: AdminDashboardSummary = {
     monthlyRecurringRevenueCents: 6900,
     outstandingInvoiceCents: 6900,
     overdueInvoiceCount: 0,
+    pendingRefunds: 0,
+    failedRefunds: 0,
+    refundedThisMonthCents: 0,
   },
   invoiceTrend: [],
   subscriptionsByStatus: [{ status: SubscriptionStatus.ACTIVE, count: 1 }],
@@ -46,6 +49,10 @@ function createPrisma() {
             customer: { firstName: 'Anika', lastName: 'Singh' },
           },
         ]),
+    },
+    refund: {
+      count: jest.fn().mockResolvedValue(0),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { refundAmountCents: null } }),
     },
   };
 }

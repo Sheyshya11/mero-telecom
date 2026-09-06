@@ -7,6 +7,7 @@ import {
 import { Prisma, Role, UserStatus } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
+import { buildPaginationMeta, dateRange } from '../../common/pagination';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import type {
   ChangeSystemRoleDto,
@@ -36,8 +37,12 @@ export class SystemUsersService {
     this.policy.assertCanReadUsers(actor);
     const search = query.search?.trim();
     const where: Prisma.UserWhereInput = {
-      role: query.role,
-      status: query.status,
+      ...(query.role ? { role: query.role } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.active ? { isActive: query.active === 'true' } : {}),
+      ...(query.createdFrom || query.createdTo
+        ? { createdAt: dateRange(query.createdFrom, query.createdTo) }
+        : {}),
       ...(search
         ? {
             OR: [
@@ -50,21 +55,25 @@ export class SystemUsersService {
         : {}),
     };
     const skip = (query.page - 1) * query.limit;
-    const [users, total] = await this.prisma.$transaction([
+    const [users, total, activeSuperAdminCount] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
         include: { customer: { select: { firstName: true, lastName: true } } },
-        orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+        orderBy: [{ [query.sortBy ?? 'createdAt']: query.sortOrder ?? 'desc' }, { id: 'asc' }],
         skip,
         take: query.limit,
       }),
       this.prisma.user.count({ where }),
+      this.prisma.user.count({
+        where: { role: Role.SUPER_ADMIN, status: UserStatus.ACTIVE, isActive: true },
+      }),
     ]);
-    return this.paginate(
+    const result = this.paginate(
       users.map((user) => this.toResponse(user)),
       query,
       total,
     );
+    return { ...result, meta: { ...result.meta, activeSuperAdminCount } };
   }
 
   async listAuditLogs(
@@ -73,8 +82,29 @@ export class SystemUsersService {
   ): Promise<PaginatedResponse<SecurityAuditResponse>> {
     this.policy.assertCanReadSecurityAudit(actor);
     const where: Prisma.AuditLogWhereInput = {
-      action: query.action,
-      entityType: query.entityType,
+      ...(query.action ? { action: query.action } : {}),
+      ...(query.entityType ? { entityType: query.entityType } : {}),
+      ...(query.entityId ? { entityId: query.entityId } : {}),
+      ...(query.actorUserId ? { actorUserId: query.actorUserId } : {}),
+      ...(query.actorRole ? { actor: { role: query.actorRole } } : {}),
+      ...(query.dateFrom || query.dateTo
+        ? { createdAt: dateRange(query.dateFrom, query.dateTo) }
+        : {}),
+      ...(query.search?.trim()
+        ? {
+            OR: [
+              { action: { contains: query.search.trim(), mode: 'insensitive' as const } },
+              { entityType: { contains: query.search.trim(), mode: 'insensitive' as const } },
+              { entityId: { contains: query.search.trim(), mode: 'insensitive' as const } },
+              { actor: { email: { contains: query.search.trim(), mode: 'insensitive' as const } } },
+              {
+                actor: {
+                  displayName: { contains: query.search.trim(), mode: 'insensitive' as const },
+                },
+              },
+            ],
+          }
+        : {}),
     };
     const skip = (query.page - 1) * query.limit;
     const [logs, total] = await this.prisma.$transaction([
@@ -83,7 +113,7 @@ export class SystemUsersService {
         include: {
           actor: { select: { id: true, displayName: true, email: true, role: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ [query.sortBy ?? 'createdAt']: query.sortOrder ?? 'desc' }, { id: 'asc' }],
         skip,
         take: query.limit,
       }),
@@ -302,12 +332,7 @@ export class SystemUsersService {
   ): PaginatedResponse<T> {
     return {
       data,
-      meta: {
-        page: query.page,
-        limit: query.limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / query.limit)),
-      },
+      meta: buildPaginationMeta(query, total),
     };
   }
 

@@ -1,7 +1,6 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ApiError, apiRequest } from '../../lib/api/client';
@@ -95,7 +94,7 @@ function messageFor(error: unknown): string {
 }
 
 export function CoverageManagement() {
-  const { accessToken, isLoading, logout, user } = useAuth();
+  const { accessToken, isLoading, user } = useAuth();
   const queryClient = useQueryClient();
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
   const [tab, setTab] = useState<Tab>('lookup');
@@ -211,7 +210,7 @@ export function CoverageManagement() {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-6 py-10">
+    <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">
@@ -225,23 +224,6 @@ export function CoverageManagement() {
               ? 'Control operating regions, exact qualification records, and compatible plans.'
               : 'View coverage configuration and qualify selected customer addresses.'}
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            className="button-secondary"
-            href={isAdmin ? '/admin/dashboard' : '/staff/customers'}
-          >
-            {isAdmin ? 'Dashboard' : 'Customers'}
-          </Link>
-          <Link className="button-secondary" href={isAdmin ? '/admin/plans' : '/staff/plans'}>
-            Plans
-          </Link>
-          <Link className="button-secondary" href="/website">
-            Visit Website
-          </Link>
-          <button className="button-primary" onClick={() => void logout()} type="button">
-            Sign out
-          </button>
         </div>
       </header>
 
@@ -279,33 +261,58 @@ export function CoverageManagement() {
       ) : null}
 
       {tab !== 'lookup' && tab !== 'analytics' ? (
-        <div className="mt-7 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <label className="min-w-64 flex-1 text-sm font-medium text-slate-700">
-            Search records
-            <input
-              className="field mt-1"
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by state, postcode, address, or plan"
-              value={search}
-            />
-          </label>
-          {tab === 'regions' ? (
-            <StatusFilter
-              label="Region status"
-              onChange={setRegionStatus}
-              options={regionStatuses}
-              value={regionStatus}
-            />
-          ) : null}
-          {tab === 'postcodes' ? (
-            <StatusFilter
-              label="Coverage status"
-              onChange={setPostcodeStatus}
-              options={postcodeStatuses}
-              value={postcodeStatus}
-            />
-          ) : null}
-        </div>
+        <section className="mt-7 space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Search and filters</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Results update automatically as you refine them.
+              </p>
+            </div>
+            {search ||
+            (tab === 'regions' && regionStatus) ||
+            (tab === 'postcodes' && postcodeStatus) ? (
+              <button
+                className="button-secondary"
+                onClick={() => {
+                  setSearch('');
+                  setRegionStatus('');
+                  setPostcodeStatus('');
+                }}
+                type="button"
+              >
+                Clear all
+              </button>
+            ) : null}
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:items-end">
+            <label className="grid min-w-0 gap-1.5 text-sm font-medium text-slate-700 xl:col-span-2">
+              Search
+              <input
+                className="field"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by state, postcode, address, or plan"
+                value={search}
+              />
+            </label>
+            {tab === 'regions' ? (
+              <StatusFilter
+                label="Region status"
+                onChange={setRegionStatus}
+                options={regionStatuses}
+                value={regionStatus}
+              />
+            ) : null}
+            {tab === 'postcodes' ? (
+              <StatusFilter
+                label="Coverage status"
+                onChange={setPostcodeStatus}
+                options={postcodeStatuses}
+                value={postcodeStatus}
+              />
+            ) : null}
+          </div>
+        </section>
       ) : null}
 
       {tab === 'regions' ? (
@@ -1242,13 +1249,9 @@ function StatusFilter({
   onChange: (value: string) => void;
 }>) {
   return (
-    <label className="text-sm font-medium text-slate-700">
+    <label className="grid min-w-0 gap-1.5 text-sm font-medium text-slate-700">
       {label}
-      <select
-        className="field mt-1 min-w-48"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      >
+      <select className="field" onChange={(event) => onChange(event.target.value)} value={value}>
         <option value="">All statuses</option>
         {options.map((option) => (
           <option key={option} value={option}>

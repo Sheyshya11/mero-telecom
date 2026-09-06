@@ -23,7 +23,14 @@ export type EmailPurpose =
   | 'PLAN_CHANGE_SCHEDULED'
   | 'PLAN_CHANGE_APPLIED'
   | 'PLAN_CHANGE_CANCELLED'
-  | 'PLAN_CHANGE_FAILED';
+  | 'PLAN_CHANGE_FAILED'
+  | 'REFUND_REQUESTED'
+  | 'REFUND_MORE_INFORMATION_REQUIRED'
+  | 'REFUND_APPROVED'
+  | 'REFUND_REJECTED'
+  | 'REFUND_SUCCEEDED'
+  | 'REFUND_FAILED'
+  | 'REFUND_RECONCILIATION_ALERT';
 
 interface QueueableEmailMessage {
   to: string;
@@ -40,6 +47,7 @@ interface EmailJobContext {
   planChangeRequestId?: string;
   passwordResetTokenId?: string;
   userId?: string;
+  refundId?: string;
 }
 
 interface EmailJobPayload {
@@ -226,6 +234,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
       context.checkoutApplicationId ??
       context.planChangeRequestId ??
       context.passwordResetTokenId ??
+      context.refundId ??
       context.userId;
     if (!entityId) return;
     await this.prisma.auditLog.create({
@@ -241,7 +250,9 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
                 ? 'PlanChangeRequest'
                 : context.passwordResetTokenId
                   ? 'PasswordResetToken'
-                  : 'User',
+                  : context.refundId
+                    ? 'Refund'
+                    : 'User',
         entityId,
         metadata: {
           purpose: context.purpose,
@@ -265,6 +276,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         context.checkoutApplicationId ??
         context.planChangeRequestId ??
         context.passwordResetTokenId ??
+        context.refundId ??
         context.userId;
       if (!entityId) return;
       await this.prisma.auditLog.create({
@@ -280,7 +292,9 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
                   ? 'PlanChangeRequest'
                   : context.passwordResetTokenId
                     ? 'PasswordResetToken'
-                    : 'User',
+                    : context.refundId
+                      ? 'Refund'
+                      : 'User',
           entityId,
           metadata: {
             purpose: context.purpose,

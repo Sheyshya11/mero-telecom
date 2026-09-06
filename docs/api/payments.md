@@ -118,6 +118,18 @@ The handler also processes `checkout.session.async_payment_failed` and
 `checkout.session.expired`. Stripe metadata contains internal identifiers only; personal details
 remain in the database. Neither session data nor webhook payloads are logged.
 
+## Refund webhook recovery
+
+Refunds are submitted with an idempotency key derived from the internal refund ID and processing
+attempt. Verified `refund.created`, `refund.updated`, and `refund.failed` events are persisted by
+provider event ID as part of the same transaction that reconciles the refund and payment. If a webhook is delayed or missed,
+the refund reconciliation worker periodically retrieves stale `PROCESSING` refunds directly from
+Stripe and applies the same terminal-state reconciliation. Configure the worker with
+`REFUND_RECONCILIATION_INTERVAL_MS`, `REFUND_RECONCILIATION_STALE_AFTER_MINUTES`, and
+`REFUND_RECONCILIATION_BATCH_SIZE`. Set `REFUND_ALERT_EMAIL` to receive one deduplicated daily
+operations alert per affected refund. `GET /api/v1/health/refunds` is suitable for uptime checks
+and reports `degraded` while stale processing refunds remain.
+
 Authenticated upgrades reuse this handler with `checkoutKind=plan_change` and collect only the
 server-calculated prorated difference. The old subscription remains active until verified payment;
 see [subscription plan changes](plan-changes.md) for metadata validation, concurrency, and failure

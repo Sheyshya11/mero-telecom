@@ -1,10 +1,17 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import Link from 'next/link';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import {
+  DataTableControls,
+  DataTablePagination,
+  SortHeader,
+  TableSkeleton,
+  useTableQueryParams,
+} from '../../components/data-table';
 
 import { useAuth } from '../auth/auth-provider';
+import { usePlanOptions } from '../plans/use-plan-options';
 import { ApiError } from '../../lib/api/client';
 import {
   createCustomer,
@@ -17,21 +24,29 @@ import type { CustomerFormValues } from './customer.schemas';
 import type { Customer } from './customer.types';
 
 export function CustomerManagement() {
-  const { accessToken, isLoading, logout, user } = useAuth();
+  const { accessToken, isLoading, user } = useAuth();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const table = useTableQueryParams([
+    'status',
+    'subscriptionStatus',
+    'planId',
+    'state',
+    'postcode',
+    'createdFrom',
+    'createdTo',
+  ]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const planOptions = usePlanOptions(accessToken, isAdmin || user?.role === 'STAFF');
 
-  const queryKey = useMemo(() => ['customers', page, search], [page, search]);
+  const queryKey = ['customers', table.query];
   const customersQuery = useQuery({
     queryKey,
-    queryFn: () => getCustomers(accessToken ?? '', page, search),
+    queryFn: () => getCustomers(accessToken ?? '', table.page, table.values.search, table.query),
+    placeholderData: keepPreviousData,
     enabled: Boolean(accessToken && (isAdmin || user?.role === 'STAFF')),
   });
 
@@ -95,87 +110,83 @@ export function CustomerManagement() {
   const result = customersQuery.data;
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-6 py-10">
+    <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">
             MERO TELECOM ·{' '}
             {user.role === 'SUPER_ADMIN' ? 'SUPER ADMIN' : isAdmin ? 'ADMIN' : 'STAFF'}
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Customers</h1>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+            {isAdmin ? 'Customers' : 'Staff workspace'}
+          </h1>
           <p className="mt-2 text-slate-600">
             Search and update customer account records
             {isAdmin ? ', or create a new customer.' : '.'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-slate-500 sm:inline">{user.email}</span>
-          {isAdmin ? (
-            <Link className="button-secondary" href="/admin/dashboard">
-              Dashboard
-            </Link>
-          ) : null}
-          <Link className="button-secondary" href="/website">
-            Visit Website
-          </Link>
-          <button className="button-secondary" onClick={() => void logout()} type="button">
-            Sign out
+        {isAdmin ? (
+          <button
+            className="button-primary"
+            onClick={() => {
+              setEditingCustomer(null);
+              setError(null);
+              setIsFormOpen(true);
+            }}
+            type="button"
+          >
+            New customer
           </button>
-          {isAdmin ? (
-            <>
-              <Link className="button-secondary" href="/admin/subscriptions">
-                Subscriptions
-              </Link>
-              <Link className="button-secondary" href="/admin/invoices">
-                Invoices
-              </Link>
-            </>
-          ) : null}
-          <Link className="button-secondary" href={isAdmin ? '/admin/coverage' : '/staff/coverage'}>
-            Coverage
-          </Link>
-          <Link className="button-secondary" href={isAdmin ? '/admin/plans' : '/staff/plans'}>
-            Plans
-          </Link>
-          {isAdmin ? (
-            <button
-              className="button-primary"
-              onClick={() => {
-                setEditingCustomer(null);
-                setError(null);
-                setIsFormOpen(true);
-              }}
-              type="button"
-            >
-              New customer
-            </button>
-          ) : null}
-        </div>
+        ) : null}
       </header>
 
       <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <form
-          className="flex gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setPage(1);
-            setSearch(searchInput.trim());
-          }}
-        >
-          <input
-            className="field max-w-xl"
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search name, customer number, email, or phone"
-            value={searchInput}
-          />
-          <button className="button-primary" type="submit">
-            Search
-          </button>
-        </form>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight text-slate-950">Customer accounts</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Find a customer to review or update their details.
+            </p>
+          </div>
+          {result ? (
+            <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">
+              {result.meta.total}{' '}
+              {Object.entries(table.values).some(
+                ([key, value]) => !['page', 'limit', 'sortBy', 'sortOrder'].includes(key) && value,
+              )
+                ? 'results'
+                : 'total'}
+            </span>
+          ) : null}
+        </div>
+        <DataTableControls
+          state={table}
+          placeholder="Search customers by name, email, phone or account number..."
+          sorts={['createdAt', 'updatedAt', 'firstName', 'lastName', 'email', 'status']}
+          fields={[
+            {
+              key: 'status',
+              label: 'Account status',
+              options: ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'INVITATION_PENDING'],
+            },
+            {
+              key: 'subscriptionStatus',
+              label: 'Subscription status',
+              options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'CANCELLED', 'NO_SUBSCRIPTION'],
+            },
+            { key: 'planId', label: 'Plan', options: planOptions },
+            {
+              key: 'state',
+              label: 'State',
+              options: ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'],
+            },
+            { key: 'postcode', label: 'Postcode' },
+            { key: 'createdFrom', label: 'Created from', type: 'date' },
+            { key: 'createdTo', label: 'Created to', type: 'date' },
+          ]}
+        />
 
-        {customersQuery.isPending ? (
-          <p className="py-10 text-slate-500">Loading customers…</p>
-        ) : null}
+        {customersQuery.isPending ? <TableSkeleton /> : null}
         {customersQuery.isError ? (
           <div className="flex items-center gap-3 py-10 text-rose-700">
             <p>Unable to load customers.</p>
@@ -194,11 +205,23 @@ export function CustomerManagement() {
               <table className="w-full min-w-200 text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-3 py-3">Customer</th>
-                    <th className="px-3 py-3">Contact</th>
+                    <th className="px-3 py-3">
+                      <SortHeader state={table} field="lastName">
+                        Customer
+                      </SortHeader>
+                    </th>
+                    <th className="px-3 py-3">
+                      <SortHeader state={table} field="email">
+                        Contact
+                      </SortHeader>
+                    </th>
                     <th className="px-3 py-3">Address</th>
                     <th className="px-3 py-3">Subscription</th>
-                    <th className="px-3 py-3">Account</th>
+                    <th className="px-3 py-3">
+                      <SortHeader state={table} field="status">
+                        Account
+                      </SortHeader>
+                    </th>
                     <th className="px-3 py-3" aria-label="Actions" />
                   </tr>
                 </thead>
@@ -276,34 +299,28 @@ export function CustomerManagement() {
               </table>
             </div>
             {result.data.length === 0 ? (
-              <p className="py-8 text-slate-500">No customers found.</p>
+              <p className="py-8 text-slate-500">
+                {table.values.search
+                  ? 'No customers match your search.'
+                  : [
+                        'status',
+                        'subscriptionStatus',
+                        'planId',
+                        'state',
+                        'postcode',
+                        'createdFrom',
+                        'createdTo',
+                      ].some((key) => table.values[key])
+                    ? 'No customers match the selected filters.'
+                    : 'No customers have been created yet.'}
+              </p>
             ) : null}
-            <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-sm text-slate-600">
-              <span>
-                {result.meta.total} customer{result.meta.total === 1 ? '' : 's'}
-              </span>
-              <div className="flex items-center gap-3">
-                <button
-                  className="button-secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage((currentPage) => currentPage - 1)}
-                  type="button"
-                >
-                  Previous
-                </button>
-                <span>
-                  Page {result.meta.page} of {result.meta.totalPages}
-                </span>
-                <button
-                  className="button-secondary"
-                  disabled={page >= result.meta.totalPages}
-                  onClick={() => setPage((currentPage) => currentPage + 1)}
-                  type="button"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
+            <DataTablePagination
+              state={table}
+              meta={result.meta}
+              busy={customersQuery.isFetching}
+              noun="customers"
+            />
           </>
         ) : null}
       </section>

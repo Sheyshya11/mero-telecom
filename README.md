@@ -71,7 +71,9 @@ The frontend is at `http://localhost:3000`, the API health endpoint is at
 Mailpit is at `http://localhost:8025`.
 
 Local object storage is optional: when S3 settings are empty outside production, PDFs are rendered
-on demand without persistence. Production configuration requires private S3-compatible storage.
+on demand and refund attachments are kept in the ignored private `.private/refund-attachments`
+directory. Production configuration requires private S3-compatible storage. Attachment limits are
+configured with `REFUND_MAX_FILES`, `REFUND_MAX_FILE_SIZE_MB`, and `REFUND_MAX_TOTAL_SIZE_MB`.
 
 Local email supports two explicit modes. `EMAIL_DELIVERY_MODE=redirect` safely sends all messages
 to `EMAIL_DEV_RECIPIENT`. `EMAIL_DELIVERY_MODE=direct` sends activation, payment, and invoice email
@@ -97,12 +99,12 @@ Never run the development seed or reuse these credentials in production.
 
 ## Main application routes
 
-| Audience | Routes                                                                                                                               |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Public   | `/`, `/plans`, `/coverage`, `/checkout`, `/activate`, `/activate/resend`, `/staff-invitation`, `/login`                              |
-| Admin    | `/admin/dashboard`, `/admin/customers`, `/admin/plans`, `/admin/subscriptions`, `/admin/invoices`, `/admin/coverage`, `/admin/users` |
-| Staff    | `/staff/customers`, `/staff/coverage`                                                                                                |
-| Customer | `/customer/dashboard`, `/customer/profile`, `/customer/subscription`, `/customer/invoices`                                           |
+| Audience | Routes                                                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Public   | `/`, `/plans`, `/coverage`, `/checkout`, `/activate`, `/activate/resend`, `/staff-invitation`, `/login`                                                |
+| Admin    | `/admin/dashboard`, `/admin/customers`, `/admin/plans`, `/admin/subscriptions`, `/admin/invoices`, `/admin/refunds`, `/admin/coverage`, `/admin/users` |
+| Staff    | `/staff/customers`, `/staff/coverage`, `/staff/refunds`                                                                                                |
+| Customer | `/customer/dashboard`, `/customer/profile`, `/customer/subscription`, `/customer/invoices`, `/customer/refunds`                                        |
 
 The browser UI is a convenience boundary only; NestJS guards and ownership-scoped queries enforce
 all access decisions.
@@ -127,6 +129,16 @@ paying an owned invoice.
 Stripe is deliberately restricted to test keys (`sk_test_...` or `rk_test_...`). Full details are
 in [payments](docs/api/payments.md). Upgrade, downgrade, reconciliation, and safe test procedures
 are documented in [subscription plan changes](docs/api/plan-changes.md).
+
+Refund webhooks are accepted at `/api/v1/payments/stripe/webhook`. In local development, run
+`stripe listen --forward-to http://127.0.0.1:3001/api/v1/payments/stripe/webhook` and set the
+printed `whsec_...` value as `STRIPE_WEBHOOK_SECRET`. Production must configure the same route as
+a public HTTPS endpoint in Stripe Dashboard. Refund event IDs and Stripe idempotency keys are
+persisted to prevent duplicate processing. A BullMQ reconciliation worker also re-checks stale
+`PROCESSING` refunds directly with Stripe; configure its interval and alert address with
+`REFUND_RECONCILIATION_INTERVAL_MS`, `REFUND_RECONCILIATION_STALE_AFTER_MINUTES`,
+`REFUND_RECONCILIATION_BATCH_SIZE`, and `REFUND_ALERT_EMAIL`. Monitoring systems can poll
+`GET /api/v1/health/refunds`, which reports a `degraded` status when stale refunds exist.
 
 ## Verification
 

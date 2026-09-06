@@ -10,6 +10,17 @@ export const validationSchema = Joi.object({
     .uri({ scheme: ['redis', 'rediss'] })
     .required(),
   ADMIN_DASHBOARD_CACHE_TTL_SECONDS: Joi.number().integer().min(5).max(3600).default(60),
+  REFUND_MAX_FILES: Joi.number().integer().min(1).max(20).default(5),
+  REFUND_MAX_FILE_SIZE_MB: Joi.number().integer().min(1).max(100).default(10),
+  REFUND_MAX_TOTAL_SIZE_MB: Joi.number().integer().min(1).max(200).default(25),
+  REFUND_RECONCILIATION_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(30_000)
+    .max(86_400_000)
+    .default(300_000),
+  REFUND_RECONCILIATION_STALE_AFTER_MINUTES: Joi.number().integer().min(1).max(1440).default(10),
+  REFUND_RECONCILIATION_BATCH_SIZE: Joi.number().integer().min(1).max(500).default(50),
+  REFUND_ALERT_EMAIL: Joi.string().email().allow('').default(''),
   ADDRESS_LOOKUP_PROVIDER: Joi.string().valid('geoapify').default('geoapify'),
   GEOAPIFY_API_KEY: Joi.when('ADDRESS_LOOKUP_PROVIDER', {
     is: 'geoapify',

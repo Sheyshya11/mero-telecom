@@ -181,6 +181,7 @@ describe('PlanChangesService', () => {
   });
 
   it('creates a scheduled downgrade and queues its confirmation', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-16T12:00:00.000Z'));
     const cheaperPlan = { ...targetPlan, monthlyCents: 4900 };
     const request = planChangeRecord({
       type: PlanChangeType.DOWNGRADE,
@@ -208,13 +209,17 @@ describe('PlanChangesService', () => {
       .mockResolvedValueOnce(sourceSubscription);
     const { notifications, service } = makeService(transaction);
 
-    await expect(service.request(subscriptionId, cheaperPlan.id, actor)).resolves.toEqual({
-      planChange: expect.objectContaining({ status: PlanChangeStatus.SCHEDULED }),
-      checkoutUrl: null,
-    });
-    expect(notifications.sendPlanChangeNotification).toHaveBeenCalledWith(
-      expect.objectContaining({ event: 'SCHEDULED', planChangeRequestId: request.id }),
-    );
+    try {
+      await expect(service.request(subscriptionId, cheaperPlan.id, actor)).resolves.toEqual({
+        planChange: expect.objectContaining({ status: PlanChangeStatus.SCHEDULED }),
+        checkoutUrl: null,
+      });
+      expect(notifications.sendPlanChangeNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'SCHEDULED', planChangeRequestId: request.id }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('cancels a future scheduled downgrade but not one already effective', async () => {

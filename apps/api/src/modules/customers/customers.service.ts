@@ -11,6 +11,7 @@ import {
 import { randomBytes } from 'node:crypto';
 
 import { PrismaService } from '../../database/prisma.service';
+import { buildPaginationMeta, dateRange } from '../../common/pagination';
 import { AccountInvitationsService } from '../auth/account-invitations.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
@@ -159,6 +160,22 @@ export class CustomersService {
           ],
         }
       : {};
+    if (query.status) where.status = query.status;
+    if (query.state) where.state = query.state;
+    if (query.postcode) where.postcode = query.postcode;
+    const createdAt = dateRange(query.createdFrom, query.createdTo);
+    if (createdAt) where.createdAt = createdAt;
+    if (query.subscriptionStatus === 'NO_SUBSCRIPTION') {
+      where.subscriptions = { none: {} };
+      if (query.planId) where.AND = [{ subscriptions: { some: { planId: query.planId } } }];
+    } else if (query.subscriptionStatus || query.planId) {
+      where.subscriptions = {
+        some: {
+          ...(query.subscriptionStatus ? { status: query.subscriptionStatus } : {}),
+          ...(query.planId ? { planId: query.planId } : {}),
+        },
+      };
+    }
     const skip = (query.page - 1) * query.limit;
     const [customers, total] = await this.prisma.$transaction([
       this.prisma.customer.findMany({
@@ -180,7 +197,7 @@ export class CustomersService {
             take: 1,
           },
         },
-        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+        orderBy: [{ [query.sortBy ?? 'createdAt']: query.sortOrder ?? 'desc' }, { id: 'asc' }],
         skip,
         take: query.limit,
       }),
@@ -189,12 +206,7 @@ export class CustomersService {
 
     return {
       data: customers.map(toCustomerResponse),
-      meta: {
-        page: query.page,
-        limit: query.limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / query.limit)),
-      },
+      meta: buildPaginationMeta({ page: query.page, limit: query.limit }, total),
     };
   }
 

@@ -39,5 +39,11 @@ export interface SecurityAuditLog {
 
 export interface Paginated<T> {
   data: T[];
-  meta: { page: number; limit: number; total: number; totalPages: number };
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    activeSuperAdminCount?: number;
+  };
 }

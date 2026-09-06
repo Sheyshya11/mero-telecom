@@ -5,6 +5,9 @@ export interface AdminDashboard {
     monthlyRecurringRevenueCents: number;
     outstandingInvoiceCents: number;
     overdueInvoiceCount: number;
+    pendingRefunds: number;
+    failedRefunds: number;
+    refundedThisMonthCents: number;
   };
   invoiceTrend: Array<{ month: string; label: string; totalCents: number; count: number }>;
   subscriptionsByStatus: Array<{

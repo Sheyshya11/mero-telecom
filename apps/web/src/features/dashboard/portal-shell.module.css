@@ -1,0 +1,280 @@
+.portal {
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 95% 0, hsl(var(--primary) / 0.09), transparent 35rem),
+    linear-gradient(hsl(var(--primary) / 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--primary) / 0.022) 1px, transparent 1px),
+    hsl(var(--secondary) / 0.45);
+  background-size:
+    auto,
+    42px 42px,
+    42px 42px,
+    auto;
+}
+
+.container {
+  width: min(100% - 3rem, 80rem);
+  margin: auto;
+  padding-top: 1.25rem;
+}
+.header {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  padding: 1rem 1.25rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  box-shadow: 0 8px 30px hsl(215 35% 20% / 0.04);
+}
+.identity,
+.account,
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+.brand {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+}
+.brandMuted {
+  color: hsl(var(--muted-foreground));
+}
+.mark {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  color: white;
+  background: hsl(var(--primary));
+}
+.role {
+  background: hsl(var(--primary-lighter) / 0.6);
+  color: hsl(var(--primary));
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.email {
+  max-width: 15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+.website {
+  color: hsl(var(--primary));
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.5rem;
+}
+.navigation {
+  display: flex;
+  flex-basis: 100%;
+  gap: 0.3rem;
+  overflow-x: auto;
+  border-top: 1px solid hsl(var(--border) / 0.7);
+  padding: 0.65rem 0;
+}
+.navigation a {
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.65rem;
+  white-space: nowrap;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.8rem;
+  font-weight: 650;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.navigation a:hover {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary-lighter) / 0.4);
+}
+.navigation a[aria-current='page'] {
+  background: hsl(var(--primary));
+  color: white;
+}
+.header a:focus-visible,
+.header button:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 3px;
+}
+.content {
+  margin-top: 1.25rem;
+  min-width: 0;
+}
+.content:focus {
+  outline: none;
+}
+.footer {
+  display: flex;
+  gap: 0.6rem;
+  padding: 1.75rem 0;
+  font-size: 0.72rem;
+  color: hsl(var(--muted-foreground));
+}
+.skipLink {
+  position: fixed;
+  z-index: 100;
+  top: 0.5rem;
+  left: 0.5rem;
+  transform: translateY(-150%);
+  padding: 0.75rem;
+  background: white;
+  color: hsl(var(--primary));
+  border-radius: 0.5rem;
+}
+.skipLink:focus {
+  transform: translateY(0);
+}
+
+/* Shared page treatment is explicitly opted into by authenticated feature views. */
+.content :global(.workspace-page) {
+  width: 100%;
+  max-width: none;
+  min-height: 60dvh;
+  padding: 0;
+  margin: 0;
+}
+.content :global(.workspace-page) > header {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.75rem 2rem;
+  margin-bottom: 1.25rem;
+  border: 0;
+  border-radius: 1.2rem;
+  background: linear-gradient(130deg, hsl(187 86% 23%), hsl(187 80% 34%));
+  color: white;
+  box-shadow: 0 12px 32px hsl(var(--primary) / 0.12);
+}
+.content :global(.workspace-page) > header::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 95% -30%, hsl(0 0% 100% / 0.09) 0 10rem, transparent 10.1rem),
+    linear-gradient(hsl(0 0% 100% / 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(0 0% 100% / 0.04) 1px, transparent 1px);
+  background-size:
+    auto,
+    36px 36px,
+    36px 36px;
+}
+.content :global(.workspace-page) > header h1 {
+  color: white;
+  font-size: clamp(1.6rem, 3vw, 2.15rem);
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+}
+.content :global(.workspace-page) > header p {
+  color: hsl(0 0% 100% / 0.83);
+  max-width: 44rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.content :global(.workspace-page) > header > div > p:first-child {
+  color: hsl(0 0% 100% / 0.73);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+}
+.content :global(.workspace-page) > header :global(.button-primary) {
+  background: white;
+  color: hsl(var(--primary));
+}
+.content :global(.workspace-page) > header :global(.button-secondary) {
+  background: hsl(0 0% 100% / 0.12);
+  border-color: hsl(0 0% 100% / 0.25);
+  color: white;
+}
+.content :global(.workspace-page) > header > :is(div, nav) {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.content :global(.workspace-page) :global(.bg-white) {
+  border-radius: 1rem;
+  border-color: hsl(var(--border));
+  box-shadow: 0 8px 28px hsl(215 35% 20% / 0.04);
+}
+.content :global(.workspace-page) :global(.text-sky-700) {
+  color: hsl(var(--primary));
+}
+.content :global(.workspace-page) > header :global(.text-sky-700) {
+  color: hsl(0 0% 100% / 0.78);
+}
+.content :global(.workspace-page) table {
+  font-size: 0.8rem;
+}
+.content :global(.workspace-page) thead {
+  background: hsl(var(--secondary) / 0.8);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+}
+.content :global(.workspace-page) th {
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+.content :global(.workspace-page) tbody tr:hover {
+  background: hsl(var(--primary-lighter) / 0.18);
+}
+.content :global(.workspace-page) [role='dialog'] {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+.content :global(.workspace-page) input,
+.content :global(.workspace-page) select,
+.content :global(.workspace-page) textarea {
+  min-width: 0;
+}
+
+@media (max-width: 48rem) {
+  .container {
+    width: calc(100% - 1.25rem);
+    padding-top: 0.65rem;
+  }
+  .header {
+    padding: 0.85rem 0.85rem 0;
+  }
+  .identity {
+    flex-wrap: wrap;
+  }
+  .account {
+    flex-wrap: wrap;
+  }
+  .email {
+    display: none;
+  }
+  .navigation {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .content :global(.workspace-page) > header {
+    padding: 1.4rem;
+  }
+  .content :global(.workspace-page) > header > :is(div, nav) {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation a {
+    transition: none;
+  }
+}

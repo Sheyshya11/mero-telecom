@@ -191,7 +191,7 @@ export default function AdminPlansPage() {
         : null;
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-6 py-10">
+    <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM · ADMIN</p>

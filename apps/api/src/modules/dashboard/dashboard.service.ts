@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InvoiceStatus, SubscriptionStatus } from '@prisma/client';
+import { InvoiceStatus, RefundStatus, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
@@ -33,6 +33,9 @@ export class DashboardService {
       trendInvoices,
       subscriptionsByStatus,
       recentInvoices,
+      pendingRefunds,
+      failedRefunds,
+      refundedThisMonth,
     ] = await Promise.all([
       this.prisma.customer.count(),
       this.prisma.subscription.count({ where: { status: SubscriptionStatus.ACTIVE } }),
@@ -58,6 +61,23 @@ export class DashboardService {
         orderBy: [{ issueDate: 'desc' }, { createdAt: 'desc' }],
         take: 5,
       }),
+      this.prisma.refund.count({
+        where: {
+          status: {
+            in: [RefundStatus.REQUESTED, RefundStatus.UNDER_REVIEW, RefundStatus.APPROVED],
+          },
+        },
+      }),
+      this.prisma.refund.count({ where: { status: RefundStatus.FAILED } }),
+      this.prisma.refund.aggregate({
+        where: {
+          status: RefundStatus.SUCCEEDED,
+          processedAt: {
+            gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
+          },
+        },
+        _sum: { refundAmountCents: true },
+      }),
     ]);
 
     return {
@@ -70,6 +90,9 @@ export class DashboardService {
         ),
         outstandingInvoiceCents: outstanding._sum.totalCents ?? 0,
         overdueInvoiceCount,
+        pendingRefunds,
+        failedRefunds,
+        refundedThisMonthCents: refundedThisMonth._sum.refundAmountCents ?? 0,
       },
       invoiceTrend: buildInvoiceTrend(trendInvoices, now),
       subscriptionsByStatus: subscriptionsByStatus.map((entry) => ({
@@ -158,6 +181,9 @@ export class DashboardService {
             payment: latestInvoice.payments[0]
               ? {
                   amountCents: latestInvoice.payments[0].amountCents,
+                  id: latestInvoice.payments[0].id,
+                  refundedCents: latestInvoice.payments[0].refundedCents,
+                  currency: latestInvoice.payments[0].currency,
                   status: latestInvoice.payments[0].status,
                   paidAt: latestInvoice.payments[0].paidAt,
                 }

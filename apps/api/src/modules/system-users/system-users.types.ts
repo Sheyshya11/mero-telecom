@@ -11,7 +11,13 @@ export interface AuditRequestContext {
 
 export interface PaginatedResponse<T> {
   data: T[];
-  meta: { page: number; limit: number; total: number; totalPages: number };
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    activeSuperAdminCount?: number;
+  };
 }
 
 export interface SystemUserResponse {

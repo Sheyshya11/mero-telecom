@@ -1,4 +1,18 @@
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+
+export function absoluteApiUrl(path: string): string {
+  const base = new URL(apiBaseUrl.endsWith('/') ? apiBaseUrl : `${apiBaseUrl}/`);
+  const relativePath = path.replace(/^\/+/, '');
+  const basePath = base.pathname.replace(/^\/+|\/+$/g, '');
+
+  // API endpoints passed by the client are relative to `/api/v1`, while
+  // locally signed attachment links already include that prefix. Handle
+  // both forms without allowing URL resolution to drop or duplicate it.
+  if (basePath && (relativePath === basePath || relativePath.startsWith(`${basePath}/`))) {
+    return new URL(`/${relativePath}`, base.origin).toString();
+  }
+  return new URL(relativePath, base).toString();
+}
 
 type RefreshAccessToken = () => Promise<string | null>;
 let refreshAccessToken: RefreshAccessToken | null = null;
@@ -25,7 +39,7 @@ export async function apiRequest<T>(
   const headers = new Headers(options.headers);
   headers.set('Accept', 'application/json');
 
-  if (options.body) {
+  if (options.body && !(typeof FormData !== 'undefined' && options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -33,7 +47,7 @@ export async function apiRequest<T>(
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  const response = await fetch(`${apiUrl}${path}`, {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
     headers,
     credentials: 'include',

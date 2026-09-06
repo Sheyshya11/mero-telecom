@@ -10,6 +10,7 @@ import { PaymentsService } from './payments.service';
 import { PublicCheckoutContextService } from './public-checkout-context.service';
 import { StripeModule } from './stripe.module';
 import { PlanChangesModule } from '../plan-changes/plan-changes.module';
+import { RefundsModule } from '../refunds/refunds.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PlanChangesModule } from '../plan-changes/plan-changes.module';
     NotificationsModule,
     StripeModule,
     PlanChangesModule,
+    RefundsModule,
   ],
   controllers: [PaymentsController],
   providers: [PaymentsService, PublicCheckoutContextService],
