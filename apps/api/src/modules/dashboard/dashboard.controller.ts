@@ -17,6 +17,9 @@ export class DashboardController {
   @Get('admin') @Roles(Role.ADMIN) getAdminSummary() {
     return this.dashboard.getAdminSummary();
   }
+  @Get('super-admin') @Roles(Role.SUPER_ADMIN) getSuperAdminSummary() {
+    return this.dashboard.getSuperAdminSummary();
+  }
   @Get('customer') @Roles(Role.CUSTOMER) getCustomerSummary(
     @CurrentUser() user: AuthenticatedUser,
   ) {

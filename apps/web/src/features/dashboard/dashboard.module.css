@@ -223,6 +223,56 @@
   word-break: break-word;
 }
 
+.customerHero {
+  min-height: 9.5rem;
+  align-items: center;
+  padding: 1.65rem 2rem;
+  box-shadow: 0 14px 36px hsl(var(--primary) / 0.14);
+}
+
+.customerHero h1 {
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+}
+
+.customerHero .eyebrow {
+  margin-bottom: 0.55rem;
+}
+
+.customerHero .heroDescription {
+  margin-top: 0.55rem;
+}
+
+.adminHero {
+  min-height: 10.5rem;
+  align-items: center;
+  padding: 1.7rem 2.1rem;
+  box-shadow: 0 16px 40px hsl(var(--primary) / 0.16);
+}
+
+.adminHero .eyebrow {
+  margin-bottom: 0.55rem;
+}
+
+.adminHero .heroDescription {
+  margin-top: 0.55rem;
+}
+
+.superAdminHero {
+  min-height: 10.75rem;
+  align-items: center;
+  padding: 1.75rem 2.1rem;
+  background: linear-gradient(135deg, hsl(205 54% 20%), hsl(187 79% 30%));
+  box-shadow: 0 16px 40px hsl(205 54% 20% / 0.18);
+}
+
+.superAdminHero .eyebrow {
+  margin-bottom: 0.55rem;
+}
+
+.superAdminHero .heroDescription {
+  margin-top: 0.55rem;
+}
+
 .metricGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
@@ -337,6 +387,21 @@
   grid-template-columns: minmax(16rem, 0.65fr) minmax(0, 1.35fr);
 }
 
+.dashboardSummary,
+.activityBillingGrid {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.dashboardSummary {
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.7fr);
+}
+
+.activityBillingGrid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
+}
+
 .panel,
 .tablePanel {
   overflow: hidden;
@@ -348,6 +413,20 @@
 
 .panel {
   padding: 1.35rem;
+}
+
+.serviceCard,
+.nextPaymentCard {
+  display: flex;
+  min-height: 17rem;
+  flex-direction: column;
+}
+
+.serviceCard .panelBody,
+.nextPaymentCard .panelBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
 }
 
 .panelHeader,
@@ -380,6 +459,39 @@
 
 .chart {
   height: 17rem;
+}
+
+.chartSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.chartSummary span {
+  padding: 0.42rem 0.62rem;
+  border-radius: 999px;
+  background: hsl(var(--secondary) / 0.72);
+  color: hsl(var(--muted-foreground));
+  font-size: 0.68rem;
+}
+
+.chartSummary strong {
+  color: hsl(var(--foreground));
+}
+
+.chartSummary + .chart {
+  height: 14.5rem;
+}
+
+.chartEmpty {
+  display: grid;
+  min-height: 17rem;
+  margin: 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.82rem;
+  text-align: center;
+  place-items: center;
 }
 
 .chartLegend {
@@ -521,6 +633,17 @@
   color: hsl(32 92% 36%);
 }
 
+.badge[data-status='FAILED'] {
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(0 72% 38%);
+}
+
+.badge[data-status='REFUNDED'],
+.badge[data-status='PARTIALLY_REFUNDED'] {
+  background: hsl(266 68% 95%);
+  color: hsl(266 58% 40%);
+}
+
 .notice {
   margin: 1rem 0 0;
   padding: 0.85rem 1rem;
@@ -561,6 +684,20 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 2rem;
+}
+
+.panelActionRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 1.15rem;
+}
+
+.panelActionRow a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .planName {
@@ -612,6 +749,599 @@
   margin: 0.15rem 0 0;
   color: hsl(var(--muted-foreground));
   font-size: 0.7rem;
+}
+
+.nextPaymentAmount {
+  margin: 0;
+  color: hsl(var(--foreground));
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+}
+
+.nextPaymentDate {
+  margin: 0.25rem 0 0;
+  color: hsl(var(--foreground));
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.noUpcomingPayment {
+  margin: 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.paymentFacts {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+}
+
+.paymentFacts > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid hsl(var(--border) / 0.65);
+  font-size: 0.73rem;
+}
+
+.paymentFacts dt {
+  color: hsl(var(--muted-foreground));
+}
+
+.paymentFacts dd {
+  margin: 0;
+  color: hsl(var(--foreground));
+  font-weight: 750;
+  text-align: right;
+}
+
+.attentionCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 1rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid hsl(var(--warning) / 0.28);
+  border-radius: 1rem;
+  background: hsl(var(--warning) / 0.08);
+}
+
+.attentionCard[data-severity='critical'] {
+  border-color: hsl(var(--destructive) / 0.22);
+  background: hsl(var(--destructive) / 0.06);
+}
+
+.attentionIcon {
+  display: grid;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 0.7rem;
+  background: hsl(var(--warning) / 0.16);
+  color: hsl(32 92% 34%);
+  place-items: center;
+}
+
+.attentionCard[data-severity='critical'] .attentionIcon {
+  background: hsl(var(--destructive) / 0.11);
+  color: hsl(0 72% 40%);
+}
+
+.attentionCopy h2,
+.attentionCopy h3,
+.sectionHeading h2 {
+  margin: 0;
+  color: hsl(var(--foreground));
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+}
+
+.adminAttentionList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.adminAttentionItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.95rem 1rem;
+  border: 1px solid hsl(var(--warning) / 0.24);
+  border-radius: 0.95rem;
+  background: hsl(var(--warning) / 0.065);
+}
+
+.adminAttentionItem[data-severity='critical'] {
+  border-color: hsl(var(--destructive) / 0.2);
+  background: hsl(var(--destructive) / 0.05);
+}
+
+.adminAttentionItem[data-severity='critical'] .attentionIcon {
+  background: hsl(var(--destructive) / 0.11);
+  color: hsl(0 72% 40%);
+}
+
+.attentionEmpty {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid hsl(var(--success) / 0.2);
+  border-radius: 0.9rem;
+  background: hsl(var(--success) / 0.065);
+  color: hsl(142 55% 30%);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.attentionCopy p,
+.sectionHeading p {
+  margin: 0.22rem 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.attentionAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: hsl(var(--foreground));
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.attentionAction:hover {
+  color: hsl(var(--primary));
+}
+
+.dashboardSection {
+  margin-top: 1.3rem;
+}
+
+.adminOperationsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(19rem, 0.65fr);
+  align-items: start;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.organisationGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.organisationMetric {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid hsl(var(--border) / 0.82);
+  border-radius: 0.95rem;
+  background: hsl(var(--card) / 0.94);
+  box-shadow: 0 8px 24px hsl(215 35% 20% / 0.04);
+}
+
+.organisationMetric[data-warning='true'] {
+  border-color: hsl(var(--warning) / 0.23);
+  background: hsl(var(--warning) / 0.045);
+}
+
+.organisationMetric[data-warning='true'] .metricIcon {
+  background: hsl(var(--warning) / 0.14);
+  color: hsl(32 92% 36%);
+}
+
+.organisationMetric p,
+.organisationMetric span,
+.organisationMetric strong {
+  display: block;
+}
+
+.organisationMetric p {
+  margin: 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.organisationMetric strong {
+  margin-top: 0.3rem;
+  color: hsl(var(--foreground));
+  font-size: 1.45rem;
+  letter-spacing: -0.035em;
+}
+
+.organisationMetric div > span {
+  margin-top: 0.2rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.superHealthGrid,
+.superActivityGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.systemHealthList {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.systemHealthItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.8rem;
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: 0.8rem;
+  background: hsl(var(--secondary) / 0.32);
+}
+
+.systemHealthItem h3,
+.systemHealthItem p {
+  margin: 0;
+}
+
+.systemHealthItem h3 {
+  color: hsl(var(--foreground));
+  font-size: 0.78rem;
+}
+
+.systemHealthItem p {
+  margin-top: 0.18rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.healthIndicator {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: hsl(var(--success));
+  box-shadow: 0 0 0 4px hsl(var(--success) / 0.1);
+}
+
+.healthIndicator[data-status='DEGRADED'] {
+  background: hsl(var(--warning));
+  box-shadow: 0 0 0 4px hsl(var(--warning) / 0.12);
+}
+
+.healthBadge {
+  padding: 0.3rem 0.5rem;
+  border-radius: 999px;
+  background: hsl(var(--success) / 0.1);
+  color: hsl(142 55% 30%);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.healthBadge[data-status='DEGRADED'] {
+  background: hsl(var(--warning) / 0.13);
+  color: hsl(32 92% 34%);
+}
+
+.governanceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.governanceFact {
+  min-width: 0;
+  padding: 0.95rem;
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: 0.8rem;
+  background: hsl(var(--secondary) / 0.32);
+}
+
+.governanceFact[data-warning='true'] {
+  border-color: hsl(var(--destructive) / 0.18);
+  background: hsl(var(--destructive) / 0.045);
+}
+
+.governanceFact dt {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.69rem;
+  line-height: 1.4;
+}
+
+.governanceFact dd {
+  margin: 0.5rem 0 0;
+  color: hsl(var(--foreground));
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.governanceFact[data-warning='true'] dd {
+  color: hsl(0 72% 40%);
+}
+
+.superQuickActionGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  padding: 0 0.15rem;
+}
+
+.quickActionGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.quickAction {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 5.25rem;
+  padding: 0.9rem;
+  border: 1px solid hsl(var(--border) / 0.85);
+  border-radius: 0.95rem;
+  background: hsl(var(--card) / 0.96);
+  box-shadow: 0 8px 24px hsl(215 35% 20% / 0.04);
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.quickAction:hover {
+  border-color: hsl(var(--primary) / 0.24);
+  box-shadow: 0 12px 28px hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary));
+  transform: translateY(-1px);
+}
+
+.quickActionIcon {
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.7rem;
+  background: hsl(var(--primary-lighter) / 0.55);
+  color: hsl(var(--primary));
+  place-items: center;
+}
+
+.quickActionCopy {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+}
+
+.quickActionCopy strong {
+  color: hsl(var(--foreground));
+  font-size: 0.78rem;
+}
+
+.quickActionCopy span {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.67rem;
+  line-height: 1.4;
+}
+
+.adminQuickActions {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.adminQuickAction {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 3.65rem;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid hsl(var(--border) / 0.72);
+  border-radius: 0.8rem;
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.adminQuickAction:hover {
+  border-color: hsl(var(--primary) / 0.22);
+  background: hsl(var(--primary-lighter) / 0.2);
+  color: hsl(var(--primary));
+}
+
+.adminQuickAction .quickActionIcon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.6rem;
+}
+
+.activityList {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activityList li + li {
+  border-top: 1px solid hsl(var(--border) / 0.62);
+}
+
+.activityItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.activityList li:first-child .activityItem {
+  padding-top: 0;
+}
+
+.activityList li:last-child .activityItem {
+  padding-bottom: 0;
+}
+
+.activityMarker {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.62rem;
+  background: hsl(var(--secondary));
+  color: hsl(var(--muted-foreground));
+  place-items: center;
+}
+
+.activityMarker[data-tone='positive'] {
+  background: hsl(var(--success) / 0.1);
+  color: hsl(142 71% 32%);
+}
+
+.activityMarker[data-tone='warning'] {
+  background: hsl(var(--warning) / 0.13);
+  color: hsl(32 92% 36%);
+}
+
+.activityCopy,
+.activityMeta {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.activityCopy strong,
+.activityMeta strong {
+  color: hsl(var(--foreground));
+  font-size: 0.76rem;
+}
+
+.activityCopy span,
+.activityMeta time {
+  overflow: hidden;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityMeta {
+  text-align: right;
+}
+
+.latestInvoice {
+  display: grid;
+  gap: 1rem;
+}
+
+.latestInvoiceTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.latestInvoiceNumber,
+.latestInvoiceAmount {
+  margin: 0.3rem 0 0;
+  color: hsl(var(--foreground));
+  font-weight: 800;
+}
+
+.latestInvoiceNumber {
+  font-size: 0.9rem;
+}
+
+.latestInvoiceAmount {
+  font-size: 1.45rem;
+  letter-spacing: -0.035em;
+}
+
+.invoiceStatusGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-radius: 0.8rem;
+  background: hsl(var(--secondary) / 0.55);
+}
+
+.invoiceStatusGrid .badge {
+  margin-top: 0.35rem;
+}
+
+.noPaymentStatus,
+.invoiceRefundAmount,
+.refundSummary {
+  margin: 0.35rem 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.68rem;
+}
+
+.refundSummary {
+  margin-top: -0.35rem;
+  color: hsl(266 58% 40%);
+  font-weight: 700;
+}
+
+.invoiceActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.invoiceActions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.tableEmpty {
+  margin: 0;
+  padding: 1.5rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.82rem;
 }
 
 .detailsList {
@@ -741,6 +1471,161 @@
   margin-top: 1rem;
 }
 
+.skeletonHero,
+.skeletonSummary > div,
+.skeletonActions > div,
+.adminSkeletonMetrics > div,
+.adminSkeletonAttention,
+.adminSkeletonCharts > div,
+.adminSkeletonOperations > div,
+.adminSkeletonTable,
+.superSkeletonOrganisation > div,
+.superSkeletonHealth > div,
+.superSkeletonActivity > div {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border) / 0.65);
+  background: hsl(var(--secondary) / 0.75);
+}
+
+.skeletonHero::after,
+.skeletonSummary > div::after,
+.skeletonActions > div::after,
+.adminSkeletonMetrics > div::after,
+.adminSkeletonAttention::after,
+.adminSkeletonCharts > div::after,
+.adminSkeletonOperations > div::after,
+.adminSkeletonTable::after,
+.superSkeletonOrganisation > div::after,
+.superSkeletonHealth > div::after,
+.superSkeletonActivity > div::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, hsl(0 0% 100% / 0.55) 50%, transparent 80%);
+  content: '';
+  animation: dashboard-shimmer 1.5s ease-in-out infinite;
+  transform: translateX(-100%);
+}
+
+.skeletonHero {
+  height: 9.5rem;
+  border-radius: 1.4rem;
+}
+
+.adminSkeletonHero {
+  height: 10.5rem;
+}
+
+.adminSkeletonMetrics,
+.adminSkeletonCharts,
+.adminSkeletonOperations {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.adminSkeletonMetrics {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.adminSkeletonMetrics > div {
+  height: 9.5rem;
+  border-radius: 1rem;
+}
+
+.adminSkeletonAttention {
+  height: 6rem;
+  margin-top: 1.3rem;
+  border-radius: 0.95rem;
+}
+
+.adminSkeletonCharts {
+  grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.85fr);
+}
+
+.adminSkeletonCharts > div {
+  height: 22rem;
+  border-radius: 1.1rem;
+}
+
+.adminSkeletonOperations {
+  grid-template-columns: minmax(0, 1.35fr) minmax(19rem, 0.65fr);
+}
+
+.adminSkeletonOperations > div {
+  height: 28rem;
+  border-radius: 1.1rem;
+}
+
+.adminSkeletonTable {
+  height: 18rem;
+  margin-top: 1rem;
+  border-radius: 1.1rem;
+}
+
+.superSkeletonOrganisation,
+.superSkeletonHealth,
+.superSkeletonActivity {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.superSkeletonOrganisation {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.superSkeletonOrganisation > div {
+  height: 7rem;
+  border-radius: 0.95rem;
+}
+
+.superSkeletonHealth,
+.superSkeletonActivity {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.superSkeletonHealth > div {
+  height: 14rem;
+  border-radius: 1.1rem;
+}
+
+.superSkeletonActivity > div {
+  height: 27rem;
+  border-radius: 1.1rem;
+}
+
+.skeletonSummary,
+.skeletonActions {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.skeletonSummary {
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.7fr);
+}
+
+.skeletonSummary > div {
+  height: 17rem;
+  border-radius: 1.1rem;
+}
+
+.skeletonActions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.skeletonActions > div {
+  height: 5.25rem;
+  border-radius: 0.95rem;
+}
+
+@keyframes dashboard-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @media (max-width: 68rem) {
   .topbar {
     align-items: flex-start;
@@ -758,8 +1643,36 @@
 
   .contentGrid,
   .customerGrid,
-  .billingGrid {
+  .billingGrid,
+  .dashboardSummary,
+  .activityBillingGrid,
+  .skeletonSummary,
+  .adminOperationsGrid,
+  .adminSkeletonCharts,
+  .adminSkeletonOperations {
     grid-template-columns: 1fr;
+  }
+
+  .organisationGrid,
+  .superSkeletonOrganisation {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .superHealthGrid,
+  .superActivityGrid,
+  .superSkeletonHealth,
+  .superSkeletonActivity {
+    grid-template-columns: 1fr;
+  }
+
+  .adminSkeletonMetrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .quickActionGrid,
+  .superQuickActionGrid,
+  .skeletonActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -785,6 +1698,21 @@
     padding: 1.5rem;
   }
 
+  .customerHero {
+    min-height: 0;
+    padding: 1.35rem 1.4rem;
+  }
+
+  .adminHero {
+    min-height: 0;
+    padding: 1.35rem 1.4rem;
+  }
+
+  .superAdminHero {
+    min-height: 0;
+    padding: 1.35rem 1.4rem;
+  }
+
   .heroAside {
     width: 100%;
     min-width: 0;
@@ -794,13 +1722,39 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .adminAttentionList {
+    grid-template-columns: 1fr;
+  }
+
+  .adminAttentionItem {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .adminAttentionItem .attentionAction {
+    grid-column: 2;
+    justify-self: start;
+  }
+
   .serviceLayout {
     align-items: flex-start;
     flex-direction: column;
+    gap: 1.25rem;
   }
 
   .priceBlock {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.1rem 0.75rem;
     text-align: left;
+  }
+
+  .price {
+    margin-top: 0;
+  }
+
+  .priceMeta {
+    grid-column: 2;
   }
 
   .summaryGrid {
@@ -810,10 +1764,66 @@
   .summaryRight {
     text-align: left;
   }
+
+  .serviceCard,
+  .nextPaymentCard {
+    min-height: 0;
+  }
+
+  .attentionCard {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .attentionAction {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .activityItem {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .activityMeta {
+    grid-column: 2;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .skeletonHero {
+    height: 8.5rem;
+  }
+
+  .adminSkeletonHero {
+    height: 8.5rem;
+  }
+
+  .systemHealthItem {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .healthBadge {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .skeletonSummary > div {
+    height: 14rem;
+  }
 }
 
 @media (max-width: 30rem) {
   .metricGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .adminSkeletonMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .organisationGrid,
+  .superQuickActionGrid,
+  .superSkeletonOrganisation,
+  .governanceGrid {
     grid-template-columns: 1fr;
   }
 
@@ -824,6 +1834,31 @@
   .tableHeader {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .quickActionGrid,
+  .skeletonActions,
+  .invoiceStatusGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .panelActionRow a,
+  .invoiceActions a,
+  .invoiceActions > div,
+  .invoiceActions button {
+    width: 100%;
+  }
+
+  .attentionCard {
+    align-items: flex-start;
+  }
+
+  .latestInvoiceTop {
+    flex-direction: column;
+  }
+
+  .latestInvoiceAmount {
+    margin-top: 0;
   }
 }
 
@@ -836,7 +1871,25 @@
   }
 
   .metric:hover,
-  .signOut:hover {
+  .signOut:hover,
+  .quickAction:hover {
     transform: none;
+  }
+
+  .quickAction,
+  .adminQuickAction,
+  .skeletonHero::after,
+  .skeletonSummary > div::after,
+  .skeletonActions > div::after,
+  .adminSkeletonMetrics > div::after,
+  .adminSkeletonAttention::after,
+  .adminSkeletonCharts > div::after,
+  .adminSkeletonOperations > div::after,
+  .adminSkeletonTable::after,
+  .superSkeletonOrganisation > div::after,
+  .superSkeletonHealth > div::after,
+  .superSkeletonActivity > div::after {
+    animation: none;
+    transition: none;
   }
 }

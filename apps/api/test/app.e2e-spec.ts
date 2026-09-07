@@ -731,7 +731,57 @@ describe('Mero Telecom API (e2e)', () => {
   });
 
   it('protects customer ownership and permits approved self-service updates', async () => {
+    const adminDashboard = await request(app.getHttpServer())
+      .get('/api/v1/dashboard/admin')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(adminDashboard.body).toEqual(
+      expect.objectContaining({
+        metrics: expect.objectContaining({ customerCount: expect.any(Number) }),
+        attention: expect.any(Array),
+        recentActivity: expect.any(Array),
+        recentInvoices: expect.any(Array),
+      }),
+    );
+
+    const superAdminDashboard = await request(app.getHttpServer())
+      .get('/api/v1/dashboard/super-admin')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(200);
+    expect(superAdminDashboard.body).toEqual(
+      expect.objectContaining({
+        business: expect.objectContaining({
+          customerCount: expect.any(Number),
+          failedPaymentCount: expect.any(Number),
+        }),
+        organisation: expect.objectContaining({
+          activeAdmins: expect.any(Number),
+          activeStaff: expect.any(Number),
+          restrictedInternalAccounts: expect.any(Number),
+        }),
+        governance: expect.any(Object),
+        attention: expect.any(Array),
+        recentPrivilegedActivity: expect.any(Array),
+        recentBusinessActivity: expect.any(Array),
+        systemHealth: expect.any(Array),
+      }),
+    );
+    expect(JSON.stringify(superAdminDashboard.body)).not.toContain('passwordHash');
+    expect(JSON.stringify(superAdminDashboard.body)).not.toContain('tokenHash');
+    await request(app.getHttpServer())
+      .get('/api/v1/dashboard/super-admin')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/dashboard/super-admin')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(403);
+
     customerToken = await loginAs('customer@merotelecom.test');
+    await request(app.getHttpServer())
+      .get('/api/v1/dashboard/super-admin')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
     await request(app.getHttpServer())
       .get(`/api/v1/invoices/${invoiceAId}`)
       .set('Authorization', `Bearer ${customerToken}`)
@@ -747,6 +797,10 @@ describe('Mero Telecom API (e2e)', () => {
     await request(app.getHttpServer())
       .get('/api/v1/dashboard/admin')
       .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/dashboard/admin')
+      .set('Authorization', `Bearer ${staffToken}`)
       .expect(403);
 
     const update = await request(app.getHttpServer())

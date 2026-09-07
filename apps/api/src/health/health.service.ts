@@ -6,7 +6,12 @@ import type { AppConfig } from '../config/configuration';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../modules/cache/redis.service';
 
-type DependencyStatus = 'ok' | 'error';
+export type DependencyStatus = 'ok' | 'error';
+
+export interface DependencyChecks {
+  database: DependencyStatus;
+  redis: DependencyStatus;
+}
 
 export interface HealthResponse {
   status: 'ok';
@@ -66,14 +71,9 @@ export class HealthService {
   }
 
   async getReadiness(): Promise<ReadinessResponse> {
-    const [databaseReady, redisReady] = await Promise.all([
-      this.withTimeout(this.checkDatabase()),
-      this.withTimeout(this.redis.ping()),
-    ]);
-    const checks: ReadinessResponse['checks'] = {
-      database: databaseReady ? 'ok' : 'error',
-      redis: redisReady ? 'ok' : 'error',
-    };
+    const checks = await this.getDependencyChecks();
+    const databaseReady = checks.database === 'ok';
+    const redisReady = checks.redis === 'ok';
 
     if (!databaseReady || !redisReady) {
       throw new ServiceUnavailableException({
@@ -87,6 +87,17 @@ export class HealthService {
       status: 'ok',
       timestamp: new Date().toISOString(),
       checks,
+    };
+  }
+
+  async getDependencyChecks(): Promise<DependencyChecks> {
+    const [databaseReady, redisReady] = await Promise.all([
+      this.withTimeout(this.checkDatabase()),
+      this.withTimeout(this.redis.ping()),
+    ]);
+    return {
+      database: databaseReady ? 'ok' : 'error',
+      redis: redisReady ? 'ok' : 'error',
     };
   }
 

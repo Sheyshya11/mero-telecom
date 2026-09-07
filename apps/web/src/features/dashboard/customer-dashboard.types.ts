@@ -17,10 +17,40 @@ export interface CustomerDashboard {
       monthlyCents: number;
     };
   } | null;
-  outstandingInvoiceCents: number;
+  billing: {
+    nextPaymentAmountCents: number | null;
+    nextBillingDate: string | null;
+    outstandingInvoiceCents: number;
+    latestPaymentStatus: CustomerPaymentStatus | null;
+  };
+  pendingAction: {
+    type: 'SERVICE' | 'PAYMENT' | 'PLAN_CHANGE' | 'REFUND';
+    title: string;
+    description: string;
+    actionLabel: string;
+    actionUrl: string;
+    severity: 'warning' | 'critical';
+  } | null;
+  recentActivity: Array<{
+    id: string;
+    kind: 'PAYMENT' | 'INVOICE' | 'REFUND' | 'PLAN_CHANGE' | 'SUBSCRIPTION';
+    title: string;
+    description: string;
+    occurredAt: string;
+    amountCents: number | null;
+    href: string;
+    tone: 'positive' | 'warning' | 'neutral';
+  }>;
   latestInvoice: CustomerInvoice | null;
   invoices: CustomerInvoice[];
 }
+
+export type CustomerPaymentStatus =
+  | 'PENDING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'PARTIALLY_REFUNDED'
+  | 'REFUNDED';
 
 export interface CustomerInvoice {
   id: string;
@@ -29,11 +59,11 @@ export interface CustomerInvoice {
   dueDate: string;
   totalCents: number;
   status: 'DRAFT' | 'ISSUED' | 'PAID' | 'OVERDUE' | 'CANCELLED';
-  paymentStatus: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'PARTIALLY_REFUNDED' | 'REFUNDED' | null;
+  paymentStatus: CustomerPaymentStatus | null;
   payment?: {
     amountCents: number;
     id: string;
-    status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'PARTIALLY_REFUNDED' | 'REFUNDED';
+    status: CustomerPaymentStatus;
     refundedCents: number;
     currency: string;
     paidAt: string | null;

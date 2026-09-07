@@ -29,7 +29,7 @@ const navigation = {
   ],
   customer: [
     ['dashboard', 'Overview'],
-    ['subscription', 'My subscription'],
+    ['subscription', 'My Internet'],
     ['invoices', 'Invoices'],
     ['refunds', 'Refunds'],
     ['profile', 'My profile'],

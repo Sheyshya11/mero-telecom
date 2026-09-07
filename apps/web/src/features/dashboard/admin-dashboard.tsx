@@ -19,6 +19,7 @@ import { apiRequest } from '../../lib/api/client';
 import { useAuth } from '../auth/auth-provider';
 import styles from './dashboard.module.css';
 import type { AdminDashboard } from './dashboard.types';
+import { SuperAdminDashboardView } from './super-admin-dashboard';
 
 const statusColors = {
   ACTIVE: '#0b8791',
@@ -27,12 +28,76 @@ const statusColors = {
   CANCELLED: '#94a3b8',
 };
 
+const quickActions: Array<{
+  href: string;
+  icon: LandingIconName;
+  label: string;
+  description: string;
+}> = [
+  {
+    href: '/admin/customers',
+    icon: 'users',
+    label: 'View customers',
+    description: 'Find and manage customer accounts',
+  },
+  {
+    href: '/admin/refunds',
+    icon: 'credit-card',
+    label: 'Review refunds',
+    description: 'Process open refund requests',
+  },
+  {
+    href: '/admin/invoices',
+    icon: 'layers',
+    label: 'View invoices',
+    description: 'Review billing records and balances',
+  },
+  {
+    href: '/admin/subscriptions',
+    icon: 'activity',
+    label: 'Manage subscriptions',
+    description: 'Review active and paused services',
+  },
+  {
+    href: '/admin/plans',
+    icon: 'gauge',
+    label: 'Manage plans',
+    description: 'Update available internet plans',
+  },
+  {
+    href: '/admin/users',
+    icon: 'shield',
+    label: 'Manage staff',
+    description: 'Invite and manage staff accounts',
+  },
+];
+
 function formatMoney(cents: number) {
   return new Intl.NumberFormat('en-AU', {
     style: 'currency',
     currency: 'AUD',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(cents / 100);
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Australia/Adelaide',
+  }).format(new Date(value));
+}
+
+function friendlyStatus(status: string) {
+  return status
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 export function AdminDashboardView() {
@@ -40,37 +105,46 @@ export function AdminDashboardView() {
   const dashboardQuery = useQuery({
     queryKey: ['admin-dashboard'],
     queryFn: () => apiRequest<AdminDashboard>('/dashboard/admin', {}, accessToken),
-    enabled: Boolean(accessToken && (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')),
+    enabled: Boolean(accessToken && user?.role === 'ADMIN'),
   });
 
-  if (isLoading) return <Status message="Restoring your session…" />;
+  if (isLoading) return <AdminDashboardSkeleton />;
   if (!user) return <Status message="Sign in to view the dashboard." />;
-  if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN')
+  if (user.role === 'SUPER_ADMIN') return <SuperAdminDashboardView />;
+  if (user.role !== 'ADMIN') {
     return <Status message="Administrator access is required." />;
-  if (dashboardQuery.isPending) return <Status message="Loading dashboard…" />;
-  if (dashboardQuery.isError || !dashboardQuery.data)
+  }
+  if (dashboardQuery.isPending) return <AdminDashboardSkeleton />;
+  if (dashboardQuery.isError || !dashboardQuery.data) {
     return (
       <Status
-        message="Unable to load dashboard data."
+        message="We couldn't load the admin overview."
         onRetry={() => void dashboardQuery.refetch()}
       />
     );
+  }
 
   const dashboard = dashboardQuery.data;
   const trend = dashboard.invoiceTrend.map((point) => ({
     ...point,
     totalDollars: point.totalCents / 100,
   }));
+  const hasBillingTrend = dashboard.invoiceTrend.some((point) => point.totalCents > 0);
+  const subscriptionTotal = dashboard.subscriptionsByStatus.reduce(
+    (total, entry) => total + entry.count,
+    0,
+  );
+  const activePercentage = subscriptionTotal
+    ? Math.round((dashboard.metrics.activeSubscriptions / subscriptionTotal) * 100)
+    : 0;
 
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-        <section className={styles.hero}>
+        <section className={`${styles.hero} ${styles.adminHero}`}>
           <span aria-hidden="true" className={styles.heroGlow} />
           <div className={styles.heroContent}>
-            <p className={styles.eyebrow}>
-              {user.role === 'SUPER_ADMIN' ? 'Super admin control centre' : 'Admin control centre'}
-            </p>
+            <p className={styles.eyebrow}>Admin control centre</p>
             <h1>Business dashboard</h1>
             <p className={styles.heroDescription}>
               A current operational view of customers, active services, revenue and invoices.
@@ -86,113 +160,234 @@ export function AdminDashboardView() {
           <Metric
             detail="Customer accounts"
             icon="users"
-            label="Customers"
+            label="Total customers"
             value={String(dashboard.metrics.customerCount)}
           />
           <Metric
-            detail="Current subscriptions"
+            detail="Currently active services"
             icon="activity"
-            label="Active services"
+            label="Active subscriptions"
             value={String(dashboard.metrics.activeSubscriptions)}
           />
           <Metric
-            detail="Active plan value"
+            detail="Current active plan value"
             icon="gauge"
             label="Monthly recurring revenue"
             value={formatMoney(dashboard.metrics.monthlyRecurringRevenueCents)}
           />
           <Metric
-            detail="Issued and overdue"
+            detail={`${dashboard.metrics.outstandingInvoiceCount} unpaid ${dashboard.metrics.outstandingInvoiceCount === 1 ? 'invoice' : 'invoices'}`}
             icon="credit-card"
-            label="Outstanding invoices"
+            label="Outstanding balance"
             value={formatMoney(dashboard.metrics.outstandingInvoiceCents)}
           />
           <Metric
-            detail="Requires follow-up"
+            detail={
+              dashboard.metrics.overdueInvoiceCount ? 'Requires follow-up' : 'No overdue invoices'
+            }
             icon="shield"
             label="Overdue invoices"
             value={String(dashboard.metrics.overdueInvoiceCount)}
-            warning
+            warning={dashboard.metrics.overdueInvoiceCount > 0}
           />
           <Metric
-            detail={`${formatMoney(dashboard.metrics.refundedThisMonthCents)} this month · ${dashboard.metrics.failedRefunds} failed`}
+            detail={
+              dashboard.metrics.pendingRefunds
+                ? `${formatMoney(dashboard.metrics.pendingRefundAmountCents)} awaiting action`
+                : 'No requests awaiting review'
+            }
             icon="credit-card"
             label="Pending refunds"
             value={String(dashboard.metrics.pendingRefunds)}
-            warning={dashboard.metrics.failedRefunds > 0}
+            warning={dashboard.metrics.pendingRefunds > 0}
           />
         </section>
 
-        <section className={styles.contentGrid}>
-          <Panel meta="Issued invoice totals" title="Invoice value by month">
-            <div className={styles.chart}>
-              <ResponsiveContainer height="100%" width="100%">
-                <BarChart data={trend} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-                  <XAxis
-                    axisLine={false}
-                    dataKey="label"
-                    tick={{ fill: '#64748b', fontSize: 11 }}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tick={{ fill: '#64748b', fontSize: 11 }}
-                    tickFormatter={(value: number) => `$${value}`}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      border: '1px solid #dbe4e7',
-                      borderRadius: 12,
-                      boxShadow: '0 12px 28px rgba(15, 23, 42, 0.1)',
-                      fontSize: 12,
-                    }}
-                    cursor={{ fill: 'rgba(11, 135, 145, 0.06)' }}
-                    formatter={(value) => [`$${Number(value ?? 0).toFixed(2)}`, 'Invoice value']}
-                  />
-                  <Bar dataKey="totalDollars" fill="#0b8791" radius={[7, 7, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+        <section aria-labelledby="attention-heading" className={styles.dashboardSection}>
+          <div className={styles.sectionHeading}>
+            <div>
+              <h2 id="attention-heading">Needs attention</h2>
+              <p>Operational items that may require admin follow-up.</p>
             </div>
+          </div>
+          {dashboard.attention.length ? (
+            <div className={styles.adminAttentionList}>
+              {dashboard.attention.map((item) => (
+                <article
+                  className={styles.adminAttentionItem}
+                  data-severity={item.severity}
+                  key={item.type}
+                >
+                  <span aria-hidden="true" className={styles.attentionIcon}>
+                    <LandingIcon
+                      name={item.severity === 'critical' ? 'shield' : 'activity'}
+                      size={17}
+                    />
+                  </span>
+                  <div className={styles.attentionCopy}>
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
+                  </div>
+                  <Link className={styles.attentionAction} href={item.actionUrl}>
+                    {item.actionLabel}
+                    <LandingIcon name="arrow" size={14} />
+                  </Link>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.attentionEmpty}>
+              <LandingIcon name="check" size={17} />
+              No urgent issues require your attention right now.
+            </p>
+          )}
+        </section>
+
+        <section className={styles.contentGrid}>
+          <Panel meta="Issued invoice totals · last six months" title="Billing trend">
+            {hasBillingTrend ? (
+              <div className={styles.chart}>
+                <ResponsiveContainer height="100%" width="100%">
+                  <BarChart data={trend} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                    <XAxis
+                      axisLine={false}
+                      dataKey="label"
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      tickFormatter={(value: number) => `$${value}`}
+                      tickLine={false}
+                      width={52}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        border: '1px solid #dbe4e7',
+                        borderRadius: 12,
+                        boxShadow: '0 12px 28px rgba(15, 23, 42, 0.1)',
+                        fontSize: 12,
+                      }}
+                      cursor={{ fill: 'rgba(11, 135, 145, 0.06)' }}
+                      formatter={(value) => [
+                        formatMoney(Number(value ?? 0) * 100),
+                        'Invoice value',
+                      ]}
+                    />
+                    <Bar dataKey="totalDollars" fill="#0b8791" radius={[7, 7, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyPanel message="No invoice value is available for the last six months." />
+            )}
           </Panel>
 
           <Panel meta="Current service mix" title="Subscriptions by status">
-            <div className={styles.chart}>
-              <ResponsiveContainer height="100%" width="100%">
-                <PieChart>
-                  <Pie
-                    cx="50%"
-                    cy="48%"
-                    data={dashboard.subscriptionsByStatus}
-                    dataKey="count"
-                    innerRadius={50}
-                    nameKey="status"
-                    outerRadius={82}
-                    paddingAngle={3}
-                  >
-                    {dashboard.subscriptionsByStatus.map((entry) => (
-                      <Cell fill={statusColors[entry.status]} key={entry.status} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      border: '1px solid #dbe4e7',
-                      borderRadius: 12,
-                      boxShadow: '0 12px 28px rgba(15, 23, 42, 0.1)',
-                      fontSize: 12,
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <ul aria-label="Subscription status totals" className={styles.chartLegend}>
-              {dashboard.subscriptionsByStatus.map((entry) => (
-                <li key={entry.status}>
-                  <span aria-hidden="true" style={{ background: statusColors[entry.status] }} />
-                  {entry.status.toLowerCase()}: <strong>{entry.count}</strong>
-                </li>
+            {subscriptionTotal ? (
+              <>
+                <div className={styles.chartSummary}>
+                  <span>
+                    <strong>{subscriptionTotal}</strong> total subscriptions
+                  </span>
+                  <span>
+                    <strong>{activePercentage}%</strong> active
+                  </span>
+                </div>
+                <div className={styles.chart}>
+                  <ResponsiveContainer height="100%" width="100%">
+                    <PieChart>
+                      <Pie
+                        cx="50%"
+                        cy="48%"
+                        data={dashboard.subscriptionsByStatus}
+                        dataKey="count"
+                        innerRadius={50}
+                        nameKey="status"
+                        outerRadius={82}
+                        paddingAngle={3}
+                      >
+                        {dashboard.subscriptionsByStatus.map((entry) => (
+                          <Cell fill={statusColors[entry.status]} key={entry.status} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          border: '1px solid #dbe4e7',
+                          borderRadius: 12,
+                          boxShadow: '0 12px 28px rgba(15, 23, 42, 0.1)',
+                          fontSize: 12,
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <ul aria-label="Subscription status totals" className={styles.chartLegend}>
+                  {dashboard.subscriptionsByStatus.map((entry) => (
+                    <li key={entry.status}>
+                      <span aria-hidden="true" style={{ background: statusColors[entry.status] }} />
+                      {friendlyStatus(entry.status)}: <strong>{entry.count}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <EmptyPanel message="No subscriptions are available yet." />
+            )}
+          </Panel>
+        </section>
+
+        <section className={styles.adminOperationsGrid}>
+          <Panel meta="Latest meaningful business events" title="Recent activity">
+            {dashboard.recentActivity.length ? (
+              <ul className={styles.activityList}>
+                {dashboard.recentActivity.map((activity) => (
+                  <li key={activity.id}>
+                    <Link className={styles.activityItem} href={activity.href}>
+                      <span
+                        aria-hidden="true"
+                        className={styles.activityMarker}
+                        data-tone={activity.tone}
+                      >
+                        <LandingIcon name={activityIcon(activity.kind)} size={15} />
+                      </span>
+                      <span className={styles.activityCopy}>
+                        <strong>{activity.title}</strong>
+                        <span>{activity.description}</span>
+                      </span>
+                      <span className={styles.activityMeta}>
+                        {activity.amountCents === null ? null : (
+                          <strong>{formatMoney(activity.amountCents)}</strong>
+                        )}
+                        <time dateTime={activity.occurredAt}>
+                          {formatDateTime(activity.occurredAt)}
+                        </time>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyPanel message="No recent activity." compact />
+            )}
+          </Panel>
+
+          <Panel meta="Common admin tasks" title="Quick actions">
+            <div className={styles.adminQuickActions}>
+              {quickActions.map((action) => (
+                <Link className={styles.adminQuickAction} href={action.href} key={action.href}>
+                  <span aria-hidden="true" className={styles.quickActionIcon}>
+                    <LandingIcon name={action.icon} size={16} />
+                  </span>
+                  <span className={styles.quickActionCopy}>
+                    <strong>{action.label}</strong>
+                    <span>{action.description}</span>
+                  </span>
+                  <LandingIcon name="arrow" size={14} />
+                </Link>
               ))}
-            </ul>
+            </div>
           </Panel>
         </section>
 
@@ -206,40 +401,70 @@ export function AdminDashboardView() {
               View all invoices
             </Link>
           </div>
-          <div className={styles.tableScroll}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Invoice</th>
-                  <th>Customer</th>
-                  <th>Issue date</th>
-                  <th>Status</th>
-                  <th className={styles.alignRight}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboard.recentInvoices.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td className={styles.tableStrong}>{invoice.invoiceNumber}</td>
-                    <td>{invoice.customerName}</td>
-                    <td className={styles.tableMuted}>
-                      {new Date(invoice.issueDate).toLocaleDateString('en-AU')}
-                    </td>
-                    <td>
-                      <StatusBadge status={invoice.status} />
-                    </td>
-                    <td className={`${styles.tableStrong} ${styles.alignRight}`}>
-                      {formatMoney(invoice.totalCents)}
-                    </td>
+          {dashboard.recentInvoices.length ? (
+            <div className={styles.tableScroll}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Invoice</th>
+                    <th>Customer</th>
+                    <th>Issue date</th>
+                    <th>Invoice status</th>
+                    <th>Payment status</th>
+                    <th className={styles.alignRight}>Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {dashboard.recentInvoices.map((invoice) => (
+                    <tr key={invoice.id}>
+                      <td className={styles.tableStrong}>{invoice.invoiceNumber}</td>
+                      <td>{invoice.customerName}</td>
+                      <td className={styles.tableMuted}>
+                        {new Intl.DateTimeFormat('en-AU', { timeZone: 'UTC' }).format(
+                          new Date(invoice.issueDate),
+                        )}
+                      </td>
+                      <td>
+                        <StatusBadge status={invoice.status} />
+                      </td>
+                      <td>
+                        {invoice.paymentStatus ? (
+                          <StatusBadge status={invoice.paymentStatus} />
+                        ) : (
+                          <span className={styles.tableMuted}>No payment</span>
+                        )}
+                      </td>
+                      <td className={`${styles.tableStrong} ${styles.alignRight}`}>
+                        {formatMoney(invoice.totalCents)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className={styles.tableEmpty}>No recent invoices.</p>
+          )}
         </section>
       </div>
     </main>
   );
+}
+
+function activityIcon(kind: AdminDashboard['recentActivity'][number]['kind']): LandingIconName {
+  switch (kind) {
+    case 'CUSTOMER':
+      return 'user';
+    case 'SUBSCRIPTION':
+      return 'activity';
+    case 'INVOICE':
+      return 'layers';
+    case 'PAYMENT':
+    case 'REFUND':
+      return 'credit-card';
+    case 'PLAN_CHANGE':
+      return 'gauge';
+  }
 }
 
 function Metric({
@@ -287,11 +512,43 @@ function Panel({
   );
 }
 
+function EmptyPanel({
+  message,
+  compact = false,
+}: Readonly<{ message: string; compact?: boolean }>) {
+  return <p className={compact ? styles.emptyState : styles.chartEmpty}>{message}</p>;
+}
+
 function StatusBadge({ status }: Readonly<{ status: string }>) {
   return (
     <span className={styles.badge} data-status={status}>
-      {status}
+      {friendlyStatus(status)}
     </span>
+  );
+}
+
+function AdminDashboardSkeleton() {
+  return (
+    <main aria-label="Loading admin overview" className={styles.page}>
+      <div className={styles.shell}>
+        <div className={`${styles.skeletonHero} ${styles.adminSkeletonHero}`} />
+        <div className={styles.adminSkeletonMetrics}>
+          {Array.from({ length: 6 }, (_, index) => (
+            <div key={index} />
+          ))}
+        </div>
+        <div className={styles.adminSkeletonAttention} />
+        <div className={styles.adminSkeletonCharts}>
+          <div />
+          <div />
+        </div>
+        <div className={styles.adminSkeletonOperations}>
+          <div />
+          <div />
+        </div>
+        <div className={styles.adminSkeletonTable} />
+      </div>
+    </main>
   );
 }
 
@@ -305,7 +562,7 @@ function Status({ message, onRetry }: Readonly<{ message: string; onRetry?: () =
         <p>{message}</p>
         {onRetry ? (
           <button className="button-secondary" onClick={onRetry} type="button">
-            Retry
+            Try Again
           </button>
         ) : null}
       </div>

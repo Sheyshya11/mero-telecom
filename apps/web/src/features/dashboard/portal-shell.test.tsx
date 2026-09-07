@@ -77,6 +77,10 @@ describe('PortalShell navigation', () => {
       </PortalShell>,
     );
     const nav = within(screen.getByRole('navigation'));
+    expect(nav.getByRole('link', { name: 'My Internet' })).toHaveAttribute(
+      'href',
+      '/customer/subscription',
+    );
     expect(nav.getByRole('link', { name: 'Invoices' })).toHaveAttribute('aria-current', 'page');
     for (const link of nav.getAllByRole('link')) {
       expect(link.getAttribute('href')).toMatch(/^\/customer\//);

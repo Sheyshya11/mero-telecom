@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '../../config/configuration';
 import { RedisService } from './redis.service';
 
-export const ADMIN_DASHBOARD_CACHE_KEY = 'mero-telecom:dashboard:admin:v1';
+export const ADMIN_DASHBOARD_CACHE_KEY = 'mero-telecom:dashboard:admin:v2';
 
 @Injectable()
 export class AdminDashboardCacheService {
