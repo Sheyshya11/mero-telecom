@@ -214,7 +214,7 @@ export function CoverageManagement() {
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">
-            MERO TELECOM · {isAdmin ? 'ADMIN' : 'STAFF'}
+            {isAdmin ? 'ADMIN' : 'STAFF'} · COVERAGE
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
             Coverage operations

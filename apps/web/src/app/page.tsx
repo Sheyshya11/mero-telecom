@@ -308,7 +308,7 @@ export default function HomePage() {
               <p>Fast, simple NBN internet for Australian homes.</p>
             </div>
             <div>
-              <h3>Mero Telecom</h3>
+              <h3>Company</h3>
               <ul>
                 <li>
                   <a href="#why-mero">About</a>
@@ -339,10 +339,10 @@ export default function HomePage() {
               <h3>Support</h3>
               <ul>
                 <li>
-                  <a href="#faq">Help Centre</a>
+                  <Link href="/help">Help Centre</Link>
                 </li>
                 <li>
-                  <a href="#faq">Contact Support</a>
+                  <Link href="/help">Contact Support</Link>
                 </li>
                 <li>
                   <LandingFooterAccountLink />

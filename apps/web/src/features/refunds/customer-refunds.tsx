@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
 import { absoluteApiUrl, ApiError, apiRequest } from '../../lib/api/client';
+import { hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
 import {
   formatRefundMoney,
@@ -57,12 +58,12 @@ export function CustomerRefunds() {
     queryKey: ['customer-invoices', 'refund-options'],
     queryFn: () =>
       apiRequest<{ data: BillingInvoice[] }>('/invoices/me?limit=100', {}, accessToken),
-    enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
+    enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
   const refunds = useQuery({
     queryKey: ['customer-refunds'],
     queryFn: () => apiRequest<RefundList>('/me/refunds?limit=100', {}, accessToken),
-    enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
+    enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
   const requestRefund = useMutation({
     mutationFn: () => {
@@ -123,7 +124,7 @@ export function CustomerRefunds() {
     <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10 text-slate-950">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM · BILLING</p>
+          <p className="text-sm font-semibold tracking-wide text-sky-700">BILLING · REFUNDS</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Refunds</h1>
           <p className="mt-2 text-slate-600">
             Request a review and track refunds for your payments.

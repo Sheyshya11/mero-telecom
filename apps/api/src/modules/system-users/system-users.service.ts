@@ -8,7 +8,7 @@ import { Prisma, Role, UserStatus } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
 import { buildPaginationMeta, dateRange } from '../../common/pagination';
-import type { AuthenticatedUser } from '../auth/auth.types';
+import { primaryRole, type AuthenticatedUser } from '../auth/auth.types';
 import type {
   ChangeSystemRoleDto,
   ChangeSystemUserStatusDto,
@@ -37,7 +37,7 @@ export class SystemUsersService {
     this.policy.assertCanReadUsers(actor);
     const search = query.search?.trim();
     const where: Prisma.UserWhereInput = {
-      ...(query.role ? { role: query.role } : {}),
+      ...(query.role ? { roles: { some: { role: query.role } } } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.active ? { isActive: query.active === 'true' } : {}),
       ...(query.createdFrom || query.createdTo
@@ -58,14 +58,27 @@ export class SystemUsersService {
     const [users, total, activeSuperAdminCount] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
-        include: { customer: { select: { firstName: true, lastName: true } } },
-        orderBy: [{ [query.sortBy ?? 'createdAt']: query.sortOrder ?? 'desc' }, { id: 'asc' }],
+        include: {
+          customer: { select: { firstName: true, lastName: true } },
+          roles: { select: { role: true } },
+        },
+        orderBy: [
+          {
+            [query.sortBy === 'role' ? 'createdAt' : (query.sortBy ?? 'createdAt')]:
+              query.sortOrder ?? 'desc',
+          },
+          { id: 'asc' },
+        ],
         skip,
         take: query.limit,
       }),
       this.prisma.user.count({ where }),
       this.prisma.user.count({
-        where: { role: Role.SUPER_ADMIN, status: UserStatus.ACTIVE, isActive: true },
+        where: {
+          roles: { some: { role: Role.SUPER_ADMIN } },
+          status: UserStatus.ACTIVE,
+          isActive: true,
+        },
       }),
     ]);
     const result = this.paginate(
@@ -86,7 +99,7 @@ export class SystemUsersService {
       ...(query.entityType ? { entityType: query.entityType } : {}),
       ...(query.entityId ? { entityId: query.entityId } : {}),
       ...(query.actorUserId ? { actorUserId: query.actorUserId } : {}),
-      ...(query.actorRole ? { actor: { role: query.actorRole } } : {}),
+      ...(query.actorRole ? { actor: { roles: { some: { role: query.actorRole } } } } : {}),
       ...(query.dateFrom || query.dateTo
         ? { createdAt: dateRange(query.dateFrom, query.dateTo) }
         : {}),
@@ -111,7 +124,9 @@ export class SystemUsersService {
       this.prisma.auditLog.findMany({
         where,
         include: {
-          actor: { select: { id: true, displayName: true, email: true, role: true } },
+          actor: {
+            select: { id: true, displayName: true, email: true, roles: { select: { role: true } } },
+          },
         },
         orderBy: [{ [query.sortBy ?? 'createdAt']: query.sortOrder ?? 'desc' }, { id: 'asc' }],
         skip,
@@ -134,36 +149,42 @@ export class SystemUsersService {
           await this.lockSuperAdministratorChanges(transaction);
           const user = await this.findTarget(transaction, userId);
           const assurance = this.policy.assertCanManageTarget(actor, user, 'role', input.role);
-          if (user.customer || user.role === Role.CUSTOMER) {
-            throw new ConflictException(
-              'Customer identities cannot be converted into system accounts. Use a separate staff invitation.',
-            );
-          }
           if (user.status === UserStatus.INVITATION_PENDING) {
             throw new ConflictException(
               'Revoke this invitation and create a new one with the intended role.',
             );
           }
-          if (user.role === input.role) return this.toResponse(user);
-          if (user.role === Role.SUPER_ADMIN) {
+          const previousRoles = this.roleValues(user);
+          const previousRole = primaryRole(previousRoles);
+          if (previousRoles.includes(input.role)) return this.toResponse(user);
+          if (previousRoles.includes(Role.SUPER_ADMIN)) {
             await this.assertAnotherActiveSuperAdmin(transaction, user);
           }
 
           const updated = await transaction.user.update({
             where: { id: user.id },
-            data: { role: input.role },
-            include: { customer: { select: { id: true, firstName: true, lastName: true } } },
+            data: {
+              roles: {
+                deleteMany: { role: { in: [Role.SUPER_ADMIN, Role.ADMIN, Role.STAFF] } },
+                create: { role: input.role, assignedBy: actor.id },
+              },
+            },
+            include: {
+              customer: { select: { id: true, firstName: true, lastName: true } },
+              roles: { select: { role: true } },
+            },
           });
+          const nextRole = primaryRole(this.roleValues(updated));
           await this.revokeSessions(transaction, user.id);
           await transaction.auditLog.create({
             data: {
               actorUserId: actor.id,
-              action: this.roleChangeAction(user.role, updated.role),
+              action: this.roleChangeAction(previousRole, nextRole),
               entityType: 'User',
               entityId: user.id,
               metadata: {
-                previous: { role: user.role },
-                next: { role: updated.role },
+                previous: { roles: previousRoles },
+                next: { roles: this.roleValues(updated) },
                 sessionsRevoked: true,
                 enhancedVerificationSatisfied: assurance.enhancedVerificationSatisfied,
                 ...context,
@@ -198,14 +219,15 @@ export class SystemUsersService {
           await this.lockSuperAdministratorChanges(transaction);
           const user = await this.findTarget(transaction, userId);
           const assurance = this.policy.assertCanManageTarget(actor, user, 'status');
-          if (user.customer || user.role === Role.CUSTOMER) {
+          const userRoles = this.roleValues(user);
+          if (user.customer && userRoles.every((role) => role === Role.CUSTOMER)) {
             throw new ConflictException('Customer status is managed from Customer Management.');
           }
           if (user.status === UserStatus.INVITATION_PENDING) {
             throw new ConflictException('Pending accounts are managed through their invitation.');
           }
           if (user.status === input.status) return this.toResponse(user);
-          if (user.role === Role.SUPER_ADMIN && input.status !== UserStatus.ACTIVE) {
+          if (userRoles.includes(Role.SUPER_ADMIN) && input.status !== UserStatus.ACTIVE) {
             await this.assertAnotherActiveSuperAdmin(transaction, user);
           }
           if (input.status === UserStatus.ACTIVE && (!user.passwordHash || !user.emailVerifiedAt)) {
@@ -215,13 +237,16 @@ export class SystemUsersService {
           const updated = await transaction.user.update({
             where: { id: user.id },
             data: { status: input.status, isActive: input.status === UserStatus.ACTIVE },
-            include: { customer: { select: { id: true, firstName: true, lastName: true } } },
+            include: {
+              customer: { select: { id: true, firstName: true, lastName: true } },
+              roles: { select: { role: true } },
+            },
           });
           await this.revokeSessions(transaction, user.id);
           await transaction.auditLog.create({
             data: {
               actorUserId: actor.id,
-              action: this.statusChangeAction(user.role, input.status),
+              action: this.statusChangeAction(primaryRole(userRoles), input.status),
               entityType: 'User',
               entityId: user.id,
               metadata: {
@@ -252,7 +277,10 @@ export class SystemUsersService {
   private async findTarget(transaction: Prisma.TransactionClient, userId: string) {
     const user = await transaction.user.findUnique({
       where: { id: userId },
-      include: { customer: { select: { id: true, firstName: true, lastName: true } } },
+      include: {
+        customer: { select: { id: true, firstName: true, lastName: true } },
+        roles: { select: { role: true } },
+      },
     });
     if (!user) throw new NotFoundException('User not found.');
     return user;
@@ -272,7 +300,7 @@ export class SystemUsersService {
     const remaining = await transaction.user.count({
       where: {
         id: { not: user.id },
-        role: Role.SUPER_ADMIN,
+        roles: { some: { role: Role.SUPER_ADMIN } },
         status: UserStatus.ACTIVE,
         isActive: true,
       },
@@ -340,7 +368,8 @@ export class SystemUsersService {
     id: string;
     displayName: string | null;
     email: string;
-    role: Role;
+    roles?: { role: Role }[];
+    role?: Role;
     status: UserStatus;
     isActive: boolean;
     emailVerifiedAt: Date | null;
@@ -353,12 +382,17 @@ export class SystemUsersService {
         user.displayName ??
         (user.customer ? `${user.customer.firstName} ${user.customer.lastName}` : null),
       email: user.email,
-      role: user.role,
+      roles: this.roleValues(user),
+      role: primaryRole(this.roleValues(user)),
       status: user.status,
       isActive: user.isActive,
       emailVerifiedAt: user.emailVerifiedAt,
       createdAt: user.createdAt,
       isCustomer: Boolean(user.customer),
     };
+  }
+
+  private roleValues(user: { roles?: { role: Role }[]; role?: Role }): Role[] {
+    return user.roles?.map(({ role }) => role) ?? (user.role ? [user.role] : []);
   }
 }

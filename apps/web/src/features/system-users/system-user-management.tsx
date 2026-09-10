@@ -143,7 +143,7 @@ export function SystemUserManagement() {
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">
-            MERO TELECOM · {isSuperAdmin ? 'SUPER ADMIN' : 'ADMIN'}
+            {isSuperAdmin ? 'SUPER ADMIN' : 'ADMIN'} · TEAM ACCESS
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Team and access</h1>
           <p className="mt-2 max-w-2xl text-slate-600">
@@ -328,7 +328,11 @@ export function SystemUserManagement() {
                           <p className="mt-1 text-xs text-slate-500">{item.email}</p>
                         </td>
                         <td className="px-3 py-4">
-                          <Badge value={item.role} />
+                          <div className="flex flex-wrap gap-1">
+                            {(item.roles ?? [item.role]).map((role) => (
+                              <Badge key={role} value={role} />
+                            ))}
+                          </div>
                         </td>
                         <td className="px-3 py-4">
                           <Badge value={item.status} />

@@ -1,62 +1,83 @@
-import { InvoiceStatus, PaymentStatus, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
 
 import { BillingReportsService } from './billing-reports.service';
 
 describe('BillingReportsService', () => {
-  it('calculates deterministic summary totals from stored cents', async () => {
-    const prisma = {
-      invoice: {
-        findMany: jest.fn().mockResolvedValue([
-          {
-            subtotalCents: 9_000,
-            taxCents: 1_000,
-            totalCents: 10_000,
-            status: InvoiceStatus.ISSUED,
-            payments: [{ amountCents: 6_000, status: PaymentStatus.SUCCEEDED }],
-          },
-        ]),
-        count: jest
-          .fn()
-          .mockImplementation(({ where }: { where: { status?: InvoiceStatus } }) =>
-            Promise.resolve(
-              where.status === InvoiceStatus.PAID
-                ? 0
-                : where.status === InvoiceStatus.OVERDUE
-                  ? 0
-                  : 1,
-            ),
-          ),
-      },
-      payment: {
-        aggregate: jest.fn().mockResolvedValue({ _sum: { amountCents: 6_000 } }),
-        count: jest.fn().mockResolvedValue(0),
-      },
-      refund: {
-        aggregate: jest.fn().mockResolvedValue({ _sum: { refundAmountCents: 500 } }),
-      },
-      subscription: { count: jest.fn().mockResolvedValue(2) },
+  const period = {
+    from: new Date('2026-08-31T14:30:00.000Z'),
+    to: new Date('2026-09-30T14:30:00.000Z'),
+    previousFrom: new Date('2026-08-01T14:30:00.000Z'),
+    previousTo: new Date('2026-08-31T14:30:00.000Z'),
+    timezone: 'Australia/Adelaide',
+    generatedAt: new Date('2026-09-08T00:00:00.000Z'),
+    fromLocalDate: '2026-09-01',
+    toLocalDate: '2026-09-30',
+  };
+
+  function service() {
+    const periods = {
+      resolve: jest.fn().mockReturnValue(period),
+      metadata: jest.fn().mockReturnValue({
+        from: period.from.toISOString(),
+        to: period.to.toISOString(),
+        timezone: period.timezone,
+        generatedAt: period.generatedAt.toISOString(),
+      }),
     };
-    const service = new BillingReportsService(prisma as never);
-    const result = await service.summary(
+    const financialMetrics = {
+      overview: jest.fn().mockResolvedValue({
+        metrics: { grossBilled: { valueCents: 9_900 } },
+        grossAmountCents: 9_900,
+      }),
+    };
+    const reconciliation = {
+      report: jest.fn().mockResolvedValue({
+        summary: { exceptionCount: 2, lastReconciledAt: '2026-09-08T00:00:00.000Z' },
+      }),
+    };
+    const calculations = {
+      count: jest.fn((count: number) => ({ count, previousPeriodCount: 0 })),
+    };
+    return {
+      instance: new BillingReportsService(
+        {} as never,
+        periods as never,
+        financialMetrics as never,
+        calculations as never,
+        {} as never,
+        reconciliation as never,
+        {} as never,
+        {} as never,
+      ),
+      financialMetrics,
+    };
+  }
+
+  it('labels period and snapshot metric bases and includes reconciliation exceptions', async () => {
+    const { instance, financialMetrics } = service();
+    const result = await instance.summary(
       { page: 1, pageSize: 25, sortBy: 'date', sortDirection: 'desc' },
       { id: 'admin', email: 'admin@example.com', role: Role.ADMIN },
     );
+    expect(financialMetrics.overview).toHaveBeenCalled();
     expect(result).toMatchObject({
-      totalInvoices: 1,
-      grossAmountCents: 10_000,
-      paymentsReceivedCents: 6_000,
-      outstandingBalanceCents: 4_000,
-      refundAmountCents: 500,
-      gstCollectedCents: 1_000,
-      netRevenueCents: 5_500,
-      activeSubscriptions: 2,
+      period: { timezone: 'Australia/Adelaide' },
+      metricBasis: {
+        periodMetrics: expect.arrayContaining(['grossBilled', 'paymentsReceived']),
+        snapshotMetrics: expect.arrayContaining(['outstanding', 'mrr']),
+      },
+      metrics: { unreconciledTransactions: { count: 2 } },
     });
   });
 
   it('rejects non-administrator access', () => {
-    const service = new BillingReportsService({} as never);
+    const { instance } = service();
     expect(() =>
-      service.assertCanView({ id: 'customer', email: 'customer@example.com', role: Role.CUSTOMER }),
+      instance.assertCanView({
+        id: 'customer',
+        email: 'customer@example.com',
+        role: Role.CUSTOMER,
+      }),
     ).toThrow('administrator access');
   });
 });

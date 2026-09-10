@@ -33,9 +33,18 @@ function transaction(overrides: Record<string, unknown> = {}) {
     user: {
       findUnique: jest.fn().mockResolvedValue(staffUser),
       count: jest.fn().mockResolvedValue(1),
-      update: jest
-        .fn()
-        .mockImplementation(({ data }) => Promise.resolve({ ...staffUser, ...data })),
+      update: jest.fn().mockImplementation(({ data }) =>
+        Promise.resolve({
+          ...staffUser,
+          ...data,
+          roles: data.roles?.create
+            ? [
+                ...(staffUser.role === Role.CUSTOMER ? [{ role: Role.CUSTOMER }] : []),
+                { role: data.roles.create.role },
+              ]
+            : [{ role: staffUser.role }],
+        }),
+      ),
     },
     refreshSession: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     auditLog: { create: jest.fn().mockResolvedValue({}) },
@@ -135,17 +144,28 @@ describe('SystemUsersService', () => {
     expect(tx.user.update).not.toHaveBeenCalled();
   });
 
-  it('does not allow customer identities through system-role management', async () => {
+  it('adds an internal role to a customer identity without creating another account', async () => {
     const tx = transaction();
     tx.user.findUnique.mockResolvedValue({
       ...staffUser,
       role: Role.CUSTOMER,
+      roles: [{ role: Role.CUSTOMER }],
       customer: { id: 'customer-profile', firstName: 'A', lastName: 'Customer' },
     });
     const { service } = serviceFor(tx);
     await expect(
       service.changeRole(staffUser.id, { role: Role.ADMIN }, superAdmin, context),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).resolves.toEqual(expect.objectContaining({ roles: expect.arrayContaining([Role.ADMIN]) }));
+    expect(tx.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          roles: {
+            deleteMany: { role: { in: [Role.SUPER_ADMIN, Role.ADMIN, Role.STAFF] } },
+            create: { role: Role.ADMIN, assignedBy: superAdmin.id },
+          },
+        },
+      }),
+    );
   });
 
   it('uses a serialized advisory lock before final-super-admin checks', async () => {

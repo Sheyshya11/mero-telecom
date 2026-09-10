@@ -4,12 +4,12 @@ import type { Reflector } from '@nestjs/core';
 import { RolesGuard } from './roles.guard';
 
 describe('RolesGuard', () => {
-  const createContext = (role: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | 'CUSTOMER') =>
+  const createContext = (role: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | 'CUSTOMER', roles = [role]) =>
     ({
       getHandler: jest.fn(),
       getClass: jest.fn(),
       switchToHttp: () => ({
-        getRequest: () => ({ user: { role } }),
+        getRequest: () => ({ user: { role, roles } }),
       }),
     }) as never;
 
@@ -49,5 +49,16 @@ describe('RolesGuard', () => {
     const guard = new RolesGuard(reflector as unknown as Reflector);
 
     await expect(guard.canActivate(createContext('CUSTOMER'))).resolves.toBe(true);
+  });
+
+  it('allows a multi-role account when any assigned role is permitted', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(['CUSTOMER']),
+    };
+    const guard = new RolesGuard(reflector as unknown as Reflector);
+
+    await expect(guard.canActivate(createContext('STAFF', ['CUSTOMER', 'STAFF']))).resolves.toBe(
+      true,
+    );
   });
 });

@@ -17,7 +17,13 @@ export interface Customer {
   accountStatus: AccountStatus | null;
   invitationStatus: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED' | null;
   currentSubscription: {
-    status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+    status:
+      | 'PENDING'
+      | 'ACTIVE'
+      | 'CANCELLATION_PENDING'
+      | 'DISCONNECTION_PENDING'
+      | 'SUSPENDED'
+      | 'CANCELLED';
     plan: { id: string; name: string };
   } | null;
   createdAt: string;

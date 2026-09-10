@@ -399,6 +399,9 @@ describe('DashboardService customer summary', () => {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue(null),
       },
+      cancellationRequest: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
     };
   }
 

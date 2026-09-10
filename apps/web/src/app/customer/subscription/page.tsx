@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '../../../features/auth/auth-provider';
+import { hasRole } from '../../../features/auth/auth-navigation';
+import { CustomerCancellation } from '../../../features/cancellations/customer-cancellation';
 import { PlanCheckoutButton } from '../../../features/payments/stripe-checkout-button';
 import { ApiError, apiRequest } from '../../../lib/api/client';
 
@@ -18,7 +20,13 @@ type Plan = {
 
 type Subscription = {
   id: string;
-  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+  status:
+    | 'PENDING'
+    | 'ACTIVE'
+    | 'CANCELLATION_PENDING'
+    | 'DISCONNECTION_PENDING'
+    | 'SUSPENDED'
+    | 'CANCELLED';
   startDate: string;
   currentPeriodStart: string;
   currentPeriodEnd: string;
@@ -104,26 +112,34 @@ export default function CustomerSubscriptionPage() {
   const subscriptions = useQuery({
     queryKey: ['my-subscriptions'],
     queryFn: () => apiRequest<Subscription[]>('/subscriptions/me', {}, accessToken),
-    enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
+    enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
   const plans = useQuery({
     queryKey: ['public-plans'],
     queryFn: () => apiRequest<Plan[]>('/plans/public', {}, accessToken),
-    enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
+    enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
   const currentSubscription = useMemo(
     () =>
       subscriptions.data?.find((subscription) =>
-        ['ACTIVE', 'SUSPENDED'].includes(subscription.status),
+        ['ACTIVE', 'SUSPENDED', 'CANCELLATION_PENDING', 'DISCONNECTION_PENDING'].includes(
+          subscription.status,
+        ),
       ),
     [subscriptions.data],
+  );
+  const cancellationSubscription = useMemo(
+    () =>
+      currentSubscription ??
+      subscriptions.data?.find((subscription) => subscription.status === 'CANCELLED'),
+    [currentSubscription, subscriptions.data],
   );
   const latestChange = useQuery({
     queryKey: ['plan-change'],
     queryFn: () =>
-      apiRequest<{ data: PlanChange[] }>('/plan-change-requests?limit=1', {}, accessToken),
+      apiRequest<{ data: PlanChange[] }>('/plan-change-requests/me?limit=1', {}, accessToken),
     select: (result) => result.data[0] ?? null,
-    enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
+    enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
   const checkoutReconciliation = useQuery({
     queryKey: ['checkout-reconciliation', checkoutSessionId],
@@ -134,7 +150,11 @@ export default function CustomerSubscriptionPage() {
         accessToken,
       ),
     enabled: Boolean(
-      accessToken && user?.role === 'CUSTOMER' && paymentReturn === 'success' && checkoutSessionId,
+      accessToken &&
+      user &&
+      hasRole(user, 'CUSTOMER') &&
+      paymentReturn === 'success' &&
+      checkoutSessionId,
     ),
     retry: 1,
   });
@@ -148,7 +168,8 @@ export default function CustomerSubscriptionPage() {
       ),
     enabled: Boolean(
       accessToken &&
-      user?.role === 'CUSTOMER' &&
+      user &&
+      hasRole(user, 'CUSTOMER') &&
       checkoutReturn === 'success' &&
       planChangeRequestId,
     ),
@@ -236,7 +257,7 @@ export default function CustomerSubscriptionPage() {
       </main>
     );
   }
-  if (!user || user.role !== 'CUSTOMER') {
+  if (!user || !hasRole(user, 'CUSTOMER')) {
     return (
       <main className="grid min-h-screen place-items-center text-slate-600">
         Customer access is required.
@@ -254,7 +275,7 @@ export default function CustomerSubscriptionPage() {
     <main className="workspace-page mx-auto min-h-screen max-w-4xl px-6 py-10">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM</p>
+          <p className="text-sm font-semibold tracking-wide text-sky-700">MY INTERNET</p>
           <h1 className="mt-2 text-3xl font-bold">My subscription</h1>
         </div>
       </header>
@@ -283,8 +304,10 @@ export default function CustomerSubscriptionPage() {
                   {formatMoney(subscription.plan.monthlyCents)}/month
                 </p>
               </div>
-              <span className="h-fit rounded-full bg-slate-100 px-2 py-1 text-xs">
-                {subscription.status}
+              <span
+                className={`h-fit rounded-full px-2.5 py-1 text-xs font-semibold ${subscriptionStatusTone(subscription.status)}`}
+              >
+                {subscriptionStatusLabel(subscription.status)}
               </span>
             </div>
             <p className="mt-3 text-sm text-slate-500">
@@ -296,6 +319,10 @@ export default function CustomerSubscriptionPage() {
           </article>
         ))}
       </div>
+
+      {cancellationSubscription ? (
+        <CustomerCancellation accessToken={accessToken} subscription={cancellationSubscription} />
+      ) : null}
 
       {latestChange.isError ? (
         <ErrorPanel
@@ -683,6 +710,26 @@ function formatMoney(cents: number): string {
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('en-AU');
+}
+
+function subscriptionStatusLabel(status: Subscription['status']): string {
+  const labels: Record<Subscription['status'], string> = {
+    PENDING: 'Pending activation',
+    ACTIVE: 'Active',
+    SUSPENDED: 'Suspended',
+    CANCELLATION_PENDING: 'Cancellation scheduled',
+    DISCONNECTION_PENDING: 'Cancellation in progress',
+    CANCELLED: 'Ended',
+  };
+  return labels[status];
+}
+
+function subscriptionStatusTone(status: Subscription['status']): string {
+  if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-800';
+  if (status === 'CANCELLATION_PENDING') return 'bg-amber-100 text-amber-900';
+  if (status === 'DISCONNECTION_PENDING') return 'bg-sky-100 text-sky-800';
+  if (status === 'SUSPENDED') return 'bg-rose-100 text-rose-800';
+  return 'bg-slate-100 text-slate-700';
 }
 
 function formatDateTime(value: string): string {

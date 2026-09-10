@@ -86,6 +86,7 @@ function previewTransaction(
     },
     invoice: { count: jest.fn().mockResolvedValue(overrides.blockingInvoices ?? 0) },
     planChangeRequest: { count: jest.fn().mockResolvedValue(overrides.pendingChanges ?? 0) },
+    cancellationRequest: { count: jest.fn().mockResolvedValue(0) },
   };
 }
 
@@ -200,6 +201,7 @@ describe('PlanChangesService', () => {
         count: jest.fn().mockResolvedValue(0),
         create: jest.fn().mockResolvedValue(request),
       },
+      cancellationRequest: { count: jest.fn().mockResolvedValue(0) },
       internetPlan: { findUnique: jest.fn().mockResolvedValue(cheaperPlan) },
       invoice: { count: jest.fn().mockResolvedValue(0) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },

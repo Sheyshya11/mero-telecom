@@ -58,6 +58,7 @@ const dashboard: CustomerDashboard = {
     startDate: '2026-08-24T00:00:00.000Z',
     plan: { name: 'NBN 100', downloadMbps: 100, uploadMbps: 40, monthlyCents: 9900 },
   },
+  cancellation: null,
   billing: {
     nextPaymentAmountCents: 9900,
     nextBillingDate: '2026-09-24T00:00:00.000Z',

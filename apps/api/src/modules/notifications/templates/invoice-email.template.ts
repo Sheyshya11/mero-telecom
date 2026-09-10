@@ -1,4 +1,7 @@
+import { renderEmailLogo } from './email-brand';
+
 export interface InvoiceEmailTemplateData {
+  brandLogoUrl: string;
   invoiceNumber: string;
   customerName: string;
   dueDate: Date;
@@ -43,9 +46,9 @@ export function renderInvoiceEmail(data: InvoiceEmailTemplateData): RenderedEmai
 <html lang="en">
   <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:12px;overflow:hidden">
-      <div style="background:#075985;padding:24px;color:#fff">
-        <div style="font-size:22px;font-weight:700">MERO TELECOM</div>
-        <div style="margin-top:4px;font-size:13px">Invoice delivery</div>
+      <div style="padding:20px 28px;border-bottom:1px solid #e2e8f0">
+        ${renderEmailLogo(data.brandLogoUrl)}
+        <div style="margin-top:8px;color:#475569;font-size:12px">Invoice delivery</div>
       </div>
       <div style="padding:28px">
         <p>Hello ${customerName},</p>

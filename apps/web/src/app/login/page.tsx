@@ -7,6 +7,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
 import { LandingIcon } from '../../components/landing/landing-icons';
 import { getHomeRoute, getPostLoginRoute } from '../../features/auth/auth-navigation';
 import { useAuth } from '../../features/auth/auth-provider';
@@ -241,12 +242,7 @@ function BrandLogo({ mobile = false }: Readonly<{ mobile?: boolean }>) {
       className={mobile ? styles.mobileLogo : styles.brandLogo}
       href="/"
     >
-      <span className={styles.logoIcon}>
-        <LandingIcon name="wifi" size={20} />
-      </span>
-      <span>
-        Mero<span>Telecom</span>
-      </span>
+      <MeroTelecomLogo alt="" preload size="auth" />
     </Link>
   );
 }
@@ -254,8 +250,13 @@ function BrandLogo({ mobile = false }: Readonly<{ mobile?: boolean }>) {
 function LoginLoadingState() {
   return (
     <main className={styles.loadingPage}>
-      <span aria-hidden="true" className={styles.spinnerDark} />
-      <span>Preparing sign in…</span>
+      <div className={styles.loadingContent}>
+        <MeroTelecomLogo preload size="auth" />
+        <span className={styles.loadingMessage}>
+          <span aria-hidden="true" className={styles.spinnerDark} />
+          Preparing sign in…
+        </span>
+      </div>
     </main>
   );
 }

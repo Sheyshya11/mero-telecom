@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 
+import { loadMeroTelecomLogo } from '../../common/branding/mero-telecom-brand';
+
 export interface InvoicePdfData {
   invoiceNumber: string;
   issueDate: Date;
@@ -31,6 +33,8 @@ export interface InvoicePdfData {
 
 @Injectable()
 export class InvoicePdfService {
+  private readonly brandLogo = loadMeroTelecomLogo();
+
   render(invoice: InvoicePdfData): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const document = new PDFDocument({
@@ -54,11 +58,11 @@ export class InvoicePdfService {
 
   private drawHeader(document: PDFKit.PDFDocument, invoice: InvoicePdfData): void {
     document.rect(0, 0, document.page.width, 122).fill('#075985');
-    document.fillColor('#ffffff').font('Helvetica-Bold').fontSize(24).text('MERO TELECOM', 50, 42);
-    document.font('Helvetica').fontSize(10).text('Integrated ISP Management Platform', 50, 74);
+    document.image(this.brandLogo, 50, 31, { fit: [230, 42], valign: 'center' });
     document
       .font('Helvetica-Bold')
       .fontSize(21)
+      .fillColor('#ffffff')
       .text('TAX INVOICE', 410, 43, { width: 135, align: 'right' });
     document
       .font('Helvetica')

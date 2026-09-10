@@ -4,8 +4,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
-import { LandingIcon } from '../../components/landing/landing-icons';
-import { getDashboardRoute, PUBLIC_WEBSITE_ROUTE } from '../auth/auth-navigation';
+import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
+import {
+  getHomeRoute,
+  hasRole,
+  isMultiWorkspaceUser,
+  PUBLIC_WEBSITE_ROUTE,
+} from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
 import styles from './portal-shell.module.css';
 
@@ -15,6 +20,7 @@ const navigation = {
     ['customers', 'Customers'],
     ['plans', 'Plans'],
     ['subscriptions', 'Subscriptions'],
+    ['cancellations', 'Cancellations'],
     ['invoices', 'Invoices'],
     ['refunds', 'Refunds'],
     ['billing/reports', 'Billing reports'],
@@ -22,6 +28,7 @@ const navigation = {
     ['users', 'Team'],
   ],
   staff: [
+    ['support', 'Support'],
     ['customers', 'Customers'],
     ['plans', 'Plan highlights'],
     ['coverage', 'Coverage'],
@@ -29,10 +36,50 @@ const navigation = {
   ],
   customer: [
     ['dashboard', 'Overview'],
+    ['support', 'Support'],
     ['subscription', 'My Internet'],
     ['invoices', 'Invoices'],
     ['refunds', 'Refunds'],
     ['profile', 'My profile'],
+  ],
+  controlStaff: [
+    ['dashboard', 'Overview'],
+    ['support', 'Support'],
+    ['internal-requests', 'Internal Requests'],
+    ['customers', 'Customers'],
+    ['services', 'Services'],
+    ['cancellations', 'Cancellations'],
+    ['coverage', 'Coverage'],
+    ['refunds', 'Refunds'],
+  ],
+  controlAdmin: [
+    ['dashboard', 'Overview'],
+    ['support', 'Support'],
+    ['internal-requests', 'Internal Requests'],
+    ['customers', 'Customers'],
+    ['services', 'Services'],
+    ['cancellations', 'Cancellations'],
+    ['invoices', 'Invoices'],
+    ['billing', 'Billing'],
+    ['refunds', 'Refunds'],
+    ['plans', 'Plans'],
+    ['coverage', 'Coverage'],
+    ['staff', 'Team'],
+  ],
+  controlSuperAdmin: [
+    ['dashboard', 'Overview'],
+    ['support', 'Support'],
+    ['internal-requests', 'Internal Requests'],
+    ['customers', 'Customers'],
+    ['services', 'Services'],
+    ['cancellations', 'Cancellations'],
+    ['invoices', 'Invoices'],
+    ['billing', 'Billing'],
+    ['refunds', 'Refunds'],
+    ['plans', 'Plans'],
+    ['coverage', 'Coverage'],
+    ['staff', 'Team'],
+    ['audit-logs', 'Audit logs'],
   ],
 } as const;
 
@@ -43,11 +90,13 @@ export function PortalShell({ children }: Readonly<{ children: React.ReactNode }
   const [signOutError, setSignOutError] = useState(false);
   if (!user) return null;
 
-  const area = pathname.startsWith('/staff/')
-    ? 'staff'
-    : user.role === 'CUSTOMER'
-      ? 'customer'
-      : 'admin';
+  const area = pathname.startsWith('/control-centre/')
+    ? 'control-centre'
+    : pathname.startsWith('/staff/')
+      ? 'staff'
+      : pathname.startsWith('/customer/')
+        ? 'customer'
+        : 'admin';
   const roleLabel =
     user.role === 'SUPER_ADMIN'
       ? 'Super admin'
@@ -79,15 +128,10 @@ export function PortalShell({ children }: Readonly<{ children: React.ReactNode }
           <div className={styles.identity}>
             <Link
               className={styles.brand}
-              href={getDashboardRoute(user.role)}
+              href={getHomeRoute(user)}
               aria-label="Mero Telecom dashboard"
             >
-              <span className={styles.mark}>
-                <LandingIcon name="wifi" size={20} />
-              </span>
-              <span>
-                Mero<span className={styles.brandMuted}>Telecom</span>
-              </span>
+              <MeroTelecomLogo alt="" size="portal" />
             </Link>
             <span className={styles.role}>{roleLabel}</span>
           </div>
@@ -98,6 +142,14 @@ export function PortalShell({ children }: Readonly<{ children: React.ReactNode }
             <Link className={styles.website} href={PUBLIC_WEBSITE_ROUTE}>
               Visit website
             </Link>
+            {isMultiWorkspaceUser(user) ? (
+              <Link
+                className={styles.website}
+                href={area === 'customer' ? '/control-centre/dashboard' : '/customer/dashboard'}
+              >
+                Switch workspace
+              </Link>
+            ) : null}
             <button
               className="button-primary"
               disabled={isSigningOut}
@@ -108,7 +160,14 @@ export function PortalShell({ children }: Readonly<{ children: React.ReactNode }
             </button>
           </div>
           <nav aria-label={`${roleLabel} navigation`} className={styles.navigation}>
-            {navigation[area].map(([path, label]) => {
+            {(area === 'control-centre'
+              ? hasRole(user, 'SUPER_ADMIN')
+                ? navigation.controlSuperAdmin
+                : hasRole(user, 'ADMIN')
+                  ? navigation.controlAdmin
+                  : navigation.controlStaff
+              : navigation[area]
+            ).map(([path, label]) => {
               const href = `/${area}/${path}`;
               const active = pathname === href || pathname.startsWith(`${href}/`);
               return (

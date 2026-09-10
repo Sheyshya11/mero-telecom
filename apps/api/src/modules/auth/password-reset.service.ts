@@ -184,7 +184,7 @@ export class PasswordResetService {
       async (transaction) => {
         let token = await transaction.passwordResetToken.findUnique({
           where: { tokenHash },
-          include: { user: true },
+          include: { user: { include: { roles: { select: { role: true } } } } },
         });
         if (!token) {
           await this.createFailureAudit(transaction, 'unknown', undefined, context);
@@ -194,7 +194,7 @@ export class PasswordResetService {
         await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${token.userId}))`;
         token = await transaction.passwordResetToken.findUnique({
           where: { id: token.id },
-          include: { user: true },
+          include: { user: { include: { roles: { select: { role: true } } } } },
         });
         if (!token) {
           await this.createFailureAudit(transaction, 'unknown', undefined, context);
@@ -268,7 +268,9 @@ export class PasswordResetService {
               entityId: token.id,
               metadata: {
                 sessionsRevoked: revokedSessions.count,
-                rolePreserved: token.user.role,
+                rolesPreserved: token.user.roles?.map(({ role }) => role) ?? [
+                  (token.user as unknown as { role: string }).role,
+                ],
                 statusPreserved: token.user.status,
                 ...this.auditContext(context),
               },

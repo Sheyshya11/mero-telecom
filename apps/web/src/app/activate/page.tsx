@@ -8,6 +8,7 @@ import { Suspense } from 'react';
 import { useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { z } from 'zod';
 
+import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
 import { ApiError, apiRequest } from '../../lib/api/client';
 
 const activationSchema = z
@@ -63,6 +64,7 @@ function ActivationContent() {
   if (!token || verification.isError || verification.data?.valid === false) {
     return (
       <main className="mx-auto min-h-screen max-w-xl px-6 py-16 text-center">
+        <ActivationBrand />
         <h1 className="text-3xl font-bold">Activation link unavailable</h1>
         <p className="mt-3 text-slate-600">
           This link is invalid, expired, or has already been used.
@@ -77,6 +79,7 @@ function ActivationContent() {
   if (activation.isSuccess) {
     return (
       <main className="mx-auto min-h-screen max-w-xl px-6 py-16 text-center">
+        <ActivationBrand />
         <h1 className="text-3xl font-bold">Account activated</h1>
         <p className="mt-3 text-slate-600">
           Your email is verified and your password is ready. You can now sign in.
@@ -91,7 +94,7 @@ function ActivationContent() {
   return (
     <main className="grid min-h-screen place-items-center px-6 py-12">
       <section className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-7 shadow-sm">
-        <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM</p>
+        <ActivationBrand />
         <h1 className="mt-3 text-3xl font-bold">Create your password</h1>
         <p className="mt-2 text-sm text-slate-600">
           Your password is created here securely. Mero Telecom staff cannot view it.
@@ -145,5 +148,20 @@ function PasswordField({
 }
 
 function Status({ message }: Readonly<{ message: string }>) {
-  return <main className="grid min-h-screen place-items-center text-slate-600">{message}</main>;
+  return (
+    <main className="grid min-h-screen place-items-center px-6 text-slate-600">
+      <div className="grid justify-items-center gap-5 text-center">
+        <MeroTelecomLogo preload size="auth" />
+        <p>{message}</p>
+      </div>
+    </main>
+  );
+}
+
+function ActivationBrand() {
+  return (
+    <Link aria-label="Mero Telecom home" className="mb-6 inline-flex" href="/">
+      <MeroTelecomLogo alt="" preload size="auth" />
+    </Link>
+  );
 }

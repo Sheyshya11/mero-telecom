@@ -13,7 +13,15 @@ export interface AppConfig {
   cache: {
     adminDashboardTtlSeconds: number;
   };
+  billingReporting: {
+    timezone: string;
+  };
   refundAttachments: {
+    maxFiles: number;
+    maxFileSizeBytes: number;
+    maxTotalSizeBytes: number;
+  };
+  supportAttachments: {
     maxFiles: number;
     maxFileSizeBytes: number;
     maxTotalSizeBytes: number;
@@ -22,6 +30,13 @@ export interface AppConfig {
     intervalMilliseconds: number;
     staleAfterMilliseconds: number;
     batchSize: number;
+  };
+  cancellation: {
+    provider: 'mock';
+    reconciliationIntervalMilliseconds: number;
+    batchSize: number;
+    mockScenario: 'SUCCESS' | 'PENDING' | 'FAILED' | 'MANUAL_REVIEW_REQUIRED';
+    mockPendingPolls: number;
   };
   addressLookup: {
     provider: 'geoapify';
@@ -58,6 +73,8 @@ export interface AppConfig {
     refreshSecret: string;
     accessExpiresIn: string;
     refreshExpiresIn: string;
+    internalAccessExpiresIn: string;
+    internalRefreshExpiresIn: string;
   };
   stripe: {
     secretKey: string;
@@ -109,16 +126,37 @@ export default (): AppConfig => ({
   cache: {
     adminDashboardTtlSeconds: Number(process.env.ADMIN_DASHBOARD_CACHE_TTL_SECONDS ?? 60),
   },
+  billingReporting: {
+    timezone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Adelaide',
+  },
   refundAttachments: {
     maxFiles: Number(process.env.REFUND_MAX_FILES ?? 5),
     maxFileSizeBytes: Number(process.env.REFUND_MAX_FILE_SIZE_MB ?? 10) * 1024 * 1024,
     maxTotalSizeBytes: Number(process.env.REFUND_MAX_TOTAL_SIZE_MB ?? 25) * 1024 * 1024,
+  },
+  supportAttachments: {
+    maxFiles: Number(process.env.SUPPORT_MAX_FILES ?? 3),
+    maxFileSizeBytes: Number(process.env.SUPPORT_MAX_FILE_SIZE_MB ?? 10) * 1024 * 1024,
+    maxTotalSizeBytes: Number(process.env.SUPPORT_MAX_TOTAL_SIZE_MB ?? 20) * 1024 * 1024,
   },
   refundReconciliation: {
     intervalMilliseconds: Number(process.env.REFUND_RECONCILIATION_INTERVAL_MS ?? 300_000),
     staleAfterMilliseconds:
       Number(process.env.REFUND_RECONCILIATION_STALE_AFTER_MINUTES ?? 10) * 60_000,
     batchSize: Number(process.env.REFUND_RECONCILIATION_BATCH_SIZE ?? 50),
+  },
+  cancellation: {
+    provider: (process.env.NBN_PROVIDER ?? 'mock') as 'mock',
+    reconciliationIntervalMilliseconds: Number(
+      process.env.CANCELLATION_RECONCILIATION_INTERVAL_MS ?? 60_000,
+    ),
+    batchSize: Number(process.env.CANCELLATION_RECONCILIATION_BATCH_SIZE ?? 50),
+    mockScenario: (process.env.NBN_MOCK_SCENARIO ?? 'PENDING') as
+      | 'SUCCESS'
+      | 'PENDING'
+      | 'FAILED'
+      | 'MANUAL_REVIEW_REQUIRED',
+    mockPendingPolls: Number(process.env.NBN_MOCK_PENDING_POLLS ?? 1),
   },
   addressLookup: {
     provider: (process.env.ADDRESS_LOOKUP_PROVIDER ?? 'geoapify') as 'geoapify',
@@ -169,6 +207,8 @@ export default (): AppConfig => ({
     refreshSecret: process.env.JWT_REFRESH_SECRET ?? '',
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
+    internalAccessExpiresIn: process.env.JWT_INTERNAL_ACCESS_EXPIRES_IN ?? '10m',
+    internalRefreshExpiresIn: process.env.JWT_INTERNAL_REFRESH_EXPIRES_IN ?? '12h',
   },
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY ?? '',

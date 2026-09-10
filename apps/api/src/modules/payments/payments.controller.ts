@@ -19,7 +19,7 @@ import type { Request, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import type { AuthenticatedUser } from '../auth/auth.types';
+import { asCustomerContext, type AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TrustedOriginGuard } from '../auth/trusted-origin.guard';
 import {
@@ -118,7 +118,7 @@ export class PaymentsController {
     @Query() query: PublicCheckoutStatusQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.payments.getAuthenticatedCheckoutStatus(query.sessionId, user);
+    return this.payments.getAuthenticatedCheckoutStatus(query.sessionId, asCustomerContext(user));
   }
 
   @Post('checkout-session')
@@ -129,7 +129,7 @@ export class PaymentsController {
     @Body() input: CreateCheckoutSessionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.payments.createCheckoutSession(input.invoiceId, user);
+    return this.payments.createCheckoutSession(input.invoiceId, asCustomerContext(user));
   }
 
   @Post('plan-checkout-session')
@@ -140,7 +140,7 @@ export class PaymentsController {
     @Body() input: CreatePlanCheckoutSessionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.payments.createPlanCheckoutSession(input.planId, user);
+    return this.payments.createPlanCheckoutSession(input.planId, asCustomerContext(user));
   }
 
   private checkoutContextToken(request: Request): string | undefined {

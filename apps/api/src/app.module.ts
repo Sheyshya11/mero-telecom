@@ -28,6 +28,9 @@ import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from './config/configuration';
 import { RefundsModule } from './modules/refunds/refunds.module';
 import { BillingReportsModule } from './modules/billing-reports/billing-reports.module';
+import { SupportModule } from './modules/support/support.module';
+import { InternalRequestsModule } from './modules/internal-requests/internal-requests.module';
+import { CancellationsModule } from './modules/cancellations/cancellations.module';
 
 @Module({
   imports: [
@@ -72,6 +75,9 @@ import { BillingReportsModule } from './modules/billing-reports/billing-reports.
     PlanChangesModule,
     CoverageModule,
     SystemUsersModule,
+    SupportModule,
+    InternalRequestsModule,
+    CancellationsModule,
     HealthModule,
   ],
   providers: [

@@ -22,6 +22,8 @@ import type { SuperAdminDashboard } from './dashboard.types';
 
 const statusColors = {
   ACTIVE: '#0b8791',
+  CANCELLATION_PENDING: '#d97706',
+  DISCONNECTION_PENDING: '#ea580c',
   PENDING: '#55bcc3',
   SUSPENDED: '#e49a26',
   CANCELLED: '#94a3b8',
@@ -33,6 +35,12 @@ const quickActions: Array<{
   label: string;
   description: string;
 }> = [
+  {
+    href: '/control-centre/internal-requests?currentLevel=SUPER_ADMIN',
+    icon: 'shield',
+    label: 'Review escalations',
+    description: 'Review internal requests requiring Super Admin attention',
+  },
   {
     href: '/admin/users',
     icon: 'shield',
@@ -90,6 +98,18 @@ export function SuperAdminDashboardView() {
     queryFn: () => apiRequest<SuperAdminDashboard>('/dashboard/super-admin', {}, accessToken),
     enabled: Boolean(accessToken && user?.role === 'SUPER_ADMIN'),
   });
+  const escalationSummary = useQuery({
+    queryKey: ['super-admin-internal-request-summary'],
+    queryFn: () =>
+      apiRequest<{
+        awaitingReview: number;
+        assignedToMe: number;
+        inReview: number;
+        needsInformation: number;
+        highPriority: number;
+      }>('/super-admin/internal-requests/summary', {}, accessToken),
+    enabled: Boolean(accessToken && user?.role === 'SUPER_ADMIN'),
+  });
 
   if (isLoading) return <SuperAdminDashboardSkeleton />;
   if (!user) return <Status message="Sign in to view the dashboard." />;
@@ -119,6 +139,8 @@ export function SuperAdminDashboardView() {
   const activePercentage = subscriptionTotal
     ? Math.round((dashboard.business.activeSubscriptions / subscriptionTotal) * 100)
     : 0;
+  const pendingEscalations = escalationSummary.data?.awaitingReview ?? 0;
+  const highPriorityEscalations = escalationSummary.data?.highPriority ?? 0;
 
   return (
     <main className={styles.page}>
@@ -241,8 +263,33 @@ export function SuperAdminDashboardView() {
               <p>High-priority business, access and governance exceptions.</p>
             </div>
           </div>
-          {dashboard.attention.length ? (
+          {dashboard.attention.length || pendingEscalations ? (
             <div className={styles.adminAttentionList}>
+              {pendingEscalations ? (
+                <article
+                  className={styles.adminAttentionItem}
+                  data-severity={highPriorityEscalations ? 'critical' : 'warning'}
+                >
+                  <span aria-hidden="true" className={styles.attentionIcon}>
+                    <LandingIcon name="shield" size={17} />
+                  </span>
+                  <div className={styles.attentionCopy}>
+                    <h3>Escalations awaiting review</h3>
+                    <p>
+                      {pendingEscalations} request{pendingEscalations === 1 ? '' : 's'} awaiting
+                      Super Admin review
+                      {highPriorityEscalations ? ` · ${highPriorityEscalations} high priority` : ''}
+                    </p>
+                  </div>
+                  <Link
+                    className={styles.attentionAction}
+                    href="/control-centre/internal-requests?status=PENDING&currentLevel=SUPER_ADMIN"
+                  >
+                    Review escalations
+                    <LandingIcon name="arrow" size={14} />
+                  </Link>
+                </article>
+              ) : null}
               {dashboard.attention.map((item) => (
                 <article
                   className={styles.adminAttentionItem}

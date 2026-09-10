@@ -23,6 +23,8 @@ import { SuperAdminDashboardView } from './super-admin-dashboard';
 
 const statusColors = {
   ACTIVE: '#0b8791',
+  CANCELLATION_PENDING: '#d97706',
+  DISCONNECTION_PENDING: '#ea580c',
   PENDING: '#55bcc3',
   SUSPENDED: '#e49a26',
   CANCELLED: '#94a3b8',
@@ -107,6 +109,18 @@ export function AdminDashboardView() {
     queryFn: () => apiRequest<AdminDashboard>('/dashboard/admin', {}, accessToken),
     enabled: Boolean(accessToken && user?.role === 'ADMIN'),
   });
+  const internalRequestSummary = useQuery({
+    queryKey: ['admin-internal-request-summary'],
+    queryFn: () =>
+      apiRequest<{
+        awaitingReview: number;
+        assignedToMe: number;
+        needsInformation: number;
+        highPriority: number;
+        escalated: number;
+      }>('/admin/internal-requests/summary', {}, accessToken),
+    enabled: Boolean(accessToken && user?.role === 'ADMIN'),
+  });
 
   if (isLoading) return <AdminDashboardSkeleton />;
   if (!user) return <Status message="Sign in to view the dashboard." />;
@@ -137,6 +151,9 @@ export function AdminDashboardView() {
   const activePercentage = subscriptionTotal
     ? Math.round((dashboard.metrics.activeSubscriptions / subscriptionTotal) * 100)
     : 0;
+  const internalAttention = internalRequestSummary.data?.awaitingReview ?? 0;
+  const highPriorityInternal = internalRequestSummary.data?.highPriority ?? 0;
+  const escalatedInternal = internalRequestSummary.data?.escalated ?? 0;
 
   return (
     <main className={styles.page}>
@@ -210,8 +227,53 @@ export function AdminDashboardView() {
               <p>Operational items that may require admin follow-up.</p>
             </div>
           </div>
-          {dashboard.attention.length ? (
+          {dashboard.attention.length || internalAttention || escalatedInternal ? (
             <div className={styles.adminAttentionList}>
+              {internalAttention ? (
+                <article
+                  className={styles.adminAttentionItem}
+                  data-severity={highPriorityInternal ? 'critical' : 'warning'}
+                >
+                  <span aria-hidden="true" className={styles.attentionIcon}>
+                    <LandingIcon name={highPriorityInternal ? 'shield' : 'activity'} size={17} />
+                  </span>
+                  <div className={styles.attentionCopy}>
+                    <h3>Staff requests awaiting review</h3>
+                    <p>
+                      {internalAttention} pending request{internalAttention === 1 ? '' : 's'}
+                      {highPriorityInternal ? ` · ${highPriorityInternal} high priority` : ''}
+                    </p>
+                  </div>
+                  <Link
+                    className={styles.attentionAction}
+                    href="/control-centre/internal-requests?status=PENDING"
+                  >
+                    Review requests
+                    <LandingIcon name="arrow" size={14} />
+                  </Link>
+                </article>
+              ) : null}
+              {escalatedInternal ? (
+                <article className={styles.adminAttentionItem} data-severity="warning">
+                  <span aria-hidden="true" className={styles.attentionIcon}>
+                    <LandingIcon name="shield" size={17} />
+                  </span>
+                  <div className={styles.attentionCopy}>
+                    <h3>Requests with Super Admin</h3>
+                    <p>
+                      {escalatedInternal} unresolved escalation{escalatedInternal === 1 ? '' : 's'}{' '}
+                      awaiting a decision or return.
+                    </p>
+                  </div>
+                  <Link
+                    className={styles.attentionAction}
+                    href="/control-centre/internal-requests?currentLevel=SUPER_ADMIN"
+                  >
+                    Follow escalations
+                    <LandingIcon name="arrow" size={14} />
+                  </Link>
+                </article>
+              ) : null}
               {dashboard.attention.map((item) => (
                 <article
                   className={styles.adminAttentionItem}

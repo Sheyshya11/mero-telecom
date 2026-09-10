@@ -8,6 +8,7 @@ import { Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
 import { ApiError, apiRequest } from '../../lib/api/client';
 
 const schema = z
@@ -80,7 +81,9 @@ function Content() {
   return (
     <main className="grid min-h-screen place-items-center px-6 py-12">
       <section className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-7 shadow-sm">
-        <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM</p>
+        <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
+          <MeroTelecomLogo alt="" preload size="auth" />
+        </Link>
         <h1 className="mt-3 text-3xl font-bold text-slate-950">Accept your invitation</h1>
         <p className="mt-2 text-sm text-slate-600">
           {verification.data?.displayName ? `Welcome, ${verification.data.displayName}. ` : ''}
@@ -136,6 +139,9 @@ function Password({
 function Unavailable() {
   return (
     <main className="mx-auto min-h-screen max-w-xl px-6 py-16 text-center">
+      <Link aria-label="Mero Telecom home" className="mb-6 inline-flex" href="/">
+        <MeroTelecomLogo alt="" preload size="auth" />
+      </Link>
       <h1 className="text-3xl font-bold text-slate-950">Invitation unavailable</h1>
       <p className="mt-3 text-slate-600">
         This invitation is invalid, expired, revoked, or has already been used. Ask an administrator
@@ -148,5 +154,12 @@ function Unavailable() {
   );
 }
 function Status({ message }: Readonly<{ message: string }>) {
-  return <main className="grid min-h-screen place-items-center text-slate-600">{message}</main>;
+  return (
+    <main className="grid min-h-screen place-items-center px-6 text-slate-600">
+      <div className="grid justify-items-center gap-5 text-center">
+        <MeroTelecomLogo preload size="auth" />
+        <p>{message}</p>
+      </div>
+    </main>
+  );
 }

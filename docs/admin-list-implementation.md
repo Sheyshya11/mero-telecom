@@ -41,14 +41,14 @@ Implemented server-side pagination, search, domain filters and validated sorting
 
 All paths below use the existing `/api/v1` prefix. No duplicate admin customer endpoint was added.
 
-| Endpoint | Change |
-| --- | --- |
-| GET /customers | Customer filters, whitelisted sorting, bounded pagination metadata |
-| GET /subscriptions | Search, domain filters, sorting and pagination metadata |
-| GET /invoices | Search, status/date/amount filters, sorting; customer ownership retained |
-| GET /admin/refunds | Provider/customer/invoice search, date/amount filters, sorting, reduced list relationships |
-| GET /admin/users | Created-date/active filters, sorting, accurate global active-super-admin count |
-| GET /admin/audit-logs | Actor/resource/search/date filters and whitelisted sorting |
+| Endpoint              | Change                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------ |
+| GET /customers        | Customer filters, whitelisted sorting, bounded pagination metadata                         |
+| GET /subscriptions    | Search, domain filters, sorting and pagination metadata                                    |
+| GET /invoices         | Search, status/date/amount filters, sorting; customer ownership retained                   |
+| GET /admin/refunds    | Provider/customer/invoice search, date/amount filters, sorting, reduced list relationships |
+| GET /admin/users      | Created-date/active filters, sorting, accurate global active-super-admin count             |
+| GET /admin/audit-logs | Actor/resource/search/date filters and whitelisted sorting                                 |
 
 Existing invitation and plan-change endpoints are reused with actual page controls, so the UI no longer stops at the first 100 records. The invoice-generation subscription chooser now uses server-side active-status filtering, search and pagination.
 
@@ -56,14 +56,14 @@ Existing invitation and plan-change endpoints are reused with actual page contro
 
 Common: `page` (default 1), `limit` (default 20; 10/20/50/100 only), `search`, `sortBy` (default createdAt), `sortOrder` (asc/desc; default desc). Pages are integers bounded at 1,000,000; money filters are nonnegative integer cents. Invalid and unknown API parameters return validation errors.
 
-| Module | Domain parameters | Allowed sort fields |
-| --- | --- | --- |
-| Customers | status, subscriptionStatus, planId, state, postcode, createdFrom, createdTo | createdAt, updatedAt, firstName, lastName, email, status |
-| Subscriptions | customerId, status, planId, billingCycle, paymentStatus, activatedFrom, activatedTo, cancelled, pendingPlanChange | createdAt, startDate, currentPeriodEnd, status |
-| Invoices | customerId, status, dateFrom, dateTo, minAmount, maxAmount | createdAt, issueDate, dueDate, totalCents |
-| Refunds | status, type, reason, dateFrom, dateTo, minAmount, maxAmount | createdAt, requestedAt, refundAmountCents, status |
-| Users | role, status, active, createdFrom, createdTo | createdAt, updatedAt, displayName, email, role, status |
-| Audit logs | action, entityType, entityId, actorUserId, actorRole, dateFrom, dateTo | createdAt, action, entityType |
+| Module        | Domain parameters                                                                                                 | Allowed sort fields                                      |
+| ------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Customers     | status, subscriptionStatus, planId, state, postcode, createdFrom, createdTo                                       | createdAt, updatedAt, firstName, lastName, email, status |
+| Subscriptions | customerId, status, planId, billingCycle, paymentStatus, activatedFrom, activatedTo, cancelled, pendingPlanChange | createdAt, startDate, currentPeriodEnd, status           |
+| Invoices      | customerId, status, dateFrom, dateTo, minAmount, maxAmount                                                        | createdAt, issueDate, dueDate, totalCents                |
+| Refunds       | status, type, reason, dateFrom, dateTo, minAmount, maxAmount                                                      | createdAt, requestedAt, refundAmountCents, status        |
+| Users         | role, status, active, createdFrom, createdTo                                                                      | createdAt, updatedAt, displayName, email, role, status   |
+| Audit logs    | action, entityType, entityId, actorUserId, actorRole, dateFrom, dateTo                                            | createdAt, action, entityType                            |
 
 Every sort has an ID tie-breaker. Records and filtered counts use matching database conditions. Main list responses include data plus page, limit, total, totalPages, hasNextPage and hasPreviousPage. Empty results have totalPages=1; out-of-range bookmarks can return to the last available page.
 
@@ -80,6 +80,7 @@ Every sort has an ID tie-breaker. Records and filtered counts use matching datab
 ## 6. Prisma schema/index changes
 
 Migration `20260905090000_admin_list_indexes` adds seven indexes:
+
 - (createdAt, id) for User, Customer, Subscription, Invoice, Refund and AuditLog.
 - (state, postcode) for Customer.
 

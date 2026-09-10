@@ -21,7 +21,9 @@ export class AdministrativeAuditInterceptor implements NestInterceptor {
     const actor = request.user;
     if (
       !actor ||
-      (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.ADMIN && actor.role !== Role.STAFF) ||
+      !(actor.roles ?? [actor.role]).some(
+        (role) => role === Role.SUPER_ADMIN || role === Role.ADMIN || role === Role.STAFF,
+      ) ||
       ['GET', 'HEAD', 'OPTIONS'].includes(request.method)
     ) {
       return next.handle();
@@ -42,7 +44,13 @@ export class AdministrativeAuditInterceptor implements NestInterceptor {
               action: `${request.method}_${resource}`.toUpperCase(),
               entityType: this.entityType(resource),
               entityId: resultId ?? parameterId ?? 'collection',
-              metadata: { method: request.method, path },
+              metadata: {
+                method: request.method,
+                path,
+                actorRoles: actor.roles ?? [actor.role],
+                sessionId: actor.sessionId,
+                ipAddress: request.ip,
+              },
             },
           });
         } catch (error) {

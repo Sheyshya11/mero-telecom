@@ -182,7 +182,7 @@ describe('Admin list database filters', () => {
     );
     expect(policy.assertCanReadUsers).toHaveBeenCalledWith(actor);
     expect(db.user.findMany.mock.calls[0][0].where).toMatchObject({
-      role: 'STAFF',
+      roles: { some: { role: 'STAFF' } },
       status: 'ACTIVE',
       isActive: true,
     });
@@ -202,7 +202,7 @@ describe('Admin list database filters', () => {
     expect(db.auditLog.findMany.mock.calls[0][0]).toMatchObject({
       take: 20,
       where: {
-        actor: { role: 'ADMIN' },
+        actor: { roles: { some: { role: 'ADMIN' } } },
         actorUserId: 'actor',
         entityId: 'resource',
         action: 'READ',

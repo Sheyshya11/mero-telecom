@@ -32,7 +32,11 @@ export class RolesGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
-    if (roleCanAccessRoute(request.user.role, allowedRoles)) {
+    if (
+      (request.user.roles ?? [request.user.role]).some((role) =>
+        roleCanAccessRoute(role, allowedRoles),
+      )
+    ) {
       return true;
     }
 
@@ -45,7 +49,7 @@ export class RolesGuard implements CanActivate {
           entityId: request.originalUrl?.split('?')[0] ?? 'unknown',
           metadata: {
             method: request.method,
-            currentRole: request.user.role,
+            currentRoles: request.user.roles ?? [request.user.role],
             requiredRoles: allowedRoles,
             requestId: request.requestId,
             ipAddress: request.ip,

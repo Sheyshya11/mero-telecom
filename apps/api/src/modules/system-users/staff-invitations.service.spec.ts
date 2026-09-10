@@ -83,11 +83,51 @@ describe('StaffInvitationsService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           email: 'new.staff@example.com',
-          role: Role.STAFF,
+          roles: { create: { role: Role.STAFF, assignedBy: admin.id } },
           status: UserStatus.INVITATION_PENDING,
           isActive: false,
         }),
       }),
+    );
+  });
+
+  it('invites an existing customer to an internal role without creating a duplicate user', async () => {
+    const transaction = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'customer-user',
+          email: 'customer@example.com',
+          displayName: 'Existing Customer',
+          status: UserStatus.ACTIVE,
+          roles: [{ role: Role.CUSTOMER }],
+          customer: { id: 'customer-profile' },
+        }),
+        create: jest.fn(),
+      },
+      staffInvitation: {
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve(pendingInvitation({ ...data, email: 'customer@example.com' })),
+          ),
+      },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const prisma = { $transaction: jest.fn((callback) => callback(transaction)) };
+    const { service } = createService(prisma);
+
+    await expect(
+      service.create(
+        { displayName: 'Existing Customer', email: 'customer@example.com', role: Role.STAFF },
+        admin,
+        context,
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({ email: 'customer@example.com', role: Role.STAFF }),
+    );
+    expect(transaction.user.create).not.toHaveBeenCalled();
+    expect(transaction.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ entityId: 'customer-user' }) }),
     );
   });
 
@@ -207,7 +247,10 @@ describe('StaffInvitationsService', () => {
     );
     expect(transaction.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ passwordHash: null, role: Role.SUPER_ADMIN }),
+        data: expect.objectContaining({
+          passwordHash: null,
+          roles: { create: { role: Role.SUPER_ADMIN } },
+        }),
       }),
     );
 

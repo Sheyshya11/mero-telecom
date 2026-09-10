@@ -19,7 +19,7 @@ import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import type { AuthenticatedUser } from '../auth/auth.types';
+import { asCustomerContext, type AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   ApproveRefundDto,
@@ -59,13 +59,13 @@ export class CustomerRefundsController {
     @CurrentUser() actor: AuthenticatedUser,
     @UploadedFiles() files: UploadedRefundFile[] = [],
   ) {
-    return this.refunds.request(paymentId, input, actor, files);
+    return this.refunds.request(paymentId, input, asCustomerContext(actor), files);
   }
 
   @Get('me/refunds')
   @Roles(Role.CUSTOMER)
   findMine(@Query() query: RefundQueryDto, @CurrentUser() actor: AuthenticatedUser) {
-    return this.refunds.findMine(query, actor);
+    return this.refunds.findMine(query, asCustomerContext(actor));
   }
 
   @Get('me/refunds/:refundId')
@@ -74,7 +74,7 @@ export class CustomerRefundsController {
     @Param('refundId', new ParseUUIDPipe()) id: string,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.refunds.findMineOne(id, actor);
+    return this.refunds.findMineOne(id, asCustomerContext(actor));
   }
 
   @Get('me/refunds/:refundId/attachments')
@@ -83,7 +83,7 @@ export class CustomerRefundsController {
     @Param('refundId', new ParseUUIDPipe()) id: string,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.attachments.list(id, actor);
+    return this.attachments.list(id, asCustomerContext(actor));
   }
 
   @Post('me/refunds/:refundId/attachments')
@@ -96,7 +96,7 @@ export class CustomerRefundsController {
     @CurrentUser() actor: AuthenticatedUser,
     @UploadedFiles() files: UploadedRefundFile[] = [],
   ) {
-    return this.attachments.add(id, files, actor);
+    return this.attachments.add(id, files, asCustomerContext(actor));
   }
 
   @Get('me/refunds/:refundId/attachments/:attachmentId/access')
@@ -109,7 +109,7 @@ export class CustomerRefundsController {
     return this.attachments.accessUrl(
       refundId,
       attachmentId,
-      actor,
+      asCustomerContext(actor),
       `/api/v1/refunds/${refundId}/attachments/${attachmentId}/file`,
     );
   }
@@ -121,7 +121,7 @@ export class CustomerRefundsController {
     @Param('attachmentId', new ParseUUIDPipe()) attachmentId: string,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    await this.attachments.remove(refundId, attachmentId, actor);
+    await this.attachments.remove(refundId, attachmentId, asCustomerContext(actor));
   }
 
   @Post('me/refunds/:refundId/cancel')
@@ -131,7 +131,7 @@ export class CustomerRefundsController {
     @Body() input: CancelRefundDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.refunds.cancel(id, input, actor);
+    return this.refunds.cancel(id, input, asCustomerContext(actor));
   }
 }
 

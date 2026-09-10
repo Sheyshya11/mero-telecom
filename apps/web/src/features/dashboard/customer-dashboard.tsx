@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 
 import { LandingIcon, type LandingIconName } from '../../components/landing/landing-icons';
 import { apiDownload, apiRequest } from '../../lib/api/client';
+import { hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
 import { StripeCheckoutButton } from '../payments/stripe-checkout-button';
 import styles from './dashboard.module.css';
@@ -100,14 +101,18 @@ export function CustomerDashboardView() {
         accessToken,
       ),
     enabled: Boolean(
-      accessToken && user?.role === 'CUSTOMER' && paymentReturn === 'success' && checkoutSessionId,
+      accessToken &&
+      user &&
+      hasRole(user, 'CUSTOMER') &&
+      paymentReturn === 'success' &&
+      checkoutSessionId,
     ),
     retry: 1,
   });
   const dashboardQuery = useQuery({
     queryKey: ['customer-dashboard'],
     queryFn: () => apiRequest<CustomerDashboard>('/dashboard/customer', {}, accessToken),
-    enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
+    enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
 
   useEffect(() => {
@@ -117,7 +122,7 @@ export function CustomerDashboardView() {
 
   if (isLoading) return <Status message="Restoring your session…" />;
   if (!user) return <Status message="Sign in to view your account." />;
-  if (user.role !== 'CUSTOMER') return <Status message="Customer access is required." />;
+  if (!hasRole(user, 'CUSTOMER')) return <Status message="Customer access is required." />;
   if (dashboardQuery.isPending) return <DashboardSkeleton />;
   if (dashboardQuery.isError || !dashboardQuery.data)
     return (
@@ -422,7 +427,11 @@ export function InvoiceRow({ invoice }: Readonly<{ invoice: CustomerInvoice }>) 
     if (!accessToken) return;
     setDownloadError(false);
     try {
-      await apiDownload(`/invoices/${invoice.id}/pdf`, accessToken, `${invoice.invoiceNumber}.pdf`);
+      await apiDownload(
+        `/invoices/me/${invoice.id}/pdf`,
+        accessToken,
+        `${invoice.invoiceNumber}.pdf`,
+      );
     } catch {
       setDownloadError(true);
     }

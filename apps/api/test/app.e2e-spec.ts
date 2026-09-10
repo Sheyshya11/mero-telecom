@@ -5,8 +5,14 @@ import {
   AccountInvitationReason,
   AccountInvitationStatus,
   AddressOverrideStatus,
+  CancellationReason,
+  CancellationStatus,
+  CancellationType,
   CoverageResultStatus,
   InvoiceStatus,
+  InternalRequestEventType,
+  InternalRequestLevel,
+  InternalRequestStatus,
   OperatingRegionStatus,
   PaymentStatus,
   PlanChangeStatus,
@@ -15,16 +21,22 @@ import {
   RefundReason,
   Role,
   SubscriptionStatus,
+  SupportMessageVisibility,
+  SupportRequestType,
+  SupportStatus,
   UserStatus,
 } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { createHash } from 'node:crypto';
+import { createClient } from 'redis';
 import Stripe from 'stripe';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { configureApplication } from '../src/configure-application';
 import { PrismaService } from '../src/database/prisma.service';
+import { AuthService } from '../src/modules/auth/auth.service';
+import { CancellationsService } from '../src/modules/cancellations/cancellations.service';
 import { EmailProvider } from '../src/modules/notifications/email-provider';
 import {
   ADDRESS_LOOKUP_PROVIDER,
@@ -47,6 +59,21 @@ const customerInput = {
   state: 'SA',
   postcode: '5000',
 };
+
+async function clearE2eEmailQueue(): Promise<void> {
+  const client = createClient({ url: process.env.REDIS_URL });
+  await client.connect();
+  try {
+    for await (const keys of client.scanIterator({
+      MATCH: 'bull:mero-telecom-email*',
+      COUNT: 100,
+    })) {
+      if (keys.length > 0) await client.del(keys);
+    }
+  } finally {
+    client.destroy();
+  }
+}
 
 const coverageFixtures: Record<string, NormalizedAddressSuggestion> = {
   available: {
@@ -155,7 +182,10 @@ describe('Mero Telecom API (e2e)', () => {
   let prisma: PrismaService;
   let adminToken: string;
   let superAdminToken: string;
+  let superAdminTwoToken: string;
   let staffToken: string;
+  let staffTwoToken: string;
+  let adminTwoToken: string;
   let customerToken: string;
   let customerBToken: string;
   let customerAId: string;
@@ -249,6 +279,7 @@ describe('Mero Telecom API (e2e)', () => {
   };
 
   beforeAll(async () => {
+    await clearE2eEmailQueue();
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(ADDRESS_LOOKUP_PROVIDER)
       .useValue(fakeAddressProvider)
@@ -268,6 +299,18 @@ describe('Mero Telecom API (e2e)', () => {
     await prisma.postcodeCoverage.deleteMany();
     await prisma.operatingRegion.deleteMany();
     await prisma.paymentWebhookEvent.deleteMany();
+    await prisma.internalRequestAttachment.deleteMany();
+    await prisma.internalRequestEvent.deleteMany();
+    await prisma.internalRequestMessage.deleteMany();
+    await prisma.internalRequest.deleteMany();
+    await prisma.internalRequestSequence.deleteMany();
+    await prisma.supportAttachment.deleteMany();
+    await prisma.supportMessage.deleteMany();
+    await prisma.supportCase.deleteMany();
+    await prisma.supportCaseSequence.deleteMany();
+    await prisma.cancellationNote.deleteMany();
+    await prisma.cancellationRequest.deleteMany();
+    await prisma.cancellationRequestSequence.deleteMany();
     await prisma.planChangeRequest.deleteMany();
     await prisma.accountInvitation.deleteMany();
     await prisma.staffInvitation.deleteMany();
@@ -286,30 +329,79 @@ describe('Mero Telecom API (e2e)', () => {
     await prisma.user.deleteMany();
 
     const passwordHash = await hash(password, 12);
-    const [superAdmin, admin, staff, customerAUser, customerBUser] = await Promise.all([
+    const [
+      superAdmin,
+      superAdminTwo,
+      admin,
+      adminTwo,
+      staff,
+      staffTwo,
+      customerAUser,
+      customerBUser,
+    ] = await Promise.all([
       prisma.user.create({
         data: {
           email: 'super.admin@merotelecom.test',
           passwordHash,
-          role: Role.SUPER_ADMIN,
+          roles: { create: { role: Role.SUPER_ADMIN } },
         },
       }),
       prisma.user.create({
-        data: { email: 'admin@merotelecom.test', passwordHash, role: Role.ADMIN },
+        data: {
+          email: 'super.admin-two@merotelecom.test',
+          passwordHash,
+          roles: { create: { role: Role.SUPER_ADMIN } },
+        },
       }),
       prisma.user.create({
-        data: { email: 'staff@merotelecom.test', passwordHash, role: Role.STAFF },
+        data: {
+          email: 'admin@merotelecom.test',
+          passwordHash,
+          roles: { create: { role: Role.ADMIN } },
+        },
       }),
       prisma.user.create({
-        data: { email: 'customer@merotelecom.test', passwordHash, role: Role.CUSTOMER },
+        data: {
+          email: 'admin-two@merotelecom.test',
+          passwordHash,
+          roles: { create: { role: Role.ADMIN } },
+        },
       }),
       prisma.user.create({
-        data: { email: 'customer-b@merotelecom.test', passwordHash, role: Role.CUSTOMER },
+        data: {
+          email: 'staff@merotelecom.test',
+          passwordHash,
+          roles: { create: { role: Role.STAFF } },
+        },
+      }),
+      prisma.user.create({
+        data: {
+          email: 'staff-two@merotelecom.test',
+          passwordHash,
+          roles: { create: { role: Role.STAFF } },
+        },
+      }),
+      prisma.user.create({
+        data: {
+          email: 'customer@merotelecom.test',
+          passwordHash,
+          roles: { create: { role: Role.CUSTOMER } },
+        },
+      }),
+      prisma.user.create({
+        data: {
+          email: 'customer-b@merotelecom.test',
+          passwordHash,
+          roles: { create: { role: Role.CUSTOMER } },
+        },
       }),
     ]);
     expect(superAdmin.id).toBeDefined();
+    expect(superAdminTwo.id).toBeDefined();
     expect(admin.id).toBeDefined();
+    expect(adminTwo.id).toBeDefined();
     expect(staff.id).toBeDefined();
+    expect(staffTwo.id).toBeDefined();
 
     const [customerA, customerB] = await Promise.all([
       prisma.customer.create({
@@ -395,8 +487,11 @@ describe('Mero Telecom API (e2e)', () => {
 
   it('enforces validation and admin/staff role boundaries', async () => {
     superAdminToken = await loginAs('super.admin@merotelecom.test');
+    superAdminTwoToken = await loginDirectAs('super.admin-two@merotelecom.test');
     adminToken = await loginAs('admin@merotelecom.test');
+    adminTwoToken = await loginDirectAs('admin-two@merotelecom.test');
     staffToken = await loginAs('staff@merotelecom.test');
+    staffTwoToken = await loginDirectAs('staff-two@merotelecom.test');
 
     await request(app.getHttpServer())
       .post('/api/v1/plans')
@@ -413,13 +508,13 @@ describe('Mero Telecom API (e2e)', () => {
     invitedCustomerId = createdCustomer.body.id;
     const invitedCustomer = await prisma.customer.findUniqueOrThrow({
       where: { id: invitedCustomerId },
-      include: { user: true, addresses: true },
+      include: { user: { include: { roles: true } }, addresses: true },
     });
     invitedUserId = invitedCustomer.userId as string;
     expect(invitedCustomer.status).toBe('INVITATION_PENDING');
     expect(invitedCustomer.user).toEqual(
       expect.objectContaining({
-        role: Role.CUSTOMER,
+        roles: [expect.objectContaining({ role: Role.CUSTOMER })],
         status: UserStatus.INVITATION_PENDING,
         isActive: false,
         passwordHash: null,
@@ -730,6 +825,120 @@ describe('Mero Telecom API (e2e)', () => {
       .expect(200);
   });
 
+  it('runs owned scheduled and immediate cancellation without deleting billing history', async () => {
+    const cancellationEmail = 'cancellation.customer@merotelecom.test';
+    const cancellationUser = await prisma.user.create({
+      data: {
+        email: cancellationEmail,
+        passwordHash: await hash(password, 12),
+        roles: { create: { role: Role.CUSTOMER } },
+      },
+    });
+    const cancellationCustomer = await prisma.customer.create({
+      data: {
+        userId: cancellationUser.id,
+        customerNumber: 'CUST-E2E-CANCEL',
+        firstName: 'Casey',
+        lastName: 'Cancellation',
+        email: cancellationEmail,
+        phone: '+61400000033',
+        addressLine1: '33 Test Street',
+        suburb: 'Adelaide',
+        state: 'SA',
+        postcode: '5000',
+      },
+    });
+    const subscription = await createActiveSubscription(cancellationCustomer.id);
+    const invoice = await generateInvoice(subscription.id, '2026-09-02');
+    const token = await loginDirectAs(cancellationEmail);
+    const scheduledInput = {
+      type: CancellationType.END_OF_PERIOD,
+      reason: CancellationReason.NO_LONGER_REQUIRED,
+      confirmed: true,
+    };
+
+    const emptyStatus = await request(app.getHttpServer())
+      .get(`/api/v1/subscriptions/${subscription.id}/cancellation`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(emptyStatus.body).toEqual({ cancellation: null });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscriptionAId}/cancellation`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(scheduledInput)
+      .expect(403);
+
+    const scheduled = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscription.id}/cancellation`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(scheduledInput)
+      .expect(201);
+    expect(scheduled.body).toEqual(
+      expect.objectContaining({
+        requestNumber: expect.stringMatching(/^CAN-\d{4}-\d{5}$/),
+        status: CancellationStatus.SCHEDULED,
+        canRevoke: true,
+      }),
+    );
+    expect(
+      await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } }),
+    ).toEqual(expect.objectContaining({ status: SubscriptionStatus.CANCELLATION_PENDING }));
+
+    const repeated = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscription.id}/cancellation`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(scheduledInput)
+      .expect(201);
+    expect(repeated.body).toEqual(
+      expect.objectContaining({ id: scheduled.body.id, reused: true }),
+    );
+    expect(
+      await prisma.cancellationRequest.count({ where: { subscriptionId: subscription.id } }),
+    ).toBe(1);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscription.id}/plan-change/preview`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetPlanId: planId })
+      .expect(409);
+
+    const revoked = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscription.id}/cancellation/revoke`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+    expect(revoked.body.status).toBe(CancellationStatus.REVOKED);
+    expect(
+      await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } }),
+    ).toEqual(expect.objectContaining({ status: SubscriptionStatus.ACTIVE }));
+
+    const immediate = await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscription.id}/cancellation`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        type: CancellationType.IMMEDIATE,
+        reason: CancellationReason.SWITCHING_PROVIDER,
+        confirmed: true,
+      })
+      .expect(201);
+    expect(immediate.body.status).toBe(CancellationStatus.DISCONNECTION_PENDING);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/subscriptions/${subscription.id}/cancellation/revoke`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(409);
+
+    const reconciled = await app.get(CancellationsService).reconcileDue(new Date(), 10);
+    expect(reconciled.processed).toBeGreaterThanOrEqual(1);
+    expect(
+      await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } }),
+    ).toEqual(expect.objectContaining({ status: SubscriptionStatus.CANCELLED }));
+    expect(await prisma.invoice.findUnique({ where: { id: invoice.id } })).not.toBeNull();
+    expect(
+      await prisma.cancellationRequest.findUniqueOrThrow({ where: { id: immediate.body.id } }),
+    ).toEqual(expect.objectContaining({ status: CancellationStatus.COMPLETED }));
+  });
+
   it('protects customer ownership and permits approved self-service updates', async () => {
     const adminDashboard = await request(app.getHttpServer())
       .get('/api/v1/dashboard/admin')
@@ -783,11 +992,11 @@ describe('Mero Telecom API (e2e)', () => {
       .set('Authorization', `Bearer ${customerToken}`)
       .expect(403);
     await request(app.getHttpServer())
-      .get(`/api/v1/invoices/${invoiceAId}`)
+      .get(`/api/v1/invoices/me/${invoiceAId}`)
       .set('Authorization', `Bearer ${customerToken}`)
       .expect(200);
     await request(app.getHttpServer())
-      .get(`/api/v1/invoices/${invoiceBId}`)
+      .get(`/api/v1/invoices/me/${invoiceBId}`)
       .set('Authorization', `Bearer ${customerToken}`)
       .expect(404);
     await request(app.getHttpServer())
@@ -816,6 +1025,32 @@ describe('Mero Telecom API (e2e)', () => {
       .expect(400);
   });
 
+  it('supports one customer and staff identity and reloads role changes from the database', async () => {
+    const account = await prisma.user.findUniqueOrThrow({
+      where: { email: 'customer@merotelecom.test' },
+    });
+    await prisma.userRole.create({
+      data: { userId: account.id, role: Role.STAFF },
+    });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/dashboard/customer')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/v1/customers?limit=10')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+
+    await prisma.userRole.delete({
+      where: { userId_role: { userId: account.id, role: Role.STAFF } },
+    });
+    await request(app.getHttpServer())
+      .get('/api/v1/customers?limit=10')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+  });
+
   it('runs controlled partial and full refunds with ownership, RBAC, idempotency, and webhook reconciliation', async () => {
     await prisma.invoice.update({
       where: { id: invoiceAId },
@@ -837,15 +1072,19 @@ describe('Mero Telecom API (e2e)', () => {
 
     const customerBUser = await prisma.user.findUniqueOrThrow({
       where: { email: 'customer-b@merotelecom.test' },
+      include: { roles: true },
     });
     await expect(
-      app
-        .get(RefundsService)
-        .request(
-          payment.id,
-          { reason: RefundReason.BILLING_ERROR },
-          { id: customerBUser.id, email: customerBUser.email, role: customerBUser.role },
-        ),
+      app.get(RefundsService).request(
+        payment.id,
+        { reason: RefundReason.BILLING_ERROR },
+        {
+          id: customerBUser.id,
+          email: customerBUser.email,
+          role: Role.CUSTOMER,
+          roles: customerBUser.roles.map(({ role }) => role),
+        },
+      ),
     ).rejects.toThrow('Payment not found.');
 
     await request(app.getHttpServer())
@@ -1142,7 +1381,7 @@ describe('Mero Telecom API (e2e)', () => {
     ).toBe(2);
 
     const status = await request(app.getHttpServer())
-      .get(`/api/v1/plan-change-requests/${requestId}`)
+      .get(`/api/v1/plan-change-requests/me/${requestId}`)
       .set('Authorization', `Bearer ${customerToken}`)
       .expect(200);
     expect(status.body.status).toBe(PlanChangeStatus.APPLIED);
@@ -1238,7 +1477,7 @@ describe('Mero Telecom API (e2e)', () => {
       data: {
         email: 'checkout-reconcile@merotelecom.test',
         passwordHash: await hash(password, 12),
-        role: Role.CUSTOMER,
+        roles: { create: { role: Role.CUSTOMER } },
       },
     });
     const customer = await prisma.customer.create({
@@ -1552,6 +1791,178 @@ describe('Mero Telecom API (e2e)', () => {
     );
   });
 
+  it(
+    'supports secure customer and staff support conversations through resolution',
+    verifySupportWorkflow,
+  );
+
+  it('supports secure public prospect enquiries in the shared escalation workflow', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/support/public/enquiries')
+      .send({
+        name: 'J',
+        email: 'not-an-email',
+        category: 'BILLING',
+        subject: 'x',
+        message: 'short',
+      })
+      .expect(400);
+
+    const enquiryInput = {
+      name: 'Jamie Prospect',
+      email: 'jamie.prospect@example.test',
+      phone: '+61412345678',
+      category: 'NBN_AVAILABILITY',
+      subject: 'Availability at Seacombe Gardens',
+      address: '1 Brigalow Avenue, Seacombe Gardens SA 5047',
+      message: 'Can I order an NBN 100 plan at this address?',
+      website: '',
+    };
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/support/public/enquiries')
+      .set('Idempotency-Key', 'prospect-e2e-submission-0001')
+      .send(enquiryInput)
+      .expect(201);
+    expect(created.body.referenceNumber).toMatch(/^MT-E-\d{4}-\d{5}$/);
+    const caseNumber = created.body.referenceNumber as string;
+
+    const duplicate = await request(app.getHttpServer())
+      .post('/api/v1/support/public/enquiries')
+      .set('Idempotency-Key', 'prospect-e2e-submission-0001')
+      .send(enquiryInput)
+      .expect(201);
+    expect(duplicate.body.referenceNumber).toBe(caseNumber);
+
+    const stored = await prisma.supportCase.findUniqueOrThrow({
+      where: { caseNumber },
+      include: { messages: true },
+    });
+    expect(stored).toEqual(
+      expect.objectContaining({
+        requestType: SupportRequestType.PROSPECT_ENQUIRY,
+        customerId: null,
+        prospectEmail: enquiryInput.email,
+      }),
+    );
+    expect(stored.messages[0]).toEqual(
+      expect.objectContaining({
+        senderUserId: null,
+        visibility: SupportMessageVisibility.CUSTOMER_VISIBLE,
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/support/public/enquiries/${caseNumber}`)
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/api/v1/customer/support/${caseNumber}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(404);
+
+    const queue = await request(app.getHttpServer())
+      .get('/api/v1/staff/support')
+      .query({ requestType: 'PROSPECT_ENQUIRY', search: 'Jamie Prospect', page: 1, limit: 10 })
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(200);
+    expect(queue.body.data).toEqual(
+      expect.arrayContaining([expect.objectContaining({ caseNumber, customer: null })]),
+    );
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${caseNumber}/take`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${caseNumber}/internal-notes`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ body: 'Coverage qualification needs an internal review.' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${caseNumber}/messages`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .field('body', 'Thanks Jamie. We are checking the address and will update you by email.')
+      .expect(201);
+
+    const supportCase = await prisma.supportCase.findUniqueOrThrow({
+      where: { caseNumber },
+      select: { id: true },
+    });
+    const internalRequest = await request(app.getHttpServer())
+      .post('/api/v1/staff/internal-requests')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({
+        type: 'SUPPORT_ASSISTANCE',
+        title: 'Review prospect address availability',
+        description: 'The prospect address requires an Admin decision before we reply.',
+        supportCaseId: supportCase.id,
+      })
+      .expect(201);
+    const requestNumber = internalRequest.body.requestNumber as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/take`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/start-review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/escalate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        reason: 'Serviceability exception requires Super Admin review.',
+        priority: 'HIGH',
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${caseNumber}/resolve`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ resolutionNote: 'A stale staff view must not resolve this enquiry.' })
+      .expect(409)
+      .expect(({ body }) => expect(body.message).toContain('Super Admin'));
+
+    const customer = await prisma.customer.findUniqueOrThrow({
+      where: { id: customerAId },
+      select: { customerNumber: true },
+    });
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${caseNumber}/link-customer`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ customerNumber: customer.customerNumber })
+      .expect(201);
+    const customerView = await request(app.getHttpServer())
+      .get(`/api/v1/customer/support/${caseNumber}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+    expect(customerView.body.prospectEmail).toBeUndefined();
+    expect(customerView.body.messages).toHaveLength(2);
+    expect(JSON.stringify(customerView.body)).not.toContain('internal review');
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${caseNumber}/link-customer`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ customerNumber: customer.customerNumber })
+      .expect(201);
+
+    let rateLimited = false;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/support/public/enquiries')
+        .set('Idempotency-Key', `prospect-rate-limit-${attempt}`)
+        .send({ ...enquiryInput, email: `rate-${attempt}@example.test` });
+      if (response.status === 429) {
+        rateLimited = true;
+        break;
+      }
+    }
+    expect(rateLimited).toBe(true);
+  });
+
+  it(
+    'supports private Staff to Admin internal requests without executing linked actions',
+    verifyInternalRequestWorkflow,
+  );
+
   it('enforces coverage management RBAC and qualifies only trusted selected addresses', async () => {
     const ready = await request(app.getHttpServer()).get('/api/v1/health/ready').expect(200);
     expect(ready.body.checks).toEqual({ database: 'ok', redis: 'ok' });
@@ -1764,7 +2175,7 @@ describe('Mero Telecom API (e2e)', () => {
 
     const auditCount = await prisma.auditLog.count({
       where: {
-        actor: { role: Role.ADMIN },
+        actor: { roles: { some: { role: Role.ADMIN } } },
         action: {
           in: [
             'OPERATING_REGION_CREATED',
@@ -1777,6 +2188,719 @@ describe('Mero Telecom API (e2e)', () => {
     });
     expect(auditCount).toBeGreaterThanOrEqual(6);
   });
+
+  async function verifySupportWorkflow() {
+    const otherCustomerToken = customerBToken;
+
+    await request(app.getHttpServer())
+      .post('/api/v1/customer/support')
+      .field('category', 'BILLING')
+      .field('subject', 'Duplicate charge')
+      .field('message', 'I can see two charges on my statement.')
+      .expect(401);
+
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/customer/support')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .field('category', 'BILLING')
+      .field('subject', 'Duplicate charge')
+      .field('message', 'I can see two charges on my statement.')
+      .attach('files', Buffer.from('%PDF-1.7 support evidence'), {
+        filename: 'statement.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201);
+    expect(created.body.caseNumber).toMatch(/^SUP-\d{4}-\d{5}$/);
+    expect(created.body.customer).toBeUndefined();
+    expect(created.body.messages[0].sender).toBeUndefined();
+    expect(created.body.messages[0].attachments).toHaveLength(1);
+    const caseNumber = created.body.caseNumber as string;
+    const attachmentId = created.body.messages[0].attachments[0].id as string;
+
+    const ownList = await request(app.getHttpServer())
+      .get('/api/v1/customer/support')
+      .query({ category: 'BILLING', search: caseNumber, page: 1, limit: 10 })
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+    expect(ownList.body.meta).toEqual(expect.objectContaining({ page: 1, total: 1 }));
+    expect(ownList.body.data[0].caseNumber).toBe(caseNumber);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/customer/support/${caseNumber}`)
+      .set('Authorization', `Bearer ${otherCustomerToken}`)
+      .expect(404);
+    await request(app.getHttpServer())
+      .post(`/api/v1/customer/support/${caseNumber}/messages`)
+      .set('Authorization', `Bearer ${otherCustomerToken}`)
+      .field('body', 'Trying another customer case')
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/api/v1/customer/support/${caseNumber}/attachments/${attachmentId}/access`)
+      .set('Authorization', `Bearer ${otherCustomerToken}`)
+      .expect(404);
+
+    const queue = await request(app.getHttpServer())
+      .get('/api/v1/staff/support')
+      .query({ assignment: 'UNASSIGNED', status: 'OPEN', page: 1, limit: 10 })
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(200);
+    expect(
+      queue.body.data.some((item: { caseNumber: string }) => item.caseNumber === caseNumber),
+    ).toBe(true);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${caseNumber}/take`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe('IN_PROGRESS'));
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${caseNumber}/messages`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .field('body', 'Please confirm the transaction dates.')
+      .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/staff/support/${caseNumber}/status`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: 'WAITING_FOR_CUSTOMER' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/customer/support/${caseNumber}/messages`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .field('body', 'Both charges appeared on 7 September.')
+      .expect(201)
+      .expect(({ body }) => expect(body.supportCase.status).toBe('IN_PROGRESS'));
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${caseNumber}/resolve`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ resolutionNote: 'The duplicate authorization has been released.' })
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe('RESOLVED'));
+
+    const resolved = await request(app.getHttpServer())
+      .get(`/api/v1/customer/support/${caseNumber}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+    expect(resolved.body.resolvedAt).toBeTruthy();
+    expect(resolved.body.messages).toHaveLength(4);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/customer/support/${caseNumber}/messages`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .field('body', 'The charge is still visible, please reopen this.')
+      .expect(201)
+      .expect(({ body }) => expect(body.supportCase.status).toBe('IN_PROGRESS'));
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/customer/support/${caseNumber}/messages`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .field('body', '   ')
+      .expect(400);
+
+    const attachmentAccess = await request(app.getHttpServer())
+      .get(`/api/v1/staff/support/${caseNumber}/attachments/${attachmentId}/access`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(200);
+    expect(attachmentAccess.body.url).toContain(
+      `/support/${caseNumber}/attachments/${attachmentId}/file`,
+    );
+
+    const auditActions = await prisma.auditLog.findMany({
+      where: { entityType: 'SupportCase', metadata: { path: ['caseNumber'], equals: caseNumber } },
+      select: { action: true },
+    });
+    expect(auditActions.map((event) => event.action)).toEqual(
+      expect.arrayContaining([
+        'SUPPORT_CASE_CREATED',
+        'SUPPORT_CASE_ASSIGNED',
+        'SUPPORT_STAFF_REPLIED',
+        'SUPPORT_STATUS_CHANGED',
+        'SUPPORT_CUSTOMER_REPLIED',
+      ]),
+    );
+  }
+
+  async function verifyInternalRequestWorkflow() {
+    const supportCase = await request(app.getHttpServer())
+      .post('/api/v1/customer/support')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .field('category', 'BILLING')
+      .field('subject', 'Payment needs internal review')
+      .field('message', 'Please investigate the duplicate payment.')
+      .expect(201);
+    const supportCaseId = supportCase.body.id as string;
+    const supportCaseNumber = supportCase.body.caseNumber as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${supportCaseNumber}/take`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/staff/internal-requests')
+      .send({
+        type: 'REFUND_REVIEW',
+        title: 'Duplicate payment refund review',
+        description: 'I verified two payments and need Admin authorisation.',
+      })
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/api/v1/staff/internal-requests')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        type: 'REFUND_REVIEW',
+        title: 'Forbidden customer request',
+        description: 'Customers must never reach this workflow.',
+      })
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/internal-requests')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/staff/internal-requests')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({
+        type: 'REFUND_REVIEW',
+        title: 'Duplicate payment refund review',
+        description: 'I verified two payments and need Admin authorisation.',
+        priority: 'HIGH',
+        customerId: customerAId,
+        supportCaseId,
+      })
+      .expect(201);
+    expect(created.body).toEqual(
+      expect.objectContaining({
+        requestNumber: expect.stringMatching(/^IR-\d{4}-\d{5}$/),
+        status: InternalRequestStatus.PENDING,
+        priority: 'HIGH',
+        supportCase: expect.objectContaining({ caseNumber: supportCaseNumber }),
+        customer: expect.objectContaining({ id: customerAId }),
+      }),
+    );
+    expect(created.body.messages).toEqual([]);
+    const requestNumber = created.body.requestNumber as string;
+
+    await request(app.getHttpServer())
+      .post('/api/v1/staff/internal-requests')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({
+        type: 'BILLING_REVIEW',
+        title: 'Duplicate active escalation',
+        description: 'A second unfinished request must not be created for the same ticket.',
+        customerId: customerAId,
+        supportCaseId,
+      })
+      .expect(409);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/staff/internal-requests')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({
+        type: 'BILLING_REVIEW',
+        title: 'Mismatched records',
+        description: 'This should be rejected before persistence.',
+        customerId: customerBId,
+        supportCaseId,
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/staff/internal-requests')
+      .query({
+        status: 'PENDING',
+        type: 'REFUND_REVIEW',
+        priority: 'HIGH',
+        search: requestNumber,
+        page: 1,
+        limit: 10,
+      })
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.meta).toEqual(expect.objectContaining({ page: 1, total: 1 }));
+        expect(body.data[0].requestNumber).toBe(requestNumber);
+      });
+    await request(app.getHttpServer())
+      .get(`/api/v1/staff/internal-requests/${requestNumber}`)
+      .set('Authorization', `Bearer ${staffTwoToken}`)
+      .expect(404);
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/internal-requests/${requestNumber}/messages`)
+      .set('Authorization', `Bearer ${staffTwoToken}`)
+      .send({ body: 'Attempting to access another Staff request.' })
+      .expect(404);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/approve`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ comment: 'Staff cannot approve.' })
+      .expect(403);
+
+    const context = await request(app.getHttpServer())
+      .get('/api/v1/staff/internal-requests/context-options')
+      .query({ supportCaseNumber })
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(200);
+    expect(context.body).toEqual(
+      expect.objectContaining({
+        selectedCustomerId: customerAId,
+        selectedSupportCaseId: supportCaseId,
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/internal-requests')
+      .query({ status: 'PENDING', priority: 'HIGH', search: requestNumber, page: 1, limit: 10 })
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200)
+      .expect(({ body }) => expect(body.data[0].requestNumber).toBe(requestNumber));
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/take`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201)
+      .expect(({ body }) => expect(body.assignedTo.email).toBe('admin@merotelecom.test'));
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/take`)
+      .set('Authorization', `Bearer ${adminTwoToken}`)
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/messages`)
+      .set('Authorization', `Bearer ${adminTwoToken}`)
+      .send({ body: 'An unassigned Admin cannot reply.' })
+      .expect(409);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/messages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ body: 'I am beginning the review.' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/start-review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe(InternalRequestStatus.IN_REVIEW));
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/request-info`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ comment: '   ' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/request-info`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ comment: 'Confirm whether any credit has already been issued.' })
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe(InternalRequestStatus.MORE_INFO_REQUIRED));
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/internal-requests/${requestNumber}/messages`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ body: 'No credit has been issued.' })
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe(InternalRequestStatus.IN_REVIEW));
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ comment: 'Approved for separate processing.' })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.status).toBe(InternalRequestStatus.APPROVED);
+        expect(body.reviewedAt).toBeTruthy();
+      });
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(409);
+
+    const beforeResolve = await prisma.refund.count({ where: { customerId: customerAId } });
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/resolve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(400);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/resolve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ comment: 'Underlying work was completed in the source module.' })
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe(InternalRequestStatus.RESOLVED));
+    expect(await prisma.refund.count({ where: { customerId: customerAId } })).toBe(beforeResolve);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${requestNumber}/close`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe(InternalRequestStatus.CLOSED));
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/internal-requests/${requestNumber}/messages`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ body: 'Closed requests are read-only.' })
+      .expect(409);
+
+    const rejected = await request(app.getHttpServer())
+      .post('/api/v1/staff/internal-requests')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({
+        type: 'OTHER',
+        title: 'Decision rejection path',
+        description: 'Verify a required rejection reason.',
+      })
+      .expect(201);
+    const rejectedNumber = rejected.body.requestNumber as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${rejectedNumber}/take`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${rejectedNumber}/resolve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ comment: 'The underlying work is not complete.' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${rejectedNumber}/start-review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${rejectedNumber}/reject`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ comment: 'The requested action is not supported by the evidence.' })
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe(InternalRequestStatus.REJECTED));
+
+    const escalated = await request(app.getHttpServer())
+      .post('/api/v1/staff/internal-requests')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({
+        type: 'REFUND_REVIEW',
+        title: 'Exceptional refund authority review',
+        description: 'The verified amount requires a Super Admin decision.',
+        priority: 'HIGH',
+        customerId: customerAId,
+        supportCaseId,
+      })
+      .expect(201);
+    const escalatedNumber = escalated.body.requestNumber as string;
+    const escalatedId = escalated.body.id as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${escalatedNumber}/take`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${escalatedNumber}/start-review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${escalatedNumber}/escalate`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ reason: 'Staff must not escalate.', priority: 'HIGH' })
+      .expect(403);
+    const escalatedResponse = await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${escalatedNumber}/escalate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        reason: 'The exceptional amount needs Super Admin authority.',
+        priority: 'HIGH',
+        comment: 'Payment evidence was verified; no action has been executed.',
+      })
+      .expect(201);
+    expect(escalatedResponse.body).toEqual(
+      expect.objectContaining({
+        id: escalatedId,
+        requestNumber: escalatedNumber,
+        currentLevel: InternalRequestLevel.SUPER_ADMIN,
+        status: InternalRequestStatus.PENDING,
+      }),
+    );
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${escalatedNumber}/escalate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ reason: 'A duplicate escalation must not be accepted.', priority: 'HIGH' })
+      .expect(409);
+    const staffTicketDuringEscalation = await request(app.getHttpServer())
+      .get(`/api/v1/staff/support/${supportCaseNumber}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(200);
+    expect(staffTicketDuringEscalation.body.capabilities).toEqual(
+      expect.objectContaining({
+        canResolve: false,
+        canClose: false,
+        resolutionBlockedReason: expect.stringContaining('Super Admin'),
+      }),
+    );
+    await request(app.getHttpServer())
+      .patch(`/api/v1/staff/support/${supportCaseNumber}/status`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: 'RESOLVED' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/staff/support/${supportCaseNumber}/status`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: 'CLOSED' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${supportCaseNumber}/resolve`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ resolutionNote: 'A stale browser attempted to resolve this ticket.' })
+      .expect(409)
+      .expect(({ body }) => expect(body.message).toContain('Super Admin'));
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${supportCaseNumber}/resolve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ resolutionNote: 'Admin must not bypass the pending decision.' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/internal-requests/${escalatedNumber}/resolve`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ comment: 'Pending review cannot be bypassed.' })
+      .expect(409);
+    expect(
+      await prisma.supportCase.findUniqueOrThrow({
+        where: { caseNumber: supportCaseNumber },
+        select: { status: true, resolvedAt: true },
+      }),
+    ).toEqual({ status: SupportStatus.IN_PROGRESS, resolvedAt: null });
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${escalatedNumber}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/internal-requests/${escalatedNumber}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/super-admin/internal-requests')
+      .query({ currentLevel: 'SUPER_ADMIN', search: escalatedNumber, page: 1, limit: 10 })
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data).toHaveLength(1);
+        expect(body.data[0].requestNumber).toBe(escalatedNumber);
+      });
+    await request(app.getHttpServer())
+      .get(`/api/v1/super-admin/internal-requests/${escalatedNumber}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+
+    const attachmentReply = await request(app.getHttpServer())
+      .post(`/api/v1/staff/internal-requests/${escalatedNumber}/messages`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .field('body', 'Attached evidence for internal review only.')
+      .attach('files', Buffer.from('%PDF-1.7 internal evidence'), {
+        filename: 'internal-evidence.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201);
+    const internalAttachment = attachmentReply.body.messages.at(-1).attachments[0];
+    await request(app.getHttpServer())
+      .get(
+        `/api/v1/staff/internal-requests/${escalatedNumber}/attachments/${internalAttachment.id}/access`,
+      )
+      .set('Authorization', `Bearer ${staffTwoToken}`)
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(
+        `/api/v1/super-admin/internal-requests/${escalatedNumber}/attachments/${internalAttachment.id}/access`,
+      )
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/internal-requests/${escalatedNumber}/take`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/internal-requests/${escalatedNumber}/take`)
+      .set('Authorization', `Bearer ${superAdminTwoToken}`)
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/internal-requests/${escalatedNumber}/start-review`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/internal-requests/${escalatedNumber}/request-info`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ comment: 'Confirm the payment has settled rather than remaining pending.' })
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe(InternalRequestStatus.MORE_INFO_REQUIRED));
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${supportCaseNumber}/resolve`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ resolutionNote: 'Information is still pending.' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${escalatedNumber}/messages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .field('body', 'Confirmed: the payment is settled.')
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe(InternalRequestStatus.IN_REVIEW));
+    await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/internal-requests/${escalatedNumber}/approve`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ comment: 'Approved. Continue through the standard refund workflow.' })
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe(InternalRequestStatus.APPROVED));
+    await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/internal-requests/${escalatedNumber}/resolve`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ comment: 'Approval is not operational completion.' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${supportCaseNumber}/resolve`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ resolutionNote: 'Approval alone must not resolve the customer ticket.' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/internal-requests/${escalatedNumber}/reject`)
+      .set('Authorization', `Bearer ${superAdminTwoToken}`)
+      .send({ comment: 'Stale conflicting decision.' })
+      .expect(409);
+    const requestCountBeforeReturn = await prisma.internalRequest.count();
+    await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/internal-requests/${escalatedNumber}/return-to-admin`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ comment: 'Please complete the authorised work in the existing refund module.' })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.currentLevel).toBe(InternalRequestLevel.ADMIN);
+        expect(body.status).toBe(InternalRequestStatus.APPROVED);
+      });
+    expect(await prisma.internalRequest.count()).toBe(requestCountBeforeReturn);
+    const beforeEscalationResolve = await prisma.refund.count({
+      where: { customerId: customerAId },
+    });
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/internal-requests/${escalatedNumber}/resolve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ comment: 'Operational work completed separately.' })
+      .expect(201);
+    expect(await prisma.refund.count({ where: { customerId: customerAId } })).toBe(
+      beforeEscalationResolve,
+    );
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${supportCaseNumber}/resolve`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ resolutionNote: 'The approved work is complete and the customer has been updated.' })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.status).toBe(SupportStatus.RESOLVED);
+        expect(body.capabilities.canResolve).toBe(false);
+      });
+
+    const history = await prisma.internalRequestEvent.findMany({
+      where: { internalRequestId: escalatedId },
+      orderBy: { createdAt: 'asc' },
+      select: { eventType: true, fromLevel: true, toLevel: true },
+    });
+    expect(history.map((event) => event.eventType)).toEqual(
+      expect.arrayContaining([
+        InternalRequestEventType.CREATED,
+        InternalRequestEventType.ESCALATED,
+        InternalRequestEventType.RETURNED,
+        InternalRequestEventType.RESOLVED,
+      ]),
+    );
+    expect(history.find((event) => event.eventType === InternalRequestEventType.ESCALATED)).toEqual(
+      expect.objectContaining({
+        fromLevel: InternalRequestLevel.ADMIN,
+        toLevel: InternalRequestLevel.SUPER_ADMIN,
+      }),
+    );
+
+    const customerSupportView = await request(app.getHttpServer())
+      .get(`/api/v1/customer/support/${supportCaseNumber}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+    expect(customerSupportView.body).not.toHaveProperty('internalRequests');
+    expect(JSON.stringify(customerSupportView.body)).not.toContain(requestNumber);
+
+    await waitUntil(async () =>
+      Boolean(
+        await prisma.auditLog.findFirst({
+          where: {
+            entityType: 'InternalRequest',
+            entityId: requestNumber,
+            action: 'EMAIL_DELIVERY_SENT',
+            metadata: { path: ['purpose'], equals: 'INTERNAL_REQUEST_APPROVED' },
+          },
+        }),
+      ),
+    );
+    const internalRequest = await prisma.internalRequest.findUniqueOrThrow({
+      where: { requestNumber },
+      include: { messages: true },
+    });
+    expect(internalRequest.messages.map((message) => message.body)).toEqual(
+      expect.arrayContaining([
+        'I am beginning the review.',
+        'Confirm whether any credit has already been issued.',
+        'No credit has been issued.',
+        'Approved for separate processing.',
+      ]),
+    );
+    const auditActions = await prisma.auditLog.findMany({
+      where: { entityType: 'InternalRequest', entityId: internalRequest.id },
+      select: { action: true, metadata: true },
+    });
+    expect(auditActions.map((entry) => entry.action)).toEqual(
+      expect.arrayContaining([
+        'INTERNAL_REQUEST_CREATED',
+        'INTERNAL_REQUEST_TAKEN',
+        'INTERNAL_REQUEST_REVIEW_STARTED',
+        'INTERNAL_REQUEST_INFORMATION_REQUESTED',
+        'INTERNAL_REQUEST_STAFF_REPLIED',
+        'INTERNAL_REQUEST_APPROVED',
+        'INTERNAL_REQUEST_RESOLVED',
+        'INTERNAL_REQUEST_CLOSED',
+      ]),
+    );
+    expect(JSON.stringify(auditActions)).not.toContain('No credit has been issued.');
+
+    const concurrentCase = await request(app.getHttpServer())
+      .post('/api/v1/customer/support')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .field('category', 'ACCOUNT')
+      .field('subject', 'Concurrent escalation and resolution')
+      .field('message', 'Verify that only one conflicting workflow mutation can win.')
+      .expect(201);
+    const concurrentCaseId = concurrentCase.body.id as string;
+    const concurrentCaseNumber = concurrentCase.body.caseNumber as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/staff/support/${concurrentCaseNumber}/take`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .expect(201);
+    const [createResult, resolveResult] = await Promise.all([
+      request(app.getHttpServer())
+        .post('/api/v1/staff/internal-requests')
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({
+          type: 'CUSTOMER_ACCOUNT_ACTION',
+          title: 'Concurrent decision request',
+          description: 'This request races with resolution to verify row-level serialization.',
+          customerId: customerAId,
+          supportCaseId: concurrentCaseId,
+        }),
+      request(app.getHttpServer())
+        .post(`/api/v1/staff/support/${concurrentCaseNumber}/resolve`)
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({ resolutionNote: 'Attempting a concurrent customer-facing resolution.' }),
+    ]);
+    expect([createResult.status, resolveResult.status].sort()).toEqual([201, 409]);
+    const concurrentState = await prisma.supportCase.findUniqueOrThrow({
+      where: { id: concurrentCaseId },
+      select: { status: true, internalRequests: { select: { status: true } } },
+    });
+    if (concurrentState.status === SupportStatus.RESOLVED) {
+      expect(concurrentState.internalRequests).toHaveLength(0);
+    } else {
+      expect(concurrentState.status).toBe(SupportStatus.IN_PROGRESS);
+      expect(concurrentState.internalRequests).toEqual([
+        expect.objectContaining({ status: InternalRequestStatus.PENDING }),
+      ]);
+    }
+  }
 
   function postStripeEvent(event: Stripe.Event, signature = 'e2e-valid-signature') {
     return request(app.getHttpServer())
@@ -1821,6 +2945,81 @@ describe('Mero Telecom API (e2e)', () => {
       .expect(200);
     return response.body.accessToken as string;
   }
+
+  async function loginDirectAs(email: string): Promise<string> {
+    const result = await app.get(AuthService).login({ email, password });
+    return result.tokens.accessToken;
+  }
+
+  it('returns timezone-aware billing metrics and protects reports and exports by role', async () => {
+    const summary = await request(app.getHttpServer())
+      .get('/api/v1/admin/billing/reports/summary?preset=this_month')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(summary.body).toMatchObject({
+      period: {
+        timezone: 'Australia/Adelaide',
+        generatedAt: expect.any(String),
+      },
+      metricBasis: {
+        periodMetrics: expect.arrayContaining(['grossBilled', 'paymentsReceived']),
+        snapshotMetrics: expect.arrayContaining(['outstanding', 'mrr']),
+      },
+      metrics: {
+        netCashCollected: expect.objectContaining({ valueCents: expect.any(Number) }),
+        activeServices: expect.objectContaining({ count: expect.any(Number) }),
+      },
+      tax: {
+        gstBilledCents: expect.any(Number),
+        gstAssociatedWithPaymentsCents: expect.any(Number),
+      },
+    });
+
+    const receivables = await request(app.getHttpServer())
+      .get('/api/v1/admin/billing/reports/receivables?preset=this_month')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(receivables.body.data).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ invoiceNumber: 'INV-2026-000002' })]),
+    );
+
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/billing/reports/summary?preset=this_month')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+
+    const exported = await request(app.getHttpServer())
+      .get('/api/v1/admin/billing/reports/revenue/export?preset=this_month&format=csv')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(200)
+      .expect('Content-Type', /text\/csv/)
+      .expect(
+        'Content-Disposition',
+        /mero-telecom-revenue-report-\d{4}-\d{2}(?:-\d{2}-to-\d{4}-\d{2}-\d{2})?\.csv/,
+      );
+    expect(exported.text.replace(/^\uFEFF/, '')).toContain(
+      'Period,Gross Billed (AUD),Payments Received (AUD),Refunds Paid (AUD),Net Cash Collected (AUD)',
+    );
+    expect(exported.text).not.toContain('# organisation');
+
+    const pdf = await request(app.getHttpServer())
+      .get('/api/v1/admin/billing/reports/revenue/export?preset=this_month&format=pdf')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => callback(null, Buffer.concat(chunks)));
+      })
+      .expect(200)
+      .expect('Content-Type', /application\/pdf/)
+      .expect(
+        'Content-Disposition',
+        /mero-telecom-revenue-report-\d{4}-\d{2}(?:-\d{2}-to-\d{4}-\d{2}-\d{2})?\.pdf/,
+      );
+    expect((pdf.body as Buffer).subarray(0, 5).toString('ascii')).toBe('%PDF-');
+  });
 
   async function createActiveSubscription(customerId: string) {
     const currentPeriodStart = new Date();

@@ -14,7 +14,7 @@ import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import type { AuthenticatedUser } from '../auth/auth.types';
+import { asCustomerContext, type AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlanChangeQueryDto, PlanChangeTargetDto } from './dto/plan-change.dto';
 import { PlanChangesService } from './plan-changes.service';
@@ -34,7 +34,7 @@ export class SubscriptionPlanChangesController {
     @Body() input: PlanChangeTargetDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.planChanges.preview(subscriptionId, input.targetPlanId, actor);
+    return this.planChanges.preview(subscriptionId, input.targetPlanId, asCustomerContext(actor));
   }
 
   @Post(':subscriptionId/plan-change')
@@ -45,7 +45,7 @@ export class SubscriptionPlanChangesController {
     @Body() input: PlanChangeTargetDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.planChanges.request(subscriptionId, input.targetPlanId, actor);
+    return this.planChanges.request(subscriptionId, input.targetPlanId, asCustomerContext(actor));
   }
 
   @Get(':subscriptionId/plan-change')
@@ -55,7 +55,7 @@ export class SubscriptionPlanChangesController {
     @Param('subscriptionId', new ParseUUIDPipe()) subscriptionId: string,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.planChanges.latestForSubscription(subscriptionId, actor);
+    return this.planChanges.latestForSubscription(subscriptionId, asCustomerContext(actor));
   }
 }
 
@@ -66,16 +66,31 @@ export class SubscriptionPlanChangesController {
 export class PlanChangeRequestsController {
   constructor(private readonly planChanges: PlanChangesService) {}
 
+  @Get('me')
+  @Roles(Role.CUSTOMER)
+  listMine(@Query() query: PlanChangeQueryDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.planChanges.list(query, asCustomerContext(actor));
+  }
+
+  @Get('me/:requestId')
+  @Roles(Role.CUSTOMER)
+  findMineOne(
+    @Param('requestId', new ParseUUIDPipe()) requestId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.planChanges.findOne(requestId, asCustomerContext(actor));
+  }
+
   @Get()
   @ApiOperation({ summary: 'List owned or role-authorised plan-change history' })
-  @Roles(Role.ADMIN, Role.STAFF, Role.CUSTOMER)
+  @Roles(Role.ADMIN, Role.STAFF)
   list(@Query() query: PlanChangeQueryDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.planChanges.list(query, actor);
   }
 
   @Get(':requestId')
   @ApiOperation({ summary: 'Get a safe plan-change request status' })
-  @Roles(Role.ADMIN, Role.STAFF, Role.CUSTOMER)
+  @Roles(Role.ADMIN, Role.STAFF)
   findOne(
     @Param('requestId', new ParseUUIDPipe()) requestId: string,
     @CurrentUser() actor: AuthenticatedUser,
@@ -90,7 +105,7 @@ export class PlanChangeRequestsController {
     @Param('requestId', new ParseUUIDPipe()) requestId: string,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.planChanges.cancelScheduled(requestId, actor);
+    return this.planChanges.cancelScheduled(requestId, asCustomerContext(actor));
   }
 
   @Post(':requestId/reconcile')
@@ -100,6 +115,6 @@ export class PlanChangeRequestsController {
     @Param('requestId', new ParseUUIDPipe()) requestId: string,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.planChanges.reconcile(requestId, actor);
+    return this.planChanges.reconcile(requestId, asCustomerContext(actor));
   }
 }

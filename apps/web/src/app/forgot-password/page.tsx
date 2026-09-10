@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
 import { ApiError, apiRequest } from '../../lib/api/client';
 import { getHomeRoute } from '../../features/auth/auth-navigation';
 import { useAuth } from '../../features/auth/auth-provider';
@@ -56,8 +57,8 @@ export default function ForgotPasswordPage() {
         aria-labelledby="forgot-password-heading"
         className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-7 shadow-sm sm:p-9"
       >
-        <Link className="text-sm font-bold tracking-wide text-sky-700" href="/">
-          MERO TELECOM
+        <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
+          <MeroTelecomLogo alt="" preload size="auth" />
         </Link>
         {submitted ? (
           <div className="mt-6" role="status">

@@ -11,7 +11,7 @@ describe('AuthService', () => {
   const user = {
     id: '0b7b51d6-c60b-4e9d-afca-c84e942447aa',
     email: 'admin@merotelecom.test',
-    role: 'ADMIN' as const,
+    roles: [{ role: 'ADMIN' as const }],
     isActive: true,
     status: 'ACTIVE' as const,
   };
@@ -25,6 +25,7 @@ describe('AuthService', () => {
       refreshSession: {
         create: jest.fn().mockResolvedValue({}),
       },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
     };
     const jwtService = {
       signAsync: jest
@@ -68,6 +69,7 @@ describe('AuthService', () => {
         id: user.id,
         email: user.email,
         role: 'ADMIN',
+        roles: ['ADMIN'],
         authenticatedAt: expect.any(Number),
       },
     });
@@ -110,6 +112,7 @@ describe('AuthService', () => {
     await expect(service.getAuthenticatedUser(user.id, 'active-session')).resolves.toMatchObject({
       id: user.id,
       role: 'ADMIN',
+      roles: ['ADMIN'],
     });
     expect(prisma.user.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({

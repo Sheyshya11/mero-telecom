@@ -53,10 +53,10 @@ const refundInclude = {
   subscription: {
     select: { id: true, status: true, plan: { select: { id: true, name: true } } },
   },
-  requestedBy: { select: { id: true, email: true, displayName: true, role: true } },
-  approvedBy: { select: { id: true, email: true, displayName: true, role: true } },
-  processedBy: { select: { id: true, email: true, displayName: true, role: true } },
-  rejectedBy: { select: { id: true, email: true, displayName: true, role: true } },
+  requestedBy: { select: { id: true, email: true, displayName: true } },
+  approvedBy: { select: { id: true, email: true, displayName: true } },
+  processedBy: { select: { id: true, email: true, displayName: true } },
+  rejectedBy: { select: { id: true, email: true, displayName: true } },
   attachments: {
     where: { deletedAt: null },
     orderBy: { createdAt: 'asc' },
@@ -352,7 +352,7 @@ export class RefundsService {
       this.reconciliation.totals(refund.paymentId),
       this.prisma.auditLog.findMany({
         where: { entityType: 'Refund', entityId: id },
-        include: { actor: { select: { email: true, displayName: true, role: true } } },
+        include: { actor: { select: { email: true, displayName: true } } },
         orderBy: { createdAt: 'asc' },
       }),
     ]);

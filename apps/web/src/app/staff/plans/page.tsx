@@ -118,7 +118,7 @@ export default function StaffPlansPage() {
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">
-            MERO TELECOM · {isAdmin ? 'ADMIN' : 'STAFF'}
+            {isAdmin ? 'ADMIN' : 'STAFF'} · PLAN HIGHLIGHTS
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Plan highlights</h1>
           <p className="mt-2 max-w-2xl text-slate-600">

@@ -62,28 +62,6 @@
   align-items: center;
   justify-content: space-between;
 }
-.brandLockup {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  white-space: nowrap;
-}
-.brandIcon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  color: white;
-  background: linear-gradient(145deg, #0d7f8e, #159bab);
-}
-.brandLockup strong {
-  font-size: 20px;
-  letter-spacing: -0.6px;
-}
-.brandLockup strong span {
-  color: var(--landing-primary);
-}
 .navLinks {
   display: flex;
   align-items: center;
@@ -1533,13 +1511,6 @@
 }
 
 @media (max-width: 480px) {
-  .brandLockup strong {
-    font-size: 18px;
-  }
-  .brandIcon {
-    width: 34px;
-    height: 34px;
-  }
   .heroButtons {
     flex-direction: column;
   }

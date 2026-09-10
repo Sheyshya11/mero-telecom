@@ -114,7 +114,7 @@ export function CustomerManagement() {
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-sky-700">
-            MERO TELECOM ·{' '}
+            CUSTOMER OPERATIONS ·{' '}
             {user.role === 'SUPER_ADMIN' ? 'SUPER ADMIN' : isAdmin ? 'ADMIN' : 'STAFF'}
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">

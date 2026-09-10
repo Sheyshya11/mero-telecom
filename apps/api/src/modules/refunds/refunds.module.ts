@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AuthorizationModule } from '../../common/authorization.module';
+import { PrivateFilesModule } from '../../common/files/private-files.module';
 import { AuthModule } from '../auth/auth.module';
 import { CacheModule } from '../cache/cache.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -20,7 +21,14 @@ import { RefundAttachmentsService } from './refund-attachments.service';
 import { RefundFileSecurityService } from './refund-file-security.service';
 
 @Module({
-  imports: [AuthModule, AuthorizationModule, CacheModule, NotificationsModule, StripeModule],
+  imports: [
+    AuthModule,
+    AuthorizationModule,
+    CacheModule,
+    NotificationsModule,
+    PrivateFilesModule,
+    StripeModule,
+  ],
   controllers: [
     CustomerRefundsController,
     AdminRefundsController,

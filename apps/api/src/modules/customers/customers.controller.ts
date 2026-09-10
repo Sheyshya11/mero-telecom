@@ -94,7 +94,7 @@ export class CustomersController {
   }
 
   @Get(':customerId')
-  @Roles(Role.ADMIN, Role.STAFF, Role.CUSTOMER)
+  @Roles(Role.ADMIN, Role.STAFF)
   @CustomerOwnership('customerId')
   @UseGuards(CustomerOwnershipGuard)
   @ApiOperation({ summary: 'Return a customer by ID, subject to ownership controls.' })
@@ -105,7 +105,7 @@ export class CustomersController {
   }
 
   @Patch(':customerId')
-  @Roles(Role.ADMIN, Role.STAFF, Role.CUSTOMER)
+  @Roles(Role.ADMIN, Role.STAFF)
   @CustomerOwnership('customerId')
   @UseGuards(CustomerOwnershipGuard)
   @ApiOperation({ summary: 'Update a customer, subject to role and ownership controls.' })

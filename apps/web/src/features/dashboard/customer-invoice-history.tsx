@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { apiRequest } from '../../lib/api/client';
+import { hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
 import { InvoiceRow } from './customer-dashboard';
 import type { CustomerInvoice } from './customer-dashboard.types';
@@ -21,11 +22,11 @@ export function CustomerInvoiceHistory() {
   const invoicesQuery = useQuery({
     queryKey: ['customer-invoices'],
     queryFn: () => apiRequest<InvoiceListResponse>('/invoices/me?limit=50', {}, accessToken),
-    enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
+    enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
 
   if (isLoading) return <Status message="Restoring your session..." />;
-  if (!user || user.role !== 'CUSTOMER') return <Status message="Customer access is required." />;
+  if (!user || !hasRole(user, 'CUSTOMER')) return <Status message="Customer access is required." />;
   if (invoicesQuery.isPending) return <Status message="Loading your invoices..." />;
   if (invoicesQuery.isError || !invoicesQuery.data)
     return (
@@ -44,7 +45,7 @@ export function CustomerInvoiceHistory() {
     <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM</p>
+          <p className="text-sm font-semibold tracking-wide text-sky-700">BILLING · INVOICES</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Invoice history</h1>
           <p className="mt-2 text-slate-600">All invoices issued to your customer account.</p>
         </div>

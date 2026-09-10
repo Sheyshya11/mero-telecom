@@ -142,11 +142,19 @@ export class AuthController {
   @ApiUnauthorizedResponse({ description: 'Credentials are invalid.' })
   async login(
     @Body() loginDto: LoginDto,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.authService.login(loginDto);
+    const { tokens, user } = await this.authService.login(
+      loginDto,
+      this.getRequestContext(request),
+    );
 
-    response.cookie(this.refreshCookieName, tokens.refreshToken, this.getRefreshCookieOptions());
+    response.cookie(
+      this.refreshCookieName,
+      tokens.refreshToken,
+      this.getRefreshCookieOptions(tokens.refreshToken),
+    );
 
     return { accessToken: tokens.accessToken, user };
   }
@@ -167,7 +175,11 @@ export class AuthController {
     if (!refreshToken) return undefined;
     const { tokens, user } = await this.authService.refresh(refreshToken);
 
-    response.cookie(this.refreshCookieName, tokens.refreshToken, this.getRefreshCookieOptions());
+    response.cookie(
+      this.refreshCookieName,
+      tokens.refreshToken,
+      this.getRefreshCookieOptions(tokens.refreshToken),
+    );
 
     return { accessToken: tokens.accessToken, user };
   }
@@ -197,7 +209,7 @@ export class AuthController {
     return user;
   }
 
-  private getRefreshCookieOptions(): CookieOptions {
+  private getRefreshCookieOptions(refreshToken?: string): CookieOptions {
     const isProduction = this.configService.getOrThrow('app').environment === 'production';
 
     return {
@@ -205,7 +217,7 @@ export class AuthController {
       secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',
       path: '/api/v1/auth',
-      maxAge: this.authService.getRefreshTokenLifetimeMilliseconds(),
+      maxAge: this.authService.getRefreshTokenLifetimeMilliseconds(refreshToken),
     };
   }
 
@@ -214,7 +226,7 @@ export class AuthController {
     return {
       requestId: Array.isArray(requestId) ? requestId[0] : requestId,
       ipAddress: request.ip,
-      userAgent: request.get('user-agent'),
+      userAgent: request.get('user-agent')?.slice(0, 500),
     };
   }
 }

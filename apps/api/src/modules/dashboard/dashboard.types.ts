@@ -1,4 +1,9 @@
-import type { InvoiceStatus, PaymentStatus, SubscriptionStatus } from '@prisma/client';
+import type {
+  CancellationStatus,
+  InvoiceStatus,
+  PaymentStatus,
+  SubscriptionStatus,
+} from '@prisma/client';
 
 export interface AdminDashboardAttentionItem {
   type:
@@ -129,7 +134,7 @@ export interface CustomerDashboardInvoice {
 
 export interface CustomerDashboardActivity {
   id: string;
-  kind: 'PAYMENT' | 'INVOICE' | 'REFUND' | 'PLAN_CHANGE' | 'SUBSCRIPTION';
+  kind: 'PAYMENT' | 'INVOICE' | 'REFUND' | 'PLAN_CHANGE' | 'SUBSCRIPTION' | 'CANCELLATION';
   title: string;
   description: string;
   occurredAt: string;
@@ -157,6 +162,12 @@ export interface CustomerDashboardSummary {
       monthlyCents: number;
     };
   } | null;
+  cancellation: {
+    requestNumber: string;
+    status: CancellationStatus;
+    effectiveAt: string;
+    canRevoke: boolean;
+  } | null;
   billing: {
     nextPaymentAmountCents: number | null;
     nextBillingDate: string | null;
@@ -164,7 +175,7 @@ export interface CustomerDashboardSummary {
     latestPaymentStatus: PaymentStatus | null;
   };
   pendingAction: {
-    type: 'SERVICE' | 'PAYMENT' | 'PLAN_CHANGE' | 'REFUND';
+    type: 'SERVICE' | 'PAYMENT' | 'PLAN_CHANGE' | 'REFUND' | 'CANCELLATION';
     title: string;
     description: string;
     actionLabel: string;

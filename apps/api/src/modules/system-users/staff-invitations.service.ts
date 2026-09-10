@@ -15,10 +15,10 @@ import {
 } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 
-import { hashPassword } from '../../common/security/password';
+import { hashPassword, verifyPassword } from '../../common/security/password';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
-import type { AuthenticatedUser } from '../auth/auth.types';
+import { hasAnyRole, type AuthenticatedUser } from '../auth/auth.types';
 import { NotificationService } from '../notifications/notification.service';
 import type { CreateStaffInvitationDto, StaffInvitationQueryDto } from './dto/system-user.dto';
 import type {
@@ -55,25 +55,28 @@ export class StaffInvitationsService {
       const issued = await this.prisma.$transaction(async (transaction) => {
         const existing = await transaction.user.findUnique({
           where: { email },
-          include: { customer: { select: { id: true } } },
+          include: { customer: { select: { id: true } }, roles: { select: { role: true } } },
         });
-        if (existing) {
+        if (existing && this.roleValues(existing).includes(input.role)) {
+          throw new ConflictException('This account already has the requested role.');
+        }
+        if (existing && existing.status !== UserStatus.ACTIVE) {
           throw new ConflictException(
-            existing.customer
-              ? 'This email is already linked to a customer account.'
-              : 'A system account with this email already exists.',
+            'This existing account is not eligible for a role invitation.',
           );
         }
-        const user = await transaction.user.create({
-          data: {
-            email,
-            displayName,
-            role: input.role,
-            passwordHash: null,
-            status: UserStatus.INVITATION_PENDING,
-            isActive: false,
-          },
-        });
+        const user =
+          existing ??
+          (await transaction.user.create({
+            data: {
+              email,
+              displayName,
+              roles: { create: { role: input.role, assignedBy: actor.id } },
+              passwordHash: null,
+              status: UserStatus.INVITATION_PENDING,
+              isActive: false,
+            },
+          }));
         return this.issueWithinTransaction(transaction, {
           email,
           displayName,
@@ -119,7 +122,10 @@ export class StaffInvitationsService {
     });
     const where: Prisma.StaffInvitationWhereInput = {
       status: query.status,
-      role: actor.role === Role.ADMIN ? Role.STAFF : query.role,
+      role:
+        hasAnyRole(actor, [Role.ADMIN]) && !hasAnyRole(actor, [Role.SUPER_ADMIN])
+          ? Role.STAFF
+          : query.role,
     };
     const skip = (query.page - 1) * query.limit;
     const [rows, total] = await this.prisma.$transaction([
@@ -162,8 +168,11 @@ export class StaffInvitationsService {
       ) {
         throw new ConflictException('Only pending or expired invitations can be resent.');
       }
-      const user = await transaction.user.findUnique({ where: { email: invitation.email } });
-      if (!user || user.status !== UserStatus.INVITATION_PENDING || user.role !== invitation.role) {
+      const user = await transaction.user.findUnique({
+        where: { email: invitation.email },
+        include: { roles: { select: { role: true } } },
+      });
+      if (!user || !this.canAccept(invitation, user)) {
         throw new ConflictException('The invited account is no longer eligible for activation.');
       }
       await transaction.staffInvitation.update({
@@ -239,8 +248,11 @@ export class StaffInvitationsService {
       });
       return { valid: false };
     }
-    const user = await this.prisma.user.findUnique({ where: { email: invitation.email } });
-    if (!user || !this.canAccept(invitation, user) || user.role !== invitation.role) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: invitation.email },
+      include: { roles: { select: { role: true } } },
+    });
+    if (!user || !this.canAccept(invitation, user)) {
       return { valid: false };
     }
     return { valid: true, role: invitation.role, displayName: user.displayName ?? undefined };
@@ -267,15 +279,17 @@ export class StaffInvitationsService {
       }
       const user = await transaction.user.findUnique({
         where: { email: invitation.email },
-        include: { customer: { select: { id: true } } },
+        include: { customer: { select: { id: true } }, roles: { select: { role: true } } },
       });
-      if (
-        !user ||
-        user.customer ||
-        !this.canAccept(invitation, user) ||
-        user.role !== invitation.role
-      ) {
+      if (!user || !this.canAccept(invitation, user)) {
         throw new BadRequestException('This invitation link is invalid or has expired.');
+      }
+      const existingActiveAccount = user.status === UserStatus.ACTIVE;
+      if (
+        existingActiveAccount &&
+        (!user.passwordHash || !(await verifyPassword(password, user.passwordHash)))
+      ) {
+        throw new BadRequestException('The password does not match the existing account.');
       }
       const claimed = await transaction.staffInvitation.updateMany({
         where: {
@@ -296,10 +310,13 @@ export class StaffInvitationsService {
       await transaction.user.update({
         where: { id: user.id },
         data: {
-          passwordHash,
+          passwordHash: existingActiveAccount ? undefined : passwordHash,
           isActive: true,
           status: UserStatus.ACTIVE,
           emailVerifiedAt: now,
+          roles: this.roleValues(user).includes(invitation.role)
+            ? undefined
+            : { create: { role: invitation.role, assignedBy: invitation.invitedById } },
         },
       });
       await transaction.refreshSession.updateMany({
@@ -317,17 +334,23 @@ export class StaffInvitationsService {
       await transaction.auditLog.create({
         data: {
           actorUserId: user.id,
-          action:
-            user.status === UserStatus.ACTIVE
-              ? user.role === Role.SUPER_ADMIN
-                ? 'SUPER_ADMIN_ACCESS_RECOVERED'
+          action: existingActiveAccount
+            ? invitation.role === Role.SUPER_ADMIN
+              ? 'SUPER_ADMIN_ACCESS_RECOVERED'
+              : user.customer
+                ? 'CUSTOMER_STAFF_ROLE_ACCEPTED'
                 : 'ADMIN_ACCESS_RECOVERED'
-              : user.role === Role.SUPER_ADMIN
-                ? 'SUPER_ADMIN_INVITATION_ACCEPTED'
-                : 'STAFF_INVITATION_ACCEPTED',
+            : invitation.role === Role.SUPER_ADMIN
+              ? 'SUPER_ADMIN_INVITATION_ACCEPTED'
+              : 'STAFF_INVITATION_ACCEPTED',
           entityType: 'User',
           entityId: user.id,
-          metadata: { invitationId: invitation.id, role: user.role, ...context },
+          metadata: {
+            invitationId: invitation.id,
+            role: invitation.role,
+            existingAccount: existingActiveAccount,
+            ...context,
+          },
         },
       });
     });
@@ -347,11 +370,14 @@ export class StaffInvitationsService {
       await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('mero-telecom-super-admin-bootstrap'))`;
       const existing = await transaction.user.findUnique({
         where: { email },
-        include: { customer: { select: { id: true } } },
+        include: { customer: { select: { id: true } }, roles: { select: { role: true } } },
       });
       if (
         existing &&
-        (existing.customer || (existing.role !== Role.ADMIN && existing.role !== Role.SUPER_ADMIN))
+        (existing.customer ||
+          !this.roleValues(existing).some(
+            (role) => role === Role.ADMIN || role === Role.SUPER_ADMIN,
+          ))
       ) {
         throw new ConflictException(
           'The bootstrap email conflicts with an existing non-administrator identity. Only the exact matching administrator can be promoted.',
@@ -359,7 +385,11 @@ export class StaffInvitationsService {
       }
       if (!existing) {
         const activeAdminCount = await transaction.user.count({
-          where: { role: Role.SUPER_ADMIN, status: UserStatus.ACTIVE, isActive: true },
+          where: {
+            roles: { some: { role: Role.SUPER_ADMIN } },
+            status: UserStatus.ACTIVE,
+            isActive: true,
+          },
         });
         if (activeAdminCount > 0) {
           throw new ConflictException(
@@ -370,7 +400,7 @@ export class StaffInvitationsService {
           data: {
             email,
             displayName,
-            role: Role.SUPER_ADMIN,
+            roles: { create: { role: Role.SUPER_ADMIN } },
             passwordHash: null,
             status: UserStatus.INVITATION_PENDING,
             isActive: false,
@@ -391,7 +421,7 @@ export class StaffInvitationsService {
         return { outcome: 'created' as const, invitation };
       }
       const nameChanged = existing.displayName !== displayName;
-      const promoted = existing.role === Role.ADMIN;
+      const promoted = !this.roleValues(existing).includes(Role.SUPER_ADMIN);
       if (nameChanged) {
         await transaction.user.update({
           where: { id: existing.id },
@@ -401,7 +431,13 @@ export class StaffInvitationsService {
       if (promoted) {
         await transaction.user.update({
           where: { id: existing.id },
-          data: { role: Role.SUPER_ADMIN, displayName },
+          data: {
+            displayName,
+            roles: {
+              deleteMany: { role: Role.ADMIN },
+              create: { role: Role.SUPER_ADMIN },
+            },
+          },
         });
         await transaction.refreshSession.updateMany({
           where: { userId: existing.id, revokedAt: null },
@@ -490,9 +526,9 @@ export class StaffInvitationsService {
     const issued = await this.prisma.$transaction(async (transaction) => {
       const user = await transaction.user.findUnique({
         where: { email },
-        include: { customer: { select: { id: true } } },
+        include: { customer: { select: { id: true } }, roles: { select: { role: true } } },
       });
-      if (!user || user.role !== Role.SUPER_ADMIN || user.customer) {
+      if (!user || !this.roleValues(user).includes(Role.SUPER_ADMIN) || user.customer) {
         throw new ConflictException('The recovery email does not identify a super administrator.');
       }
       await transaction.staffInvitation.updateMany({
@@ -613,15 +649,23 @@ export class StaffInvitationsService {
 
   private canAccept(
     invitation: Pick<StaffInvitation, 'invitedById' | 'role'>,
-    user: { status: UserStatus; role: Role },
+    user: { status: UserStatus; roles?: { role: Role }[]; role?: Role },
   ): boolean {
+    const roles = user.roles?.map(({ role }) => role) ?? (user.role ? [user.role] : []);
     return (
-      user.status === UserStatus.INVITATION_PENDING ||
+      (user.status === UserStatus.INVITATION_PENDING && roles.includes(invitation.role)) ||
+      (invitation.invitedById !== null &&
+        user.status === UserStatus.ACTIVE &&
+        !roles.includes(invitation.role)) ||
       (invitation.invitedById === null &&
         (invitation.role === Role.ADMIN || invitation.role === Role.SUPER_ADMIN) &&
-        user.role === invitation.role &&
+        roles.includes(invitation.role) &&
         user.status === UserStatus.ACTIVE)
     );
+  }
+
+  private roleValues(user: { roles?: { role: Role }[]; role?: Role }): Role[] {
+    return user.roles?.map(({ role }) => role) ?? (user.role ? [user.role] : []);
   }
 
   private isUniqueError(error: unknown): boolean {

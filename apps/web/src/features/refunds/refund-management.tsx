@@ -46,7 +46,7 @@ export function RefundManagement({
     <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10 text-slate-950">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM · BILLING</p>
+          <p className="text-sm font-semibold tracking-wide text-sky-700">BILLING · REFUNDS</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Refund management</h1>
           <p className="mt-2 text-slate-600">
             Review requests, approve controlled amounts, and reconcile Stripe results.

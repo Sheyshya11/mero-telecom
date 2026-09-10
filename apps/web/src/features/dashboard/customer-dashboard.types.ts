@@ -8,7 +8,13 @@ export interface CustomerDashboard {
   };
   subscription: {
     id: string;
-    status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+    status:
+      | 'PENDING'
+      | 'ACTIVE'
+      | 'CANCELLATION_PENDING'
+      | 'DISCONNECTION_PENDING'
+      | 'SUSPENDED'
+      | 'CANCELLED';
     startDate: string;
     plan: {
       name: string;
@@ -17,6 +23,17 @@ export interface CustomerDashboard {
       monthlyCents: number;
     };
   } | null;
+  cancellation: {
+    requestNumber: string;
+    status:
+      | 'REQUESTED'
+      | 'SCHEDULED'
+      | 'PROCESSING'
+      | 'DISCONNECTION_PENDING'
+      | 'FAILED';
+    effectiveAt: string;
+    canRevoke: boolean;
+  } | null;
   billing: {
     nextPaymentAmountCents: number | null;
     nextBillingDate: string | null;
@@ -24,7 +41,7 @@ export interface CustomerDashboard {
     latestPaymentStatus: CustomerPaymentStatus | null;
   };
   pendingAction: {
-    type: 'SERVICE' | 'PAYMENT' | 'PLAN_CHANGE' | 'REFUND';
+    type: 'SERVICE' | 'PAYMENT' | 'PLAN_CHANGE' | 'REFUND' | 'CANCELLATION';
     title: string;
     description: string;
     actionLabel: string;
@@ -33,7 +50,7 @@ export interface CustomerDashboard {
   } | null;
   recentActivity: Array<{
     id: string;
-    kind: 'PAYMENT' | 'INVOICE' | 'REFUND' | 'PLAN_CHANGE' | 'SUBSCRIPTION';
+    kind: 'PAYMENT' | 'INVOICE' | 'REFUND' | 'PLAN_CHANGE' | 'SUBSCRIPTION' | 'CANCELLATION';
     title: string;
     description: string;
     occurredAt: string;

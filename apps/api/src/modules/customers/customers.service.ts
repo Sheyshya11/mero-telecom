@@ -63,7 +63,7 @@ export class CustomersService {
             data: {
               email,
               passwordHash: null,
-              role: Role.CUSTOMER,
+              roles: { create: { role: Role.CUSTOMER, assignedBy: actor.id } },
               isActive: false,
               status: UserStatus.INVITATION_PENDING,
             },
@@ -188,6 +188,8 @@ export class CustomersService {
                 in: [
                   SubscriptionStatus.ACTIVE,
                   SubscriptionStatus.PENDING,
+                  SubscriptionStatus.CANCELLATION_PENDING,
+                  SubscriptionStatus.DISCONNECTION_PENDING,
                   SubscriptionStatus.SUSPENDED,
                 ],
               },

@@ -1,10 +1,12 @@
 import Link from 'next/link';
 
+import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
+
 export default function TermsPage() {
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-6 py-12">
-      <Link className="text-sm font-semibold text-sky-700" href="/">
-        MERO TELECOM
+      <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
+        <MeroTelecomLogo alt="" preload size="compact" />
       </Link>
       <h1 className="mt-4 text-3xl font-bold">Terms of service</h1>
       <p className="mt-4 leading-7 text-slate-600">

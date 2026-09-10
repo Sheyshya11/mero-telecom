@@ -17,7 +17,13 @@ import { ApiError, apiRequest } from '../../../lib/api/client';
 type Customer = { id: string; customerNumber?: string; firstName: string; lastName: string };
 type Subscription = {
   id: string;
-  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+  status:
+    | 'PENDING'
+    | 'ACTIVE'
+    | 'CANCELLATION_PENDING'
+    | 'DISCONNECTION_PENDING'
+    | 'SUSPENDED'
+    | 'CANCELLED';
   startDate: string;
   currentPeriodEnd: string;
   customer: Customer;
@@ -151,9 +157,7 @@ export default function AdminSubscriptionsPage() {
     <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
       <header className="border-b border-slate-200 pb-6">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">
-            MERO TELECOM · OPERATIONS
-          </p>
+          <p className="text-sm font-semibold tracking-wide text-sky-700">ADMIN · OPERATIONS</p>
           <h1 className="mt-2 text-3xl font-bold">Subscriptions</h1>
           <p className="mt-2 text-slate-600">
             Review service history, lifecycle status, and customer-requested plan changes.
@@ -194,7 +198,14 @@ export default function AdminSubscriptionsPage() {
             {
               key: 'status',
               label: 'Status',
-              options: ['PENDING', 'ACTIVE', 'SUSPENDED', 'CANCELLED'],
+              options: [
+                'PENDING',
+                'ACTIVE',
+                'CANCELLATION_PENDING',
+                'DISCONNECTION_PENDING',
+                'SUSPENDED',
+                'CANCELLED',
+              ],
             },
             { key: 'planId', label: 'Plan', options: planOptions },
             { key: 'billingCycle', label: 'Billing cycle', options: ['MONTHLY'] },
@@ -266,14 +277,9 @@ export default function AdminSubscriptionsPage() {
                   </button>
                 ) : null}
                 {subscription.status !== 'CANCELLED' ? (
-                  <button
-                    className="button-secondary"
-                    disabled={transition.isPending}
-                    onClick={() => transition.mutate({ id: subscription.id, status: 'CANCELLED' })}
-                    type="button"
-                  >
-                    Cancel
-                  </button>
+                  <Link className="button-secondary" href="/control-centre/cancellations">
+                    Manage cancellation
+                  </Link>
                 ) : null}
               </div>
             </article>

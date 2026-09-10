@@ -29,6 +29,12 @@ export class BillingReportsController {
     return this.reports.summary(query, actor);
   }
 
+  @Get('overview')
+  @ApiOperation({ summary: 'Get the operational billing overview' })
+  overview(@Query() query: BillingReportQueryDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.reports.summary(query, actor);
+  }
+
   @Get('revenue')
   revenue(@Query() query: BillingReportQueryDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.reports.revenue(query, actor);
@@ -59,6 +65,11 @@ export class BillingReportsController {
     return this.reports.subscriptions(query, actor);
   }
 
+  @Get('plans')
+  plans(@Query() query: BillingReportQueryDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.reports.subscriptions(query, actor);
+  }
+
   @Get('reconciliation')
   reconciliation(@Query() query: BillingReportQueryDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.reports.reconciliation(query, actor);
@@ -78,10 +89,7 @@ export class BillingReportsController {
     }
     const result = await this.reports.export(reportType, query, actor, query.format);
     response.setHeader('Content-Type', result.contentType);
-    response.setHeader(
-      'Content-Disposition',
-      `attachment; filename="mero-telecom-${reportType}-${new Date().toISOString().slice(0, 10)}.${result.extension}"`,
-    );
+    response.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
     response.send(result.buffer);
   }
 }

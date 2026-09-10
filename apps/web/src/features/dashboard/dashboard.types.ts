@@ -26,7 +26,13 @@ export interface AdminDashboard {
   }>;
   invoiceTrend: Array<{ month: string; label: string; totalCents: number; count: number }>;
   subscriptionsByStatus: Array<{
-    status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+    status:
+      | 'PENDING'
+      | 'ACTIVE'
+      | 'CANCELLATION_PENDING'
+      | 'DISCONNECTION_PENDING'
+      | 'SUSPENDED'
+      | 'CANCELLED';
     count: number;
   }>;
   recentInvoices: Array<{

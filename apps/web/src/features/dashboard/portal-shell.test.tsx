@@ -30,6 +30,9 @@ describe('PortalShell navigation', () => {
       </PortalShell>,
     );
     const nav = within(screen.getByRole('navigation'));
+    expect(screen.getByRole('link', { name: 'Mero Telecom dashboard' })).toContainElement(
+      document.querySelector('img[src="/brand/mero-telecom-logo.jpg"]'),
+    );
     expect(nav.getByRole('link', { name: 'Plan highlights' })).toHaveAttribute(
       'href',
       '/staff/plans',

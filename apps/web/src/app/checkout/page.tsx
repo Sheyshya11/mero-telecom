@@ -8,7 +8,9 @@ import { Suspense, useState } from 'react';
 import { useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { z } from 'zod';
 
+import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
 import { useAuth } from '../../features/auth/auth-provider';
+import { hasRole } from '../../features/auth/auth-navigation';
 import { AddressAutocomplete } from '../../features/coverage/address-autocomplete';
 import type {
   AddressSuggestion,
@@ -156,7 +158,7 @@ function CheckoutContent() {
     );
   }
 
-  if (user?.role === 'CUSTOMER') {
+  if (user && hasRole(user, 'CUSTOMER')) {
     return (
       <main className="mx-auto min-h-screen max-w-3xl px-6 py-12">
         <CheckoutHeader />
@@ -360,8 +362,8 @@ function CheckoutContent() {
 function CheckoutHeader() {
   return (
     <header className="border-b border-slate-200 pb-6">
-      <Link className="text-sm font-semibold tracking-wide text-sky-700" href="/">
-        MERO TELECOM
+      <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
+        <MeroTelecomLogo alt="" preload size="compact" />
       </Link>
       <h1 className="mt-2 text-3xl font-bold">Internet plan checkout</h1>
       <p className="mt-2 text-slate-600">
@@ -606,7 +608,10 @@ function Checkbox({
 function Status({ message }: Readonly<{ message: string }>) {
   return (
     <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
-      {message}
+      <div className="grid justify-items-center gap-5">
+        <MeroTelecomLogo preload size="auth" />
+        <p>{message}</p>
+      </div>
     </main>
   );
 }

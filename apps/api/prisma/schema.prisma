@@ -66,8 +66,56 @@ enum CheckoutApplicationStatus {
 enum SubscriptionStatus {
   PENDING
   ACTIVE
+  CANCELLATION_PENDING
+  DISCONNECTION_PENDING
   SUSPENDED
   CANCELLED
+}
+
+enum CancellationType {
+  END_OF_PERIOD
+  IMMEDIATE
+}
+
+enum CancellationReason {
+  MOVING_HOME
+  SWITCHING_PROVIDER
+  PRICE
+  SERVICE_QUALITY
+  CONNECTION_PROBLEMS
+  NO_LONGER_REQUIRED
+  OTHER
+}
+
+enum CancellationStatus {
+  REQUESTED
+  SCHEDULED
+  PROCESSING
+  DISCONNECTION_PENDING
+  COMPLETED
+  FAILED
+  REVOKED
+}
+
+enum CancellationProviderOperation {
+  DISCONNECT_SERVICE
+  WITHDRAW_ACTIVATION
+}
+
+enum CancellationProviderStatus {
+  NOT_SUBMITTED
+  PENDING
+  COMPLETED
+  FAILED
+  MANUAL_REVIEW_REQUIRED
+  CANCELLED
+}
+
+enum MockDisconnectionScenario {
+  SUCCESS
+  PENDING
+  FAILED
+  MANUAL_REVIEW_REQUIRED
 }
 
 enum BillingCycle {
@@ -175,32 +223,148 @@ enum CoverageResultStatus {
   MANUAL_REVIEW
 }
 
+enum SupportCategory {
+  INTERNET_CONNECTION
+  BILLING
+  PLAN
+  ACCOUNT
+  REFUND
+  PLANS_AND_PRICING
+  NBN_AVAILABILITY
+  ADDRESS_CHECK
+  SIGNUP_HELP
+  ORDER_HELP
+  PAYMENT_HELP
+  GENERAL_ENQUIRY
+  OTHER
+}
+
+enum SupportRequestType {
+  CUSTOMER_SUPPORT
+  PROSPECT_ENQUIRY
+}
+
+enum SupportMessageVisibility {
+  CUSTOMER_VISIBLE
+  INTERNAL
+}
+
+enum SupportEmailDeliveryStatus {
+  NOT_APPLICABLE
+  QUEUED
+  SENT
+  FAILED
+}
+
+enum SupportStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum InternalRequestType {
+  REFUND_REVIEW
+  BILLING_REVIEW
+  SUBSCRIPTION_ACTION
+  CUSTOMER_ACCOUNT_ACTION
+  PLAN_CHANGE_REVIEW
+  SUPPORT_ASSISTANCE
+  OTHER
+}
+
+enum InternalRequestStatus {
+  PENDING
+  IN_REVIEW
+  MORE_INFO_REQUIRED
+  APPROVED
+  REJECTED
+  RESOLVED
+  CLOSED
+}
+
+enum InternalRequestPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum InternalRequestLevel {
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum InternalRequestEventType {
+  CREATED
+  ASSIGNED
+  REVIEW_STARTED
+  MESSAGE_SENT
+  MORE_INFO_REQUESTED
+  APPROVED
+  REJECTED
+  ESCALATED
+  RETURNED
+  RESOLVED
+  CLOSED
+}
+
 model User {
-  id                       String               @id @default(uuid()) @db.Uuid
-  email                    String               @unique @db.VarChar(320)
-  displayName              String?              @db.VarChar(200)
-  passwordHash             String?              @db.VarChar(255)
-  role                     Role                 @default(CUSTOMER)
-  isActive                 Boolean              @default(true)
-  status                   UserStatus           @default(ACTIVE)
-  emailVerifiedAt          DateTime?
-  createdAt                DateTime             @default(now())
-  updatedAt                DateTime             @updatedAt
-  customer                 Customer?
-  refreshSessions          RefreshSession[]
-  passwordResetTokens      PasswordResetToken[]
-  auditLogs                AuditLog[]           @relation("AuditActor")
-  invitations              AccountInvitation[]  @relation("InvitationUser")
-  issuedInvitations        AccountInvitation[]  @relation("InvitationIssuer")
-  staffInvitationsIssued   StaffInvitation[]    @relation("StaffInvitationIssuer")
-  staffInvitationsAccepted StaffInvitation[]    @relation("StaffInvitationAcceptor")
-  refundRequests           Refund[]             @relation("RefundRequester")
-  refundApprovals          Refund[]             @relation("RefundApprover")
-  refundsProcessed         Refund[]             @relation("RefundProcessor")
-  refundsRejected          Refund[]             @relation("RefundRejector")
-  refundAttachments        RefundAttachment[]   @relation("RefundAttachmentUploader")
+  id                            String                   @id @default(uuid()) @db.Uuid
+  email                         String                   @unique @db.VarChar(320)
+  displayName                   String?                  @db.VarChar(200)
+  passwordHash                  String?                  @db.VarChar(255)
+  isActive                      Boolean                  @default(true)
+  status                        UserStatus               @default(ACTIVE)
+  emailVerifiedAt               DateTime?
+  createdAt                     DateTime                 @default(now())
+  updatedAt                     DateTime                 @updatedAt
+  customer                      Customer?
+  refreshSessions               RefreshSession[]
+  passwordResetTokens           PasswordResetToken[]
+  auditLogs                     AuditLog[]               @relation("AuditActor")
+  invitations                   AccountInvitation[]      @relation("InvitationUser")
+  issuedInvitations             AccountInvitation[]      @relation("InvitationIssuer")
+  staffInvitationsIssued        StaffInvitation[]        @relation("StaffInvitationIssuer")
+  staffInvitationsAccepted      StaffInvitation[]        @relation("StaffInvitationAcceptor")
+  refundRequests                Refund[]                 @relation("RefundRequester")
+  refundApprovals               Refund[]                 @relation("RefundApprover")
+  refundsProcessed              Refund[]                 @relation("RefundProcessor")
+  refundsRejected               Refund[]                 @relation("RefundRejector")
+  refundAttachments             RefundAttachment[]       @relation("RefundAttachmentUploader")
+  roles                         UserRole[]
+  assignedSupportCases          SupportCase[]            @relation("SupportCaseAssignee")
+  linkedProspectSupportCases    SupportCase[]            @relation("SupportCaseCustomerLinker")
+  supportMessages               SupportMessage[]
+  internalRequestsCreated       InternalRequest[]        @relation("InternalRequestRequester")
+  internalRequestsAssigned      InternalRequest[]        @relation("InternalRequestAssignee")
+  internalRequestsSuperAssigned InternalRequest[]        @relation("InternalRequestSuperAdminAssignee")
+  internalRequestsReviewed      InternalRequest[]        @relation("InternalRequestReviewer")
+  internalRequestsEscalated     InternalRequest[]        @relation("InternalRequestEscalator")
+  internalRequestMessages       InternalRequestMessage[]
+  internalRequestEvents         InternalRequestEvent[]
+  cancellationRequestsMade     CancellationRequest[]    @relation("CancellationRequester")
+  cancellationRequestsRevoked  CancellationRequest[]    @relation("CancellationRevoker")
+  cancellationNotes            CancellationNote[]
 
   @@index([createdAt, id])
+}
+
+model UserRole {
+  userId     String   @db.Uuid
+  role       Role
+  assignedAt DateTime @default(now())
+  assignedBy String?  @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+  @@index([role, userId])
 }
 
 model Customer {
@@ -229,11 +393,194 @@ model Customer {
   planChangeRequests   PlanChangeRequest[]
   coverageSearches     CoverageSearch[]
   refunds              Refund[]
+  supportCases         SupportCase[]
+  internalRequests     InternalRequest[]
+  cancellationRequests CancellationRequest[]
 
   @@index([lastName, firstName])
   @@index([status])
   @@index([createdAt, id])
   @@index([state, postcode])
+}
+
+model SupportCaseSequence {
+  year  Int @id
+  value Int
+}
+
+model SupportCase {
+  id                      String             @id @default(uuid()) @db.Uuid
+  caseNumber              String             @unique @db.VarChar(32)
+  requestType             SupportRequestType @default(CUSTOMER_SUPPORT)
+  customerId              String?            @db.Uuid
+  prospectName            String?            @db.VarChar(200)
+  prospectEmail           String?            @db.VarChar(320)
+  prospectPhone           String?            @db.VarChar(32)
+  prospectAddress         String?            @db.VarChar(300)
+  publicSubmissionKeyHash String?            @unique @db.Char(64)
+  linkedCustomerAt        DateTime?
+  linkedCustomerByUserId  String?            @db.Uuid
+  category                SupportCategory
+  subject                 String             @db.VarChar(200)
+  status                  SupportStatus      @default(OPEN)
+  priority                SupportPriority    @default(NORMAL)
+  assignedToUserId        String?            @db.Uuid
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  resolvedAt              DateTime?
+  closedAt                DateTime?
+  customer                Customer?          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  assignedTo              User?              @relation("SupportCaseAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  linkedCustomerByUser    User?              @relation("SupportCaseCustomerLinker", fields: [linkedCustomerByUserId], references: [id], onDelete: SetNull)
+  messages                SupportMessage[]
+  internalRequests        InternalRequest[]
+
+  @@index([customerId, updatedAt, id])
+  @@index([status, updatedAt, id])
+  @@index([assignedToUserId, status, updatedAt])
+  @@index([category, status])
+  @@index([requestType, status, updatedAt, id])
+  @@index([prospectEmail, createdAt])
+}
+
+model SupportMessage {
+  id                  String                     @id @default(uuid()) @db.Uuid
+  supportCaseId       String                     @db.Uuid
+  senderUserId        String?                    @db.Uuid
+  senderRole          Role
+  visibility          SupportMessageVisibility   @default(CUSTOMER_VISIBLE)
+  emailDeliveryStatus SupportEmailDeliveryStatus @default(NOT_APPLICABLE)
+  body                String                     @db.VarChar(5000)
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  supportCase         SupportCase                @relation(fields: [supportCaseId], references: [id], onDelete: Cascade)
+  sender              User?                      @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+  attachments         SupportAttachment[]
+
+  @@index([supportCaseId, createdAt, id])
+  @@index([senderUserId, createdAt])
+}
+
+model SupportAttachment {
+  id           String         @id @default(uuid()) @db.Uuid
+  messageId    String         @db.Uuid
+  originalName String         @db.VarChar(255)
+  storageKey   String         @unique @db.VarChar(500)
+  mimeType     String         @db.VarChar(120)
+  fileSize     Int
+  createdAt    DateTime       @default(now())
+  message      SupportMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, createdAt])
+}
+
+model InternalRequestSequence {
+  year  Int @id
+  value Int
+}
+
+model InternalRequest {
+  id                         String                   @id @default(uuid()) @db.Uuid
+  requestNumber              String                   @unique @db.VarChar(32)
+  requestedByUserId          String                   @db.Uuid
+  requesterRole              Role
+  targetRole                 Role                     @default(ADMIN)
+  currentLevel               InternalRequestLevel     @default(ADMIN)
+  assignedToUserId           String?                  @db.Uuid
+  superAdminAssignedToUserId String?                  @db.Uuid
+  reviewedByUserId           String?                  @db.Uuid
+  escalatedByUserId          String?                  @db.Uuid
+  type                       InternalRequestType
+  title                      String                   @db.VarChar(200)
+  description                String                   @db.VarChar(5000)
+  priority                   InternalRequestPriority  @default(NORMAL)
+  status                     InternalRequestStatus    @default(PENDING)
+  supportCaseId              String?                  @db.Uuid
+  customerId                 String?                  @db.Uuid
+  subscriptionId             String?                  @db.Uuid
+  invoiceId                  String?                  @db.Uuid
+  paymentId                  String?                  @db.Uuid
+  refundId                   String?                  @db.Uuid
+  planChangeRequestId        String?                  @db.Uuid
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  reviewedAt                 DateTime?
+  escalatedAt                DateTime?
+  resolvedAt                 DateTime?
+  closedAt                   DateTime?
+  requestedBy                User                     @relation("InternalRequestRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  assignedTo                 User?                    @relation("InternalRequestAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  superAdminAssignedTo       User?                    @relation("InternalRequestSuperAdminAssignee", fields: [superAdminAssignedToUserId], references: [id], onDelete: SetNull)
+  reviewedBy                 User?                    @relation("InternalRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  escalatedBy                User?                    @relation("InternalRequestEscalator", fields: [escalatedByUserId], references: [id], onDelete: SetNull)
+  supportCase                SupportCase?             @relation(fields: [supportCaseId], references: [id], onDelete: Restrict)
+  customer                   Customer?                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  subscription               Subscription?            @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  invoice                    Invoice?                 @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  payment                    Payment?                 @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  refund                     Refund?                  @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  planChangeRequest          PlanChangeRequest?       @relation(fields: [planChangeRequestId], references: [id], onDelete: Restrict)
+  messages                   InternalRequestMessage[]
+  events                     InternalRequestEvent[]
+
+  @@index([requestedByUserId, updatedAt, id])
+  @@index([assignedToUserId, status, updatedAt])
+  @@index([superAdminAssignedToUserId, status, updatedAt])
+  @@index([targetRole, status, priority, createdAt])
+  @@index([currentLevel, status, priority, escalatedAt])
+  @@index([customerId, createdAt])
+  @@index([supportCaseId])
+  @@index([invoiceId])
+  @@index([paymentId])
+  @@index([refundId])
+  @@index([subscriptionId])
+  @@index([planChangeRequestId])
+}
+
+model InternalRequestMessage {
+  id                String                      @id @default(uuid()) @db.Uuid
+  internalRequestId String                      @db.Uuid
+  senderUserId      String                      @db.Uuid
+  senderRole        Role
+  body              String                      @db.VarChar(5000)
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  internalRequest   InternalRequest             @relation(fields: [internalRequestId], references: [id], onDelete: Cascade)
+  sender            User                        @relation(fields: [senderUserId], references: [id], onDelete: Restrict)
+  attachments       InternalRequestAttachment[]
+
+  @@index([internalRequestId, createdAt, id])
+  @@index([senderUserId, createdAt])
+}
+
+model InternalRequestAttachment {
+  id           String                 @id @default(uuid()) @db.Uuid
+  messageId    String                 @db.Uuid
+  originalName String                 @db.VarChar(255)
+  storageKey   String                 @unique @db.VarChar(500)
+  mimeType     String                 @db.VarChar(120)
+  fileSize     Int
+  createdAt    DateTime               @default(now())
+  message      InternalRequestMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, createdAt])
+}
+
+model InternalRequestEvent {
+  id                String                   @id @default(uuid()) @db.Uuid
+  internalRequestId String                   @db.Uuid
+  actorUserId       String                   @db.Uuid
+  actorRole         Role
+  eventType         InternalRequestEventType
+  fromLevel         InternalRequestLevel?
+  toLevel           InternalRequestLevel?
+  comment           String?                  @db.VarChar(2000)
+  createdAt         DateTime                 @default(now())
+  internalRequest   InternalRequest          @relation(fields: [internalRequestId], references: [id], onDelete: Cascade)
+  actor             User                     @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([internalRequestId, createdAt, id])
+  @@index([actorUserId, createdAt])
 }
 
 model CustomerAddress {
@@ -312,10 +659,76 @@ model Subscription {
   sourcePlanChanges   PlanChangeRequest[]  @relation("PlanChangeSourceSubscription")
   resultingPlanChange PlanChangeRequest?   @relation("PlanChangeResultSubscription")
   refunds             Refund[]
+  internalRequests    InternalRequest[]
+  cancellationRequests CancellationRequest[]
 
   @@index([customerId, status])
   @@index([planId])
   @@index([createdAt, id])
+}
+
+model CancellationRequestSequence {
+  year  Int @id
+  value Int
+}
+
+model CancellationRequest {
+  id                        String                        @id @default(uuid()) @db.Uuid
+  requestNumber             String                        @unique @db.VarChar(32)
+  subscriptionId            String                        @db.Uuid
+  customerId                String                        @db.Uuid
+  type                      CancellationType
+  reason                    CancellationReason
+  reasonDetails             String?                       @db.VarChar(2000)
+  requestedAt               DateTime                      @default(now())
+  requestedByUserId         String                        @db.Uuid
+  requestedByRole           Role
+  effectiveAt               DateTime
+  status                    CancellationStatus            @default(REQUESTED)
+  providerOperation         CancellationProviderOperation
+  subscriptionStatusBefore SubscriptionStatus
+  providerName              String                        @default("MOCK_NBN") @db.VarChar(50)
+  providerIdempotencyKey    String                        @unique @db.VarChar(150)
+  providerDisconnectionId   String?                       @unique @db.VarChar(255)
+  providerStatus            CancellationProviderStatus    @default(NOT_SUBMITTED)
+  providerScenario          MockDisconnectionScenario?
+  providerPayload           Json?
+  providerLastCheckedAt     DateTime?
+  failedReason              String?                       @db.VarChar(500)
+  processingStartedAt       DateTime?
+  completedAt               DateTime?
+  revokedAt                 DateTime?
+  revokedByUserId           String?                       @db.Uuid
+  attemptCount              Int                           @default(0)
+  version                   Int                           @default(0)
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
+  subscription              Subscription                  @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  customer                  Customer                      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  requestedBy               User                          @relation("CancellationRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  revokedBy                 User?                         @relation("CancellationRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  notes                     CancellationNote[]
+
+  @@index([customerId, createdAt, id])
+  @@index([subscriptionId, createdAt])
+  @@index([status, effectiveAt, id])
+  @@index([providerStatus, updatedAt, id])
+  @@index([reason, createdAt])
+  @@index([type, createdAt])
+}
+
+model CancellationNote {
+  id                    String              @id @default(uuid()) @db.Uuid
+  cancellationRequestId String              @db.Uuid
+  authorUserId          String              @db.Uuid
+  authorRole            Role
+  body                  String              @db.VarChar(2000)
+  createdAt             DateTime            @default(now())
+  cancellationRequest   CancellationRequest @relation(fields: [cancellationRequestId], references: [id], onDelete: Cascade)
+  author                User                @relation(fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([cancellationRequestId, createdAt, id])
+  @@index([authorUserId, createdAt])
 }
 
 model Invoice {
@@ -345,11 +758,13 @@ model Invoice {
   checkoutApplication CheckoutApplication?
   planChangeRequest   PlanChangeRequest?
   refunds             Refund[]
+  internalRequests    InternalRequest[]
 
   @@unique([subscriptionId, issueDate])
   @@index([createdAt, id])
   @@index([customerId, status])
   @@index([dueDate, status])
+  @@index([issuedAt, status])
   @@index([subscriptionId])
   @@index([purchasePlanId])
 }
@@ -385,10 +800,13 @@ model Payment {
   checkoutApplication CheckoutApplication?
   planChangeRequest   PlanChangeRequest?
   refunds             Refund[]
+  internalRequests    InternalRequest[]
 
   @@unique([provider, providerPaymentId])
   @@index([invoiceId, status])
   @@index([customerId])
+  @@index([status, paidAt])
+  @@index([createdAt, id])
 }
 
 model Refund {
@@ -433,26 +851,28 @@ model Refund {
   rejectedBy            User?                 @relation("RefundRejector", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
   webhookEvents         PaymentWebhookEvent[]
   attachments           RefundAttachment[]
+  internalRequests      InternalRequest[]
 
   @@index([customerId, createdAt])
   @@index([paymentId, status])
   @@index([invoiceId])
   @@index([subscriptionId])
   @@index([status, createdAt])
+  @@index([status, processedAt])
   @@index([reason, createdAt])
   @@index([createdAt, id])
 }
 
 model RefundAttachment {
-  id             String   @id @default(uuid()) @db.Uuid
-  refundId       String   @db.Uuid
-  originalName   String   @db.VarChar(255)
-  storageKey     String   @db.VarChar(500)
-  mimeType       String   @db.VarChar(120)
+  id             String    @id @default(uuid()) @db.Uuid
+  refundId       String    @db.Uuid
+  originalName   String    @db.VarChar(255)
+  storageKey     String    @db.VarChar(500)
+  mimeType       String    @db.VarChar(120)
   fileSize       Int
-  uploadedById   String   @db.Uuid
+  uploadedById   String    @db.Uuid
   uploadedByRole Role
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
   deletedAt      DateTime?
 
   refund     Refund @relation(fields: [refundId], references: [id], onDelete: Cascade)
@@ -597,10 +1017,12 @@ model PlanChangeRequest {
   invoice                    Invoice?              @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   payment                    Payment?              @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   webhookEvents              PaymentWebhookEvent[]
+  internalRequests           InternalRequest[]
 
   @@index([customerId, createdAt])
   @@index([sourceSubscriptionId, status])
   @@index([status, effectiveAt])
+  @@index([status, appliedAt])
   @@index([type, status])
 }
 

@@ -1,0 +1,11 @@
+﻿Invoice Number,Customer,Customer Email,Plan,Billing Period,Issue Date,Due Date,Subtotal (AUD),GST (AUD),Total (AUD),Paid (AUD),Outstanding (AUD),Status,Paid Date
+INV-2026-000001,Alexandra-Margaret Henderson-Williams and Family Trust,customer1@example.test,NBN Home Fast 100/20 Unlimited,2026-08-01,2026-08-01,2026-08-15,90.00,9.00,99.00,99.00,0.00,PAID,2026-08-05
+INV-2026-000002,Development Customer 2,"billing,accounts@example.test",NBN Essential 50/20,2026-08-01,2026-08-01,2026-08-15,90.01,9.00,99.01,0.00,99.01,ISSUED,
+INV-2026-000003,Development Customer 3,customer3@example.test,NBN Home Fast 100/20 Unlimited,2026-08-01,2026-08-01,2026-08-15,90.02,9.00,99.02,0.00,99.02,OVERDUE,
+INV-2026-000004,Development Customer 4,customer4@example.test,NBN Essential 50/20,2026-08-01,2026-08-01,2026-08-15,90.03,9.00,99.03,99.03,0.00,PAID,2026-08-05
+INV-2026-000005,Development Customer 5,customer5@example.test,NBN Home Fast 100/20 Unlimited,2026-08-01,2026-08-01,2026-08-15,90.04,9.00,99.04,0.00,99.04,ISSUED,
+INV-2026-000006,Development Customer 6,customer6@example.test,NBN Essential 50/20,2026-08-01,2026-08-01,2026-08-15,90.05,9.00,99.05,0.00,99.05,OVERDUE,
+INV-2026-000007,Development Customer 7,customer7@example.test,NBN Home Fast 100/20 Unlimited,2026-08-01,2026-08-01,2026-08-15,90.06,9.00,99.06,99.06,0.00,PAID,2026-08-05
+INV-2026-000008,Development Customer 8,customer8@example.test,NBN Essential 50/20,2026-08-01,2026-08-01,2026-08-15,90.07,9.00,99.07,0.00,99.07,ISSUED,
+INV-2026-000009,Development Customer 9,customer9@example.test,NBN Home Fast 100/20 Unlimited,2026-08-01,2026-08-01,2026-08-15,90.08,9.00,99.08,0.00,99.08,OVERDUE,
+INV-2026-000010,Development Customer 10,customer10@example.test,NBN Essential 50/20,2026-08-01,2026-08-01,2026-08-15,90.09,9.00,99.09,99.09,0.00,PAID,2026-08-05

@@ -24,7 +24,11 @@ const subscribe = (listener: () => void) => {
   };
 };
 
-export function useTableQueryParams(keys: readonly string[], prefix = '') {
+export function useTableQueryParams(
+  keys: readonly string[],
+  prefix = '',
+  defaultSortBy = defaults.sortBy,
+) {
   const snapshot = useSyncExternalStore(
     subscribe,
     () => window.location.search,
@@ -33,7 +37,10 @@ export function useTableQueryParams(keys: readonly string[], prefix = '') {
   const params = new URLSearchParams(snapshot);
   const allKeys = ['page', 'limit', 'search', 'sortBy', 'sortOrder', ...keys];
   const values: Record<string, string> = {};
-  for (const key of allKeys) values[key] = params.get(prefix + key) ?? defaults[key] ?? '';
+  for (const key of allKeys) {
+    const fallback = key === 'sortBy' ? defaultSortBy : defaults[key];
+    values[key] = params.get(prefix + key) ?? fallback ?? '';
+  }
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) if (value) query.set(key, value);
   const keySignature = allKeys.join(',');
@@ -42,7 +49,8 @@ export function useTableQueryParams(keys: readonly string[], prefix = '') {
       const next = new URLSearchParams(window.location.search);
       const updates = resetPage ? { ...changes, page: '1' } : changes;
       for (const [key, value] of Object.entries(updates)) {
-        if (!value || value === defaults[key]) next.delete(prefix + key);
+        const fallback = key === 'sortBy' ? defaultSortBy : defaults[key];
+        if (!value || value === fallback) next.delete(prefix + key);
         else next.set(prefix + key, value);
       }
       const suffix = next.toString();
@@ -52,7 +60,7 @@ export function useTableQueryParams(keys: readonly string[], prefix = '') {
         window.dispatchEvent(new Event('table-query-change'));
       }
     },
-    [prefix],
+    [defaultSortBy, prefix],
   );
   const clear = useCallback(
     () => update(Object.fromEntries(keySignature.split(',').map((key) => [key, '']))),
@@ -301,7 +309,15 @@ function humanize(value: string) {
 
 function allOptionsLabel(label: string) {
   const normalized = label.toLowerCase();
-  return `All ${normalized}${normalized.endsWith('status') ? 'es' : normalized.endsWith('s') ? '' : 's'}`;
+  const plural = normalized.endsWith('status')
+    ? `${normalized}es`
+    : /[^aeiou]y$/.test(normalized)
+      ? `${normalized.slice(0, -1)}ies`
+      : normalized.endsWith('s')
+        ? normalized
+        : `${normalized}s`;
+
+  return `All ${plural}`;
 }
 
 export function DataTablePagination({

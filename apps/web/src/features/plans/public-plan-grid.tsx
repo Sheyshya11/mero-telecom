@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { LandingIcon } from '../../components/landing/landing-icons';
 import { apiRequest } from '../../lib/api/client';
 import styles from '../../styles/landing.module.css';
-import { getDashboardRoute } from '../auth/auth-navigation';
+import { getHomeRoute, hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
 
 interface PublicPlan {
@@ -207,14 +207,14 @@ export function PublicPlanGrid({
                     : 'button-primary mt-5 inline-flex w-full justify-center'
                 }
                 href={
-                  user?.role === 'CUSTOMER'
+                  user && hasRole(user, 'CUSTOMER')
                     ? `/customer/subscription?planId=${encodeURIComponent(plan.id)}`
                     : user
-                      ? getDashboardRoute(user.role)
+                      ? getHomeRoute(user)
                       : `/checkout?planId=${encodeURIComponent(plan.id)}`
                 }
               >
-                {user?.role === 'CUSTOMER'
+                {user && hasRole(user, 'CUSTOMER')
                   ? 'Review this plan'
                   : user
                     ? 'Go to Dashboard'

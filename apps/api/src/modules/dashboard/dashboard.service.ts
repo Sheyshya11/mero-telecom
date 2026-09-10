@@ -459,17 +459,21 @@ export class DashboardService {
     ] = await Promise.all([
       this.getAdminSummary(),
       this.prisma.user.count({
-        where: { role: Role.SUPER_ADMIN, status: UserStatus.ACTIVE, isActive: true },
+        where: {
+          roles: { some: { role: Role.SUPER_ADMIN } },
+          status: UserStatus.ACTIVE,
+          isActive: true,
+        },
       }),
       this.prisma.user.count({
-        where: { role: Role.ADMIN, status: UserStatus.ACTIVE, isActive: true },
+        where: { roles: { some: { role: Role.ADMIN } }, status: UserStatus.ACTIVE, isActive: true },
       }),
       this.prisma.user.count({
-        where: { role: Role.STAFF, status: UserStatus.ACTIVE, isActive: true },
+        where: { roles: { some: { role: Role.STAFF } }, status: UserStatus.ACTIVE, isActive: true },
       }),
       this.prisma.user.count({
         where: {
-          role: { in: [Role.SUPER_ADMIN, Role.ADMIN] },
+          roles: { some: { role: { in: [Role.SUPER_ADMIN, Role.ADMIN] } } },
           OR: [
             { isActive: false },
             { status: { in: [UserStatus.SUSPENDED, UserStatus.DEACTIVATED] } },
@@ -478,7 +482,7 @@ export class DashboardService {
       }),
       this.prisma.user.count({
         where: {
-          role: Role.STAFF,
+          roles: { some: { role: Role.STAFF } },
           OR: [
             { isActive: false },
             { status: { in: [UserStatus.SUSPENDED, UserStatus.DEACTIVATED] } },
@@ -659,12 +663,18 @@ export class DashboardService {
       planChanges,
       pendingRefund,
       pendingPlanChange,
+      activeCancellation,
     ] = await Promise.all([
       this.prisma.subscription.findFirst({
         where: {
           customerId: customer.id,
           status: {
-            in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.SUSPENDED],
+            in: [
+              SubscriptionStatus.ACTIVE,
+              SubscriptionStatus.SUSPENDED,
+              SubscriptionStatus.CANCELLATION_PENDING,
+              SubscriptionStatus.DISCONNECTION_PENDING,
+            ],
           },
         },
         select: {
@@ -797,6 +807,29 @@ export class DashboardService {
         },
         orderBy: { updatedAt: 'desc' },
       }),
+      this.prisma.cancellationRequest.findFirst({
+        where: {
+          customerId: customer.id,
+          status: {
+            in: [
+              'REQUESTED',
+              'SCHEDULED',
+              'PROCESSING',
+              'DISCONNECTION_PENDING',
+              'FAILED',
+            ],
+          },
+        },
+        select: {
+          id: true,
+          requestNumber: true,
+          status: true,
+          effectiveAt: true,
+          providerStatus: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
     ]);
 
     const serializedInvoices: CustomerDashboardSummary['invoices'] = invoices.map((invoice) => {
@@ -834,6 +867,25 @@ export class DashboardService {
         actionLabel: 'View service',
         actionUrl: '/customer/subscription',
         severity: 'critical',
+      };
+    } else if (activeCancellation) {
+      pendingAction = {
+        type: 'CANCELLATION',
+        title:
+          activeCancellation.status === 'SCHEDULED'
+            ? 'Cancellation scheduled'
+            : activeCancellation.status === 'FAILED'
+              ? 'Cancellation needs attention'
+              : 'Cancellation in progress',
+        description:
+          activeCancellation.status === 'SCHEDULED'
+            ? `Your internet service remains available until ${formatDate(activeCancellation.effectiveAt)}.`
+            : activeCancellation.status === 'FAILED'
+              ? 'Mero Telecom support has been notified and will review your cancellation.'
+              : 'Your cancellation request is being processed.',
+        actionLabel: 'Manage cancellation',
+        actionUrl: '/customer/subscription',
+        severity: activeCancellation.status === 'FAILED' ? 'critical' : 'warning',
       };
     } else if (latestPayment?.status === PaymentStatus.FAILED) {
       pendingAction = {
@@ -980,6 +1032,23 @@ export class DashboardService {
         tone: currentSubscription.status === SubscriptionStatus.ACTIVE ? 'positive' : 'warning',
       });
     }
+    if (activeCancellation) {
+      recentActivity.push({
+        id: `cancellation-${activeCancellation.id}`,
+        kind: 'CANCELLATION',
+        title:
+          activeCancellation.status === 'SCHEDULED'
+            ? 'Cancellation scheduled'
+            : activeCancellation.status === 'FAILED'
+              ? 'Cancellation needs review'
+              : 'Cancellation processing',
+        description: activeCancellation.requestNumber,
+        occurredAt: activeCancellation.updatedAt.toISOString(),
+        amountCents: null,
+        href: '/customer/subscription',
+        tone: activeCancellation.status === 'FAILED' ? 'warning' : 'neutral',
+      });
+    }
     recentActivity.sort(
       (left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt),
     );
@@ -1003,6 +1072,16 @@ export class DashboardService {
               uploadMbps: currentSubscription.plan.uploadMbps,
               monthlyCents: currentSubscription.plan.monthlyCents,
             },
+          }
+        : null,
+      cancellation: activeCancellation
+        ? {
+            requestNumber: activeCancellation.requestNumber,
+            status: activeCancellation.status,
+            effectiveAt: activeCancellation.effectiveAt.toISOString(),
+            canRevoke:
+              activeCancellation.status === 'SCHEDULED' &&
+              activeCancellation.providerStatus === 'NOT_SUBMITTED',
           }
         : null,
       billing: {

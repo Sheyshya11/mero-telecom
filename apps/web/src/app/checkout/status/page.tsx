@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
+import { MeroTelecomLogo } from '../../../components/brand/mero-telecom-logo';
 import { apiRequest } from '../../../lib/api/client';
 
 interface CheckoutStatus {
@@ -123,7 +124,9 @@ function StatusCard({
   return (
     <main className="grid min-h-screen place-items-center px-6 py-12">
       <section className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM</p>
+        <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
+          <MeroTelecomLogo alt="" preload size="auth" />
+        </Link>
         <h1 className="mt-3 text-3xl font-bold">{title}</h1>
         <p className="mt-3 text-slate-600">{message}</p>
         {children ? <div className="mt-6">{children}</div> : null}

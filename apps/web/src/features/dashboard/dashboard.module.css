@@ -26,33 +26,6 @@
   backdrop-filter: blur(16px);
 }
 
-.brand {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.65rem;
-  color: hsl(var(--foreground));
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  text-decoration: none;
-}
-
-.brand > span:last-child > span {
-  color: hsl(var(--muted-foreground));
-}
-
-.brandMark {
-  display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.7rem;
-  background: hsl(var(--primary));
-  box-shadow: 0 8px 20px hsl(var(--primary) / 0.2);
-  color: white;
-  place-items: center;
-}
-
 .nav {
   display: flex;
   min-width: 0;

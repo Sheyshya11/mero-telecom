@@ -12,6 +12,7 @@ const target = (role: SystemUser['role']): SystemUser => ({
   displayName: 'Target',
   email: 'target@example.com',
   role,
+  roles: [role],
   status: 'ACTIVE',
   isActive: true,
   emailVerifiedAt: new Date().toISOString(),

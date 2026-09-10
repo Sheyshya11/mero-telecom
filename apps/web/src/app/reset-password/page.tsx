@@ -7,6 +7,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { z } from 'zod';
 
+import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
 import { ApiError, apiRequest } from '../../lib/api/client';
 
 const schema = z
@@ -93,7 +94,9 @@ function ResetPasswordContent() {
     return (
       <main className="grid min-h-screen place-items-center bg-slate-50 px-6 py-12 text-center">
         <section className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-sm font-bold tracking-wide text-sky-700">MERO TELECOM</p>
+          <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
+            <MeroTelecomLogo alt="" preload size="auth" />
+          </Link>
           <h1 className="mt-5 text-3xl font-bold">Reset link unavailable</h1>
           <p className="mt-3 text-slate-600">
             This password reset link is invalid, expired, or has already been used.
@@ -109,7 +112,9 @@ function ResetPasswordContent() {
   return (
     <main className="grid min-h-screen place-items-center bg-slate-50 px-6 py-12">
       <section className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-7 shadow-sm sm:p-9">
-        <p className="text-sm font-bold tracking-wide text-sky-700">MERO TELECOM</p>
+        <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
+          <MeroTelecomLogo alt="" preload size="auth" />
+        </Link>
         <h1 className="mt-5 text-3xl font-bold">Create a new password</h1>
         <p className="mt-3 text-sm text-slate-600">
           Use at least 12 characters with uppercase, lowercase, a number and a symbol.
@@ -177,8 +182,11 @@ function PasswordField({
 
 function ResetStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 text-slate-600">
-      <p role="status">{message}</p>
+    <main className="grid min-h-screen place-items-center bg-slate-50 px-6 text-slate-600">
+      <div className="grid justify-items-center gap-5 text-center">
+        <MeroTelecomLogo preload size="auth" />
+        <p role="status">{message}</p>
+      </div>
     </main>
   );
 }

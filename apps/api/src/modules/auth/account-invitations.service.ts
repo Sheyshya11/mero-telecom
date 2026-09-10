@@ -148,9 +148,13 @@ export class AccountInvitationsService {
   async resendByEmail(email: string): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { email: this.normalizeEmail(email) },
-      select: { id: true, role: true, status: true },
+      select: { id: true, roles: { select: { role: true } }, status: true },
     });
-    if (!user || user.role !== Role.CUSTOMER || user.status !== UserStatus.INVITATION_PENDING) {
+    if (
+      !user ||
+      !user.roles.some(({ role }) => role === Role.CUSTOMER) ||
+      user.status !== UserStatus.INVITATION_PENDING
+    ) {
       return;
     }
 

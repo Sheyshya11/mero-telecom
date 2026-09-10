@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { ApiError, apiRequest } from '../../lib/api/client';
+import { hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
 import type { Customer } from './customer.types';
 
@@ -27,7 +28,7 @@ export function CustomerProfile() {
   const profile = useQuery({
     queryKey: ['customer-profile'],
     queryFn: () => apiRequest<Customer>('/customers/me', {}, accessToken),
-    enabled: Boolean(accessToken && user?.role === 'CUSTOMER'),
+    enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
   const form = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
@@ -70,7 +71,7 @@ export function CustomerProfile() {
   });
 
   if (isLoading) return <Status message="Restoring your session…" />;
-  if (!user || user.role !== 'CUSTOMER') return <Status message="Customer access is required." />;
+  if (!user || !hasRole(user, 'CUSTOMER')) return <Status message="Customer access is required." />;
   if (profile.isPending) return <Status message="Loading your profile…" />;
   if (profile.isError || !profile.data)
     return <Status message="Unable to load your profile." onRetry={() => void profile.refetch()} />;
@@ -79,7 +80,7 @@ export function CustomerProfile() {
     <main className="workspace-page mx-auto min-h-screen max-w-3xl px-6 py-10">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM</p>
+          <p className="text-sm font-semibold tracking-wide text-sky-700">MY ACCOUNT</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">My profile</h1>
           <p className="mt-2 text-slate-600">Keep your contact and service address current.</p>
         </div>

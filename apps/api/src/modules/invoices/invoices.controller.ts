@@ -15,7 +15,7 @@ import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import type { AuthenticatedUser } from '../auth/auth.types';
+import { asCustomerContext, type AuthenticatedUser } from '../auth/auth.types';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GenerateInvoiceDto, InvoiceQueryDto, UpdateInvoiceStatusDto } from './dto/invoice.dto';
@@ -31,7 +31,7 @@ export class InvoicesController {
     private readonly invoices: InvoicesService,
     private readonly invoiceEmail: InvoiceEmailService,
   ) {}
-  @Get() @Roles(Role.ADMIN, Role.STAFF, Role.CUSTOMER) findAll(
+  @Get() @Roles(Role.ADMIN, Role.STAFF) findAll(
     @Query() query: InvoiceQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
@@ -41,9 +41,27 @@ export class InvoicesController {
     @Query() query: InvoiceQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.invoices.findAll(query, user);
+    return this.invoices.findAll(query, asCustomerContext(user));
   }
-  @Get(':invoiceId/pdf') @Roles(Role.ADMIN, Role.STAFF, Role.CUSTOMER) async downloadPdf(
+  @Get('me/:invoiceId/pdf') @Roles(Role.CUSTOMER) async downloadOwnPdf(
+    @Param('invoiceId', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() response: Response,
+  ): Promise<void> {
+    const { pdf, invoiceNumber } = await this.invoices.renderPdf(id, asCustomerContext(user));
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    response.setHeader('Content-Disposition', `attachment; filename="${invoiceNumber}.pdf"`);
+    response.setHeader('Content-Length', String(pdf.length));
+    response.send(pdf);
+  }
+  @Get('me/:invoiceId') @Roles(Role.CUSTOMER) findOwnOne(
+    @Param('invoiceId', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoices.findOne(id, asCustomerContext(user));
+  }
+  @Get(':invoiceId/pdf') @Roles(Role.ADMIN, Role.STAFF) async downloadPdf(
     @Param('invoiceId', new ParseUUIDPipe()) id: string,
     @CurrentUser() user: AuthenticatedUser,
     @Res() response: Response,
@@ -55,7 +73,7 @@ export class InvoicesController {
     response.setHeader('Content-Length', String(pdf.length));
     response.send(pdf);
   }
-  @Get(':invoiceId') @Roles(Role.ADMIN, Role.STAFF, Role.CUSTOMER) findOne(
+  @Get(':invoiceId') @Roles(Role.ADMIN, Role.STAFF) findOne(
     @Param('invoiceId', new ParseUUIDPipe()) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {

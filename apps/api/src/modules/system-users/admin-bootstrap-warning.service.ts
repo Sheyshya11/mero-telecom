@@ -16,7 +16,11 @@ export class AdminBootstrapWarningService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap(): Promise<void> {
     const activeAdmins = await this.prisma.user.count({
-      where: { role: Role.SUPER_ADMIN, status: UserStatus.ACTIVE, isActive: true },
+      where: {
+        roles: { some: { role: Role.SUPER_ADMIN } },
+        status: UserStatus.ACTIVE,
+        isActive: true,
+      },
     });
     if (activeAdmins > 0) return;
     const configured = Boolean(this.config.getOrThrow('bootstrapSuperAdmin').email);

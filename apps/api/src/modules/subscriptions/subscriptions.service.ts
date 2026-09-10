@@ -147,9 +147,11 @@ export class SubscriptionsService {
   }
   private assertTransition(from: SubscriptionStatus, to: SubscriptionStatus) {
     const allowed: Record<SubscriptionStatus, SubscriptionStatus[]> = {
-      PENDING: [SubscriptionStatus.CANCELLED],
-      ACTIVE: [SubscriptionStatus.SUSPENDED, SubscriptionStatus.CANCELLED],
-      SUSPENDED: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED],
+      PENDING: [],
+      ACTIVE: [SubscriptionStatus.SUSPENDED],
+      CANCELLATION_PENDING: [],
+      DISCONNECTION_PENDING: [],
+      SUSPENDED: [SubscriptionStatus.ACTIVE],
       CANCELLED: [],
     };
     if (from !== to && !allowed[from].includes(to))

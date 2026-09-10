@@ -1,6 +1,8 @@
 import type { RenderedEmailTemplate } from './invoice-email.template';
+import { renderEmailLogo } from './email-brand';
 
 export function renderPasswordResetEmail(input: {
+  brandLogoUrl: string;
   displayName: string;
   resetUrl: string;
   expiresAt: Date;
@@ -27,7 +29,7 @@ export function renderPasswordResetEmail(input: {
 <html lang="en">
   <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:12px;overflow:hidden">
-      <div style="background:#075985;padding:24px;color:#fff"><div style="font-size:22px;font-weight:700">MERO TELECOM</div></div>
+      <div style="padding:20px 28px;border-bottom:1px solid #e2e8f0">${renderEmailLogo(input.brandLogoUrl)}</div>
       <div style="padding:28px">
         <p>Hello ${escapeHtml(input.displayName)},</p>
         <h1 style="font-size:22px">Reset your password</h1>
@@ -41,7 +43,10 @@ export function renderPasswordResetEmail(input: {
   };
 }
 
-export function renderPasswordChangedEmail(input: { displayName: string }): RenderedEmailTemplate {
+export function renderPasswordChangedEmail(input: {
+  brandLogoUrl: string;
+  displayName: string;
+}): RenderedEmailTemplate {
   return {
     subject: 'Your Mero Telecom password was changed',
     text: [
@@ -55,7 +60,7 @@ export function renderPasswordChangedEmail(input: { displayName: string }): Rend
 <html lang="en">
   <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:12px;overflow:hidden">
-      <div style="background:#075985;padding:24px;color:#fff"><div style="font-size:22px;font-weight:700">MERO TELECOM</div></div>
+      <div style="padding:20px 28px;border-bottom:1px solid #e2e8f0">${renderEmailLogo(input.brandLogoUrl)}</div>
       <div style="padding:28px">
         <p>Hello ${escapeHtml(input.displayName)},</p>
         <h1 style="font-size:22px">Password changed</h1>

@@ -3,7 +3,8 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
-import { getDashboardRoute } from './auth-navigation';
+import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
+import { getHomeRoute } from './auth-navigation';
 import { useAuth } from './auth-provider';
 
 export function HomeRouteGate({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -13,13 +14,16 @@ export function HomeRouteGate({ children }: Readonly<{ children: React.ReactNode
   const isWebsiteRoute = pathname === '/website';
 
   useEffect(() => {
-    if (!isWebsiteRoute && !isLoading && user) router.replace(getDashboardRoute(user.role));
+    if (!isWebsiteRoute && !isLoading && user) router.replace(getHomeRoute(user));
   }, [isLoading, isWebsiteRoute, router, user]);
 
   if (!isWebsiteRoute && (isLoading || user)) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 text-sm text-slate-600">
-        Loading Mero Telecom…
+      <main className="grid min-h-screen place-items-center bg-slate-50 px-6 text-sm text-slate-600">
+        <div className="grid justify-items-center gap-5 text-center">
+          <MeroTelecomLogo preload size="auth" />
+          <p>Loading your workspace…</p>
+        </div>
       </main>
     );
   }

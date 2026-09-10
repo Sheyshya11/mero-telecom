@@ -13,7 +13,7 @@ import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import type { AuthenticatedUser } from '../auth/auth.types';
+import { asCustomerContext, type AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SubscriptionQueryDto, UpdateSubscriptionDto } from './dto/subscription.dto';
 import { SubscriptionsService } from './subscriptions.service';
@@ -30,7 +30,13 @@ export class SubscriptionsController {
   @Get('me') @Roles(Role.CUSTOMER) findOwn(@CurrentUser() user: AuthenticatedUser) {
     return this.subscriptions.findOwn(user);
   }
-  @Get(':subscriptionId') @Roles(Role.ADMIN, Role.STAFF, Role.CUSTOMER) findOne(
+  @Get('me/:subscriptionId') @Roles(Role.CUSTOMER) findOwnOne(
+    @Param('subscriptionId', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subscriptions.findOne(id, asCustomerContext(user));
+  }
+  @Get(':subscriptionId') @Roles(Role.ADMIN, Role.STAFF) findOne(
     @Param('subscriptionId', new ParseUUIDPipe()) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {

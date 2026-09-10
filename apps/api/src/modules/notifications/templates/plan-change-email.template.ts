@@ -1,8 +1,10 @@
 import type { RenderedEmailTemplate } from './invoice-email.template';
+import { renderEmailLogo } from './email-brand';
 
 export type PlanChangeEmailEvent = 'SCHEDULED' | 'APPLIED' | 'CANCELLED' | 'FAILED';
 
 interface PlanChangeEmailData {
+  brandLogoUrl: string;
   event: PlanChangeEmailEvent;
   customerName: string;
   oldPlanName: string;
@@ -42,7 +44,7 @@ export function renderPlanChangeEmail(data: PlanChangeEmailData): RenderedEmailT
 <html lang="en">
   <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:12px;overflow:hidden">
-      <div style="background:#075985;padding:24px;color:#fff"><div style="font-size:22px;font-weight:700">MERO TELECOM</div></div>
+      <div style="padding:20px 28px;border-bottom:1px solid #e2e8f0">${renderEmailLogo(data.brandLogoUrl)}</div>
       <div style="padding:28px">
         <p>Hello ${escapeHtml(data.customerName)},</p>
         <h1 style="font-size:22px">Plan change ${escapeHtml(content.heading)}</h1>

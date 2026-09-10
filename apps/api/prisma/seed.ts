@@ -38,28 +38,28 @@ async function main(): Promise<void> {
       data: {
         email: 'admin@merotelecom.test',
         passwordHash,
-        role: 'ADMIN',
+        roles: { create: { role: 'ADMIN' } },
       },
     }),
     prisma.user.create({
       data: {
         email: 'newcustomer@merotelecom.test',
         passwordHash,
-        role: 'CUSTOMER',
+        roles: { create: { role: 'CUSTOMER' } },
       },
     }),
     prisma.user.create({
       data: {
         email: 'staff@merotelecom.test',
         passwordHash,
-        role: 'STAFF',
+        roles: { create: { role: 'STAFF' } },
       },
     }),
     prisma.user.create({
       data: {
         email: 'customer@merotelecom.test',
         passwordHash,
-        role: 'CUSTOMER',
+        roles: { create: { role: 'CUSTOMER' } },
       },
     }),
   ]);

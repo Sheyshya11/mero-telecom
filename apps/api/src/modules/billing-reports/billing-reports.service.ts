@@ -1,57 +1,42 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
-import {
-  InvoiceStatus,
-  PaymentStatus,
-  Prisma,
-  RefundStatus,
-  SubscriptionStatus,
-} from '@prisma/client';
-import PDFDocument from 'pdfkit';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { PaymentStatus, Prisma, RefundStatus } from '@prisma/client';
 
 import { hasBillingReportPermission } from '../../common/authorization/billing-report-permissions';
 import { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import type {
+  BillingReportExportDocument,
+  BillingReportExportMetadata,
+  GeneratedBillingReportExport,
+  ReportRow,
+} from './billing-report-export.types';
+import type { ResolvedReportPeriod } from './billing-report.types';
+import { BillingReportType, type BillingReportQueryDto } from './dto/billing-report-query.dto';
+import { BillingReportCalculationsService } from './services/billing-report-calculations.service';
+import { BillingReportCsvService } from './services/billing-report-csv.service';
+import { BillingReportPdfService } from './services/billing-report-pdf.service';
 import {
-  BillingReportType,
-  type BillingReportQueryDto,
-  RevenueGroupBy,
-} from './dto/billing-report-query.dto';
-
-type ReportRange = { from: Date; to: Date };
-type ReportRow = Record<string, string | number | null>;
-type Summary = {
-  period: { from: string; to: string };
-  totalInvoices: number;
-  grossAmountCents: number;
-  paymentsReceivedCents: number;
-  outstandingBalanceCents: number;
-  refundAmountCents: number;
-  creditsAppliedCents: number;
-  discountsCents: number;
-  gstCollectedCents: number;
-  netRevenueCents: number;
-  paidInvoices: number;
-  overdueInvoices: number;
-  failedPayments: number;
-  activeSubscriptions: number;
-};
-
-const settledPaymentStatuses: PaymentStatus[] = [
-  PaymentStatus.SUCCEEDED,
-  PaymentStatus.PARTIALLY_REFUNDED,
-  PaymentStatus.REFUNDED,
-];
-const openInvoiceStatuses: InvoiceStatus[] = [
-  InvoiceStatus.DRAFT,
-  InvoiceStatus.ISSUED,
-  InvoiceStatus.OVERDUE,
-];
+  FinancialMetricsService,
+  SETTLED_PAYMENT_STATUSES,
+} from './services/financial-metrics.service';
+import { ReceivablesReportService } from './services/receivables-report.service';
+import { ReconciliationReportService } from './services/reconciliation-report.service';
+import { ReportPeriodService } from './services/report-period.service';
 
 @Injectable()
 export class BillingReportsService {
   private readonly logger = new Logger(BillingReportsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly periods: ReportPeriodService,
+    private readonly financialMetrics: FinancialMetricsService,
+    private readonly calculations: BillingReportCalculationsService,
+    private readonly receivablesReport: ReceivablesReportService,
+    private readonly reconciliationReport: ReconciliationReportService,
+    private readonly csvExporter: BillingReportCsvService,
+    private readonly pdfExporter: BillingReportPdfService,
+  ) {}
 
   assertCanView(actor: AuthenticatedUser): void {
     if (!hasBillingReportPermission(actor.role, 'billing.reports.view')) {
@@ -59,101 +44,101 @@ export class BillingReportsService {
     }
   }
 
-  async summary(query: BillingReportQueryDto, actor: AuthenticatedUser): Promise<Summary> {
+  async summary(query: BillingReportQueryDto, actor: AuthenticatedUser) {
     this.assertCanView(actor);
-    const range = this.range(query);
-    const invoiceWhere = this.invoiceWhere(query, range);
-    const [
-      invoices,
-      payments,
-      refunds,
-      activeSubscriptions,
-      paidInvoices,
-      overdueInvoices,
-      failedPayments,
-    ] = await Promise.all([
-      this.prisma.invoice.findMany({
-        where: invoiceWhere,
-        select: {
-          subtotalCents: true,
-          taxCents: true,
-          totalCents: true,
-          status: true,
-          payments: { select: { amountCents: true, status: true } },
-        },
-      }),
-      this.prisma.payment.aggregate({
-        where: this.paymentWhere(query, range, { status: { in: settledPaymentStatuses } }),
-        _sum: { amountCents: true },
-      }),
-      this.prisma.refund.aggregate({
-        where: this.refundWhere(query, range, RefundStatus.SUCCEEDED),
-        _sum: { refundAmountCents: true },
-      }),
-      this.prisma.subscription.count({ where: { status: SubscriptionStatus.ACTIVE } }),
-      this.prisma.invoice.count({ where: { ...invoiceWhere, status: InvoiceStatus.PAID } }),
-      this.prisma.invoice.count({ where: { ...invoiceWhere, status: InvoiceStatus.OVERDUE } }),
-      this.prisma.payment.count({
-        where: this.paymentWhere(query, range, { status: PaymentStatus.FAILED }),
-      }),
+    const period = this.periods.resolve(query);
+    const [overview, reconciliation] = await Promise.all([
+      this.financialMetrics.overview(query, period),
+      this.reconciliationReport.report({ ...query, page: 1, pageSize: 100 }, period),
     ]);
-    const grossAmountCents = invoices.reduce((sum, invoice) => sum + invoice.totalCents, 0);
-    const outstandingBalanceCents = invoices
-      .filter((invoice) => openInvoiceStatuses.includes(invoice.status))
-      .reduce(
-        (sum, invoice) =>
-          sum + Math.max(0, invoice.totalCents - this.settledAmount(invoice.payments)),
-        0,
-      );
-    const paymentsReceivedCents = payments._sum.amountCents ?? 0;
-    const refundAmountCents = refunds._sum.refundAmountCents ?? 0;
     return {
-      period: { from: range.from.toISOString(), to: range.to.toISOString() },
-      totalInvoices: invoices.length,
-      grossAmountCents,
-      paymentsReceivedCents,
-      outstandingBalanceCents,
-      refundAmountCents,
-      creditsAppliedCents: 0,
-      discountsCents: 0,
-      gstCollectedCents: invoices.reduce((sum, invoice) => sum + invoice.taxCents, 0),
-      netRevenueCents: paymentsReceivedCents - refundAmountCents,
-      paidInvoices,
-      overdueInvoices,
-      failedPayments,
-      activeSubscriptions,
+      period: this.periods.metadata(period),
+      metricBasis: {
+        periodMetrics: [
+          'grossBilled',
+          'paymentsReceived',
+          'netCashCollected',
+          'failedPayments',
+          'refundsPaid',
+          'creditsIssued',
+        ],
+        snapshotMetrics: ['outstanding', 'mrr', 'activeServices', 'arpu', 'overdueBalance'],
+      },
+      ...overview,
+      metrics: {
+        ...overview.metrics,
+        unreconciledTransactions: this.calculations.count(reconciliation.summary.exceptionCount, 0),
+      },
+      unreconciledTransactions: reconciliation.summary.exceptionCount,
+      reconciliationLastCompletedAt: reconciliation.summary.lastReconciledAt,
     };
   }
 
   async revenue(query: BillingReportQueryDto, actor: AuthenticatedUser) {
     this.assertCanView(actor);
-    const range = this.range(query);
+    const period = this.periods.resolve(query);
     const summary = await this.summary(query, actor);
-    const invoices = await this.prisma.invoice.findMany({
-      where: this.invoiceWhere(query, range),
-      select: { issueDate: true, totalCents: true, taxCents: true },
-      orderBy: { issueDate: 'asc' },
-    });
-    const groupBy = query.groupBy ?? this.defaultGroupBy(range);
-    const trend = new Map<string, { grossCents: number; gstCents: number }>();
-    for (const invoice of invoices) {
-      const key = this.bucket(invoice.issueDate, groupBy);
-      const current = trend.get(key) ?? { grossCents: 0, gstCents: 0 };
-      current.grossCents += invoice.totalCents;
-      current.gstCents += invoice.taxCents;
+    const groupBy = query.groupBy ?? this.periods.defaultGroupBy(period);
+    const [invoices, payments, refunds] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: this.financialMetrics.issuedInvoiceWhere(query, period),
+        select: { issuedAt: true, issueDate: true, totalCents: true },
+      }),
+      this.prisma.payment.findMany({
+        where: this.financialMetrics.paymentWhere(query, period, true),
+        select: { paidAt: true, amountCents: true },
+      }),
+      this.prisma.refund.findMany({
+        where: this.financialMetrics.refundWhere(query, period),
+        select: { processedAt: true, refundAmountCents: true },
+      }),
+    ]);
+    const trend = new Map<
+      string,
+      {
+        grossBilledCents: number;
+        paymentsReceivedCents: number;
+        refundsPaidCents: number;
+        netCashCollectedCents: number;
+      }
+    >();
+    const add = (
+      date: Date,
+      field: 'grossBilledCents' | 'paymentsReceivedCents' | 'refundsPaidCents',
+      cents: number,
+    ) => {
+      const key = this.periods.bucket(date, groupBy, period.timezone);
+      const current = trend.get(key) ?? {
+        grossBilledCents: 0,
+        paymentsReceivedCents: 0,
+        refundsPaidCents: 0,
+        netCashCollectedCents: 0,
+      };
+      current[field] += cents;
+      current.netCashCollectedCents = current.paymentsReceivedCents - current.refundsPaidCents;
       trend.set(key, current);
+    };
+    for (const invoice of invoices) {
+      add(invoice.issuedAt ?? invoice.issueDate, 'grossBilledCents', invoice.totalCents);
     }
+    for (const payment of payments)
+      if (payment.paidAt) add(payment.paidAt, 'paymentsReceivedCents', payment.amountCents);
+    for (const refund of refunds)
+      if (refund.processedAt) add(refund.processedAt, 'refundsPaidCents', refund.refundAmountCents);
     return {
+      period: this.periods.metadata(period),
       summary,
       groupBy,
-      trend: [...trend.entries()].map(([period, values]) => ({ period, ...values })),
+      trend: [...trend.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([bucket, values]) => ({ period: bucket, ...values })),
     };
   }
 
   async invoices(query: BillingReportQueryDto, actor: AuthenticatedUser) {
     this.assertCanView(actor);
-    const range = this.range(query);
-    const where = this.invoiceWhere(query, range);
+    const period = this.periods.resolve(query);
+    const where = this.financialMetrics.issuedInvoiceWhere(query, period);
     const orderBy = this.invoiceOrderBy(query);
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.invoice.findMany({
@@ -166,24 +151,27 @@ export class BillingReportsService {
             select: { customerNumber: true, firstName: true, lastName: true, email: true },
           },
           subscription: { include: { plan: { select: { name: true } } } },
-          payments: { select: { amountCents: true, status: true, paidAt: true } },
+          purchasePlan: { select: { name: true } },
+          payments: {
+            where: { paidAt: { lt: period.to } },
+            select: { amountCents: true, status: true, paidAt: true },
+          },
         },
       }),
       this.prisma.invoice.count({ where }),
     ]);
     return {
+      period: this.periods.metadata(period),
       data: rows.map((invoice) => ({
         invoiceNumber: invoice.invoiceNumber,
         customer: `${invoice.customer.firstName} ${invoice.customer.lastName}`,
         customerEmail: invoice.customer.email,
         subscription: invoice.subscription?.id ?? null,
-        plan: invoice.subscription?.plan.name ?? invoice.purchasePlanId,
+        plan: invoice.subscription?.plan.name ?? invoice.purchasePlan?.name ?? null,
         billingPeriod: invoice.issueDate.toISOString().slice(0, 10),
         issueDate: invoice.issueDate,
         dueDate: invoice.dueDate,
         subtotalCents: invoice.subtotalCents,
-        discountCents: 0,
-        creditCents: 0,
         gstCents: invoice.taxCents,
         totalCents: invoice.totalCents,
         amountPaidCents: this.settledAmount(invoice.payments),
@@ -197,8 +185,34 @@ export class BillingReportsService {
 
   async payments(query: BillingReportQueryDto, actor: AuthenticatedUser) {
     this.assertCanView(actor);
-    const range = this.range(query);
-    const where = this.paymentWhere(query, range);
+    const period = this.periods.resolve(query);
+    const where: Prisma.PaymentWhereInput = {
+      AND: [
+        {
+          OR: [
+            { paidAt: { gte: period.from, lt: period.to } },
+            { paidAt: null, createdAt: { gte: period.from, lt: period.to } },
+          ],
+        },
+        ...(query.customerId ? [{ customerId: query.customerId }] : []),
+        ...(query.paymentStatus ? [{ status: query.paymentStatus }] : []),
+        ...(query.search
+          ? [
+              {
+                OR: [
+                  { providerPaymentId: { contains: query.search, mode: 'insensitive' as const } },
+                  {
+                    invoice: {
+                      invoiceNumber: { contains: query.search, mode: 'insensitive' as const },
+                    },
+                  },
+                  { customer: { email: { contains: query.search, mode: 'insensitive' as const } } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.payment.findMany({
         where,
@@ -214,6 +228,8 @@ export class BillingReportsService {
       this.prisma.payment.count({ where }),
     ]);
     return {
+      period: this.periods.metadata(period),
+      analytics: await this.paymentAnalytics(query, period),
       data: rows.map((payment) => ({
         paymentId: payment.id,
         invoiceNumber: payment.invoice.invoiceNumber,
@@ -224,8 +240,10 @@ export class BillingReportsService {
         status: payment.status,
         paymentDate: payment.paidAt ?? payment.createdAt,
         stripePaymentIntentId: payment.providerPaymentId,
-        stripeChargeId: null,
-        failureReason: payment.status === PaymentStatus.FAILED ? 'Payment failed' : null,
+        failureReason:
+          payment.status === PaymentStatus.FAILED
+            ? 'Unknown — the current payment record does not store a safe decline category.'
+            : null,
         refundedCents: payment.refunds
           .filter((refund) => refund.status === RefundStatus.SUCCEEDED)
           .reduce((sum, refund) => sum + refund.refundAmountCents, 0),
@@ -236,72 +254,28 @@ export class BillingReportsService {
 
   async receivables(query: BillingReportQueryDto, actor: AuthenticatedUser) {
     this.assertCanView(actor);
-    const range = this.range(query);
-    const invoices = await this.prisma.invoice.findMany({
-      where: { ...this.invoiceWhere(query, range), status: { in: openInvoiceStatuses } },
-      include: {
-        customer: { select: { customerNumber: true, firstName: true, lastName: true } },
-        payments: { select: { amountCents: true, status: true } },
-      },
-    });
-    const rows = new Map<string, ReportRow>();
-    for (const invoice of invoices) {
-      const outstanding = Math.max(0, invoice.totalCents - this.settledAmount(invoice.payments));
-      if (!outstanding) continue;
-      const customerKey = invoice.customer.customerNumber;
-      const row = rows.get(customerKey) ?? {
-        customer: `${invoice.customer.firstName} ${invoice.customer.lastName}`,
-        customerNumber: customerKey,
-        currentCents: 0,
-        overdue1To30Cents: 0,
-        overdue31To60Cents: 0,
-        overdue61To90Cents: 0,
-        overdue90PlusCents: 0,
-        totalOutstandingCents: 0,
-      };
-      const days = Math.floor((Date.now() - invoice.dueDate.getTime()) / 86_400_000);
-      const bucket =
-        days <= 0
-          ? 'currentCents'
-          : days <= 30
-            ? 'overdue1To30Cents'
-            : days <= 60
-              ? 'overdue31To60Cents'
-              : days <= 90
-                ? 'overdue61To90Cents'
-                : 'overdue90PlusCents';
-      row[bucket] = Number(row[bucket] ?? 0) + outstanding;
-      row.totalOutstandingCents = Number(row.totalOutstandingCents) + outstanding;
-      rows.set(customerKey, row);
-    }
-    const data = [...rows.values()].sort(
-      (a, b) => Number(b.totalOutstandingCents) - Number(a.totalOutstandingCents),
-    );
-    const start = (query.page - 1) * query.pageSize;
-    const receivableTotals: Record<string, number> = {
-      currentCents: 0,
-      overdue1To30Cents: 0,
-      overdue31To60Cents: 0,
-      overdue61To90Cents: 0,
-      overdue90PlusCents: 0,
-      totalOutstandingCents: 0,
-    };
-    const totals = data.reduce<Record<string, number>>((result, row) => {
-      for (const key of Object.keys(result))
-        result[key] = (result[key] ?? 0) + Number(row[key] ?? 0);
-      return result;
-    }, receivableTotals);
+    const period = this.periods.resolve(query);
     return {
-      data: data.slice(start, start + query.pageSize),
-      meta: this.meta(query, data.length),
-      totals,
+      period: this.periods.metadata(period),
+      ...(await this.receivablesReport.report(query, period)),
     };
   }
 
   async refunds(query: BillingReportQueryDto, actor: AuthenticatedUser) {
     this.assertCanView(actor);
-    const range = this.range(query);
-    const where = this.refundWhere(query, range);
+    const period = this.periods.resolve(query);
+    const where: Prisma.RefundWhereInput = {
+      AND: [
+        {
+          OR: [
+            { processedAt: { gte: period.from, lt: period.to } },
+            { processedAt: null, requestedAt: { gte: period.from, lt: period.to } },
+          ],
+        },
+        ...(query.customerId ? [{ customerId: query.customerId }] : []),
+        ...(query.refundStatus ? [{ status: query.refundStatus }] : []),
+      ],
+    };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.refund.findMany({
         where,
@@ -319,6 +293,8 @@ export class BillingReportsService {
       this.prisma.refund.count({ where }),
     ]);
     return {
+      period: this.periods.metadata(period),
+      analytics: await this.refundAnalytics(query, period),
       data: rows.map((refund) => ({
         refundId: refund.id,
         customer: `${refund.customer.firstName} ${refund.customer.lastName}`,
@@ -333,8 +309,7 @@ export class BillingReportsService {
         approvalDate: refund.approvedAt,
         status: refund.status,
         stripeRefundId: refund.stripeRefundId,
-        internalCreditCents: 0,
-        creditReason: null,
+        completedDate: refund.processedAt,
       })),
       meta: this.meta(query, total),
     };
@@ -342,87 +317,101 @@ export class BillingReportsService {
 
   async subscriptions(query: BillingReportQueryDto, actor: AuthenticatedUser) {
     this.assertCanView(actor);
-    const range = this.range(query);
-    const plans = await this.prisma.internetPlan.findMany({
-      where: query.planId ? { id: query.planId } : undefined,
-      include: {
-        subscriptions: {
-          select: {
-            id: true,
-            status: true,
-            createdAt: true,
-            customerId: true,
-            refunds: {
-              where: {
-                status: RefundStatus.SUCCEEDED,
-                processedAt: { gte: range.from, lt: range.to },
-              },
-              select: { refundAmountCents: true },
+    const period = this.periods.resolve(query);
+    const [plans, invoiceRows] = await Promise.all([
+      this.prisma.internetPlan.findMany({
+        where: query.planId ? { id: query.planId } : undefined,
+        select: {
+          id: true,
+          name: true,
+          monthlyCents: true,
+          subscriptions: {
+            where: {
+              startDate: { lt: period.to },
+              OR: [
+                { status: 'ACTIVE', endDate: null },
+                {
+                  status: 'ACTIVE',
+                  endDate: { gte: new Date(`${period.toLocalDate}T00:00:00.000Z`) },
+                },
+                {
+                  status: 'CANCELLED',
+                  endDate: { gte: new Date(`${period.toLocalDate}T00:00:00.000Z`) },
+                },
+              ],
             },
+            select: { id: true },
           },
         },
-        purchaseInvoices: {
-          where: { issueDate: { gte: range.from, lt: range.to } },
-          select: { totalCents: true },
+      }),
+      this.prisma.invoice.findMany({
+        where: this.financialMetrics.issuedInvoiceWhere(query, period),
+        select: {
+          id: true,
+          purchasePlanId: true,
+          subscription: { select: { planId: true } },
+          totalCents: true,
+          payments: {
+            where: {
+              status: { in: SETTLED_PAYMENT_STATUSES },
+              paidAt: { gte: period.from, lt: period.to },
+            },
+            select: { amountCents: true },
+          },
+          refunds: {
+            where: {
+              status: RefundStatus.SUCCEEDED,
+              processedAt: { gte: period.from, lt: period.to },
+            },
+            select: { refundAmountCents: true },
+          },
         },
-        targetPlanChanges: {
-          where: { requestedAt: { gte: range.from, lt: range.to } },
-          select: { type: true, status: true, unusedCreditCents: true },
-        },
-      },
-    });
-    const data = plans.map((plan) => ({
-      planName: plan.name,
-      activeSubscriptions: plan.subscriptions.filter(
-        (subscription) => subscription.status === SubscriptionStatus.ACTIVE,
-      ).length,
-      newSubscriptions: plan.subscriptions.filter(
-        (subscription) => subscription.createdAt >= range.from && subscription.createdAt < range.to,
-      ).length,
-      upgrades: plan.targetPlanChanges.filter(
-        (change) => change.type === 'UPGRADE' && change.status === 'APPLIED',
-      ).length,
-      downgrades: plan.targetPlanChanges.filter(
-        (change) => change.type === 'DOWNGRADE' && change.status === 'APPLIED',
-      ).length,
-      cancellations: plan.subscriptions.filter(
-        (subscription) => subscription.status === SubscriptionStatus.CANCELLED,
-      ).length,
-      grossRevenueCents: plan.purchaseInvoices.reduce(
-        (sum, invoice) => sum + invoice.totalCents,
+      }),
+    ]);
+    const totalActive = plans.reduce((sum, plan) => sum + plan.subscriptions.length, 0);
+    const data = plans.map((plan) => {
+      const activeServices = plan.subscriptions.length;
+      const mrrCents =
+        activeServices *
+        (plan.monthlyCents - this.calculations.gstFromInclusive(plan.monthlyCents));
+      const allInvoices = invoiceRows.filter(
+        (invoice) => (invoice.purchasePlanId ?? invoice.subscription?.planId) === plan.id,
+      );
+      const grossBilledCents = allInvoices.reduce((sum, invoice) => sum + invoice.totalCents, 0);
+      const collectedCents = allInvoices.reduce(
+        (sum, invoice) =>
+          sum + invoice.payments.reduce((subtotal, payment) => subtotal + payment.amountCents, 0),
         0,
-      ),
-      refundsCents: plan.subscriptions.reduce(
-        (sum, subscription) =>
+      );
+      const refundsCents = allInvoices.reduce(
+        (sum, invoice) =>
           sum +
-          subscription.refunds.reduce((refunds, refund) => refunds + refund.refundAmountCents, 0),
+          invoice.refunds.reduce((subtotal, refund) => subtotal + refund.refundAmountCents, 0),
         0,
-      ),
-      creditsCents: plan.targetPlanChanges.reduce(
-        (sum, change) => sum + change.unusedCreditCents,
-        0,
-      ),
-      netRevenueCents:
-        plan.purchaseInvoices.reduce((sum, invoice) => sum + invoice.totalCents, 0) -
-        plan.subscriptions.reduce(
-          (sum, subscription) =>
-            sum +
-            subscription.refunds.reduce((refunds, refund) => refunds + refund.refundAmountCents, 0),
-          0,
-        ) -
-        plan.targetPlanChanges.reduce((sum, change) => sum + change.unusedCreditCents, 0),
-      averageRevenuePerActiveSubscriptionCents: plan.subscriptions.filter(
-        (subscription) => subscription.status === SubscriptionStatus.ACTIVE,
-      ).length
-        ? Math.round(
-            plan.purchaseInvoices.reduce((sum, invoice) => sum + invoice.totalCents, 0) /
-              plan.subscriptions.filter(
-                (subscription) => subscription.status === SubscriptionStatus.ACTIVE,
-              ).length,
-          )
-        : 0,
-    }));
-    return { data, meta: this.meta(query, data.length) };
+      );
+      return {
+        planId: plan.id,
+        planName: plan.name,
+        activeServices,
+        percentageOfActiveServices:
+          totalActive === 0 ? 0 : Math.round((activeServices / totalActive) * 10_000) / 100,
+        mrrCents,
+        arpuCents: this.calculations.arpu(mrrCents, activeServices),
+        grossBilledCents,
+        collectedCents,
+        refundsCents,
+        wholesaleCostCents: null,
+        grossContributionCents: null,
+        grossMarginPercentage: null,
+      };
+    });
+    const start = (query.page - 1) * query.pageSize;
+    return {
+      period: this.periods.metadata(period),
+      data: data.slice(start, start + query.pageSize),
+      meta: this.meta(query, data.length),
+      wholesaleCostStatus: 'NOT_CONFIGURED',
+    };
   }
 
   async reconciliation(query: BillingReportQueryDto, actor: AuthenticatedUser) {
@@ -430,51 +419,95 @@ export class BillingReportsService {
     if (!hasBillingReportPermission(actor.role, 'billing.reconciliation.view')) {
       throw new ForbiddenException('You do not have permission to view reconciliation reports.');
     }
-    const range = this.range(query);
-    const where = this.paymentWhere(query, range);
-    const payments = await this.prisma.payment.findMany({
-      where,
-      orderBy: { createdAt: query.sortDirection },
-      skip: (query.page - 1) * query.pageSize,
-      take: query.pageSize,
-      include: {
-        refunds: { select: { refundAmountCents: true, status: true, stripeRefundId: true } },
-      },
-    });
-    const total = await this.prisma.payment.count({ where });
+    const period = this.periods.resolve(query);
     await this.recordAudit(actor, 'BILLING_RECONCILIATION_VIEWED', 'reconciliation', {
       filters: this.auditFilters(query),
     });
     return {
-      data: payments.map((payment) => {
-        const completedRefunds = payment.refunds.filter(
-          (refund) => refund.status === RefundStatus.SUCCEEDED,
-        );
-        const internalRefundCents = completedRefunds.reduce(
-          (sum, refund) => sum + refund.refundAmountCents,
-          0,
-        );
-        const stripeRefundCents = completedRefunds
-          .filter((refund) => refund.stripeRefundId)
-          .reduce((sum, refund) => sum + refund.refundAmountCents, 0);
-        const result = !payment.providerPaymentId
-          ? 'INTERNAL_ONLY'
-          : completedRefunds.some((refund) => !refund.stripeRefundId)
-            ? 'REFUND_MISMATCH'
-            : 'MATCHED';
-        return {
-          paymentId: payment.id,
-          stripePaymentIntentId: payment.providerPaymentId,
-          internalPaymentAmountCents: payment.amountCents,
-          stripePaymentAmountCents: payment.providerPaymentId ? payment.amountCents : null,
-          internalRefundAmountCents: internalRefundCents,
-          stripeRefundAmountCents: stripeRefundCents,
-          internalStatus: payment.status,
-          stripeStatus: payment.providerPaymentId ? 'WEBHOOK_SYNCHRONISED' : null,
-          result,
-        };
+      period: this.periods.metadata(period),
+      ...(await this.reconciliationReport.report(query, period)),
+    };
+  }
+
+  private async paymentAnalytics(query: BillingReportQueryDto, period: ResolvedReportPeriod) {
+    const [successful, failedCount] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: this.financialMetrics.paymentWhere(
+          { ...query, paymentStatus: undefined },
+          period,
+          true,
+        ),
+        select: { amountCents: true },
       }),
-      meta: this.meta(query, total),
+      this.prisma.payment.count({
+        where: {
+          ...this.financialMetrics.paymentWhere(
+            { ...query, paymentStatus: undefined },
+            period,
+            false,
+          ),
+          status: PaymentStatus.FAILED,
+        },
+      }),
+    ]);
+    const successfulValueCents = successful.reduce((sum, payment) => sum + payment.amountCents, 0);
+    return {
+      successfulPaymentCount: successful.length,
+      successfulPaymentValueCents: successfulValueCents,
+      failedPaymentCount: failedCount,
+      paymentSuccessRate: this.calculations.successRate(successful.length, failedCount),
+      averagePaymentValueCents:
+        successful.length === 0 ? 0 : Math.round(successfulValueCents / successful.length),
+      failuresByReason:
+        failedCount === 0
+          ? []
+          : [
+              {
+                reason: 'UNKNOWN',
+                count: failedCount,
+                note: 'The current Payment model does not persist a safe Stripe decline category.',
+              },
+            ],
+    };
+  }
+
+  private async refundAnalytics(query: BillingReportQueryDto, period: ResolvedReportPeriod) {
+    const [refunds, credits, payments] = await Promise.all([
+      this.prisma.refund.findMany({
+        where: this.financialMetrics.refundWhere({ ...query, refundStatus: undefined }, period),
+        select: { refundAmountCents: true },
+      }),
+      this.prisma.planChangeRequest.findMany({
+        where: {
+          status: 'APPLIED',
+          unusedCreditCents: { gt: 0 },
+          appliedAt: { gte: period.from, lt: period.to },
+          ...(query.customerId ? { customerId: query.customerId } : {}),
+        },
+        select: { unusedCreditCents: true },
+      }),
+      this.prisma.payment.findMany({
+        where: this.financialMetrics.paymentWhere(
+          { ...query, paymentStatus: undefined },
+          period,
+          true,
+        ),
+        select: { amountCents: true },
+      }),
+    ]);
+    const refundAmountCents = refunds.reduce((sum, row) => sum + row.refundAmountCents, 0);
+    const creditAmountCents = credits.reduce((sum, row) => sum + row.unusedCreditCents, 0);
+    const paymentAmountCents = payments.reduce((sum, row) => sum + row.amountCents, 0);
+    return {
+      refundCount: refunds.length,
+      refundAmountCents,
+      creditCount: credits.length,
+      creditAmountCents,
+      averageRefundCents: refunds.length === 0 ? 0 : Math.round(refundAmountCents / refunds.length),
+      refundRatePercentage:
+        paymentAmountCents === 0
+          ? null
+          : Math.round((refundAmountCents / paymentAmountCents) * 10_000) / 100,
     };
   }
 
@@ -483,7 +516,7 @@ export class BillingReportsService {
     query: BillingReportQueryDto,
     actor: AuthenticatedUser,
     format: 'csv' | 'pdf' | 'xlsx',
-  ) {
+  ): Promise<GeneratedBillingReportExport> {
     this.assertCanView(actor);
     if (!hasBillingReportPermission(actor.role, 'billing.reports.export')) {
       throw new ForbiddenException('You do not have permission to export billing reports.');
@@ -491,27 +524,72 @@ export class BillingReportsService {
     const exportQuery = { ...query, page: 1, pageSize: 10_000 };
     const report = await this.report(reportType, exportQuery, actor);
     const rows = this.rows(report);
+    const period = this.periods.resolve(query);
+    const metadata: BillingReportExportMetadata = {
+      organisation: 'Mero Telecom',
+      reportType,
+      reportName: this.reportName(reportType),
+      reportId: this.reportId(reportType, period.generatedAt),
+      from: period.from.toISOString(),
+      to: period.to.toISOString(),
+      fromLocalDate: period.fromLocalDate,
+      toLocalDate: period.toLocalDate,
+      timezone: period.timezone,
+      generatedAt: period.generatedAt.toISOString(),
+      generatedBy: actor.email,
+      currency: 'AUD',
+      activeFilters: this.auditFilters(query),
+    };
     await this.recordAudit(actor, 'BILLING_REPORT_EXPORTED', reportType, {
       reportType,
       format,
       filters: this.auditFilters(query),
     });
-    if (format === 'pdf')
+    const fileName = this.exportFileName(reportType, period, format);
+    if (format === 'pdf') {
+      const revenue =
+        reportType === BillingReportType.REVENUE ? report : await this.revenue(exportQuery, actor);
+      const plans =
+        reportType === BillingReportType.SUBSCRIPTIONS
+          ? report
+          : await this.subscriptions(exportQuery, actor);
+      const revenueRecord = this.asRecord(revenue);
+      const document: BillingReportExportDocument = {
+        metadata,
+        report,
+        rows,
+        overview: revenueRecord.summary ?? {},
+        revenue,
+        plans,
+      };
       return {
-        buffer: await this.pdf(reportType, rows),
+        buffer: await this.pdfExporter.render(document),
         contentType: 'application/pdf',
         extension: 'pdf',
+        fileName,
       };
+    }
     if (format === 'xlsx')
       return {
-        buffer: this.xlsx(rows),
+        buffer: this.xlsx(rows, {
+          organisation: metadata.organisation,
+          report: metadata.reportType,
+          from: metadata.from,
+          to: metadata.to,
+          timezone: metadata.timezone,
+          generatedAt: metadata.generatedAt,
+          generatedBy: metadata.generatedBy,
+          activeFilters: JSON.stringify(metadata.activeFilters),
+        }),
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         extension: 'xlsx',
+        fileName,
       };
     return {
-      buffer: Buffer.from(this.csv(rows), 'utf8'),
+      buffer: this.csvExporter.render(reportType, rows, period.timezone),
       contentType: 'text/csv; charset=utf-8',
       extension: 'csv',
+      fileName,
     };
   }
 
@@ -583,21 +661,7 @@ export class BillingReportsService {
     );
   }
 
-  private csv(rows: ReportRow[]): string {
-    if (!rows.length) return '';
-    const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
-    const cell = (value: unknown) => {
-      const text = value === null || value === undefined ? '' : String(value);
-      const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
-      return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-    };
-    return [
-      columns.map(cell).join(','),
-      ...rows.map((row) => columns.map((column) => cell(row[column])).join(',')),
-    ].join('\n');
-  }
-
-  private xlsx(rows: ReportRow[]): Buffer {
+  private xlsx(rows: ReportRow[], metadata: ReportRow): Buffer {
     const columns = rows.length
       ? [...new Set(rows.flatMap((row) => Object.keys(row)))]
       : ['No data'];
@@ -607,24 +671,43 @@ export class BillingReportsService {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
-    const allRows = [columns, ...rows.map((row) => columns.map((column) => row[column] ?? ''))];
-    const sheet = allRows
-      .map(
-        (row, index) =>
-          `<row r="${index + 1}">${row.map((value, column) => `<c r="${String.fromCharCode(65 + (column % 26))}${index + 1}" t="inlineStr"><is><t>${escape(value)}</t></is></c>`).join('')}</row>`,
-      )
-      .join('');
+    const worksheet = (allRows: unknown[][]) =>
+      allRows
+        .map(
+          (row, index) =>
+            `<row r="${index + 1}">${row.map((value, column) => `<c r="${this.columnName(column + 1)}${index + 1}" t="inlineStr"><is><t>${escape(value)}</t></is></c>`).join('')}</row>`,
+        )
+        .join('');
+    const reportSheet = worksheet([
+      columns,
+      ...rows.map((row) => columns.map((column) => row[column] ?? '')),
+    ]);
+    const metadataSheet = worksheet(
+      Object.entries(metadata).map(([key, value]) => [key, value ?? '']),
+    );
     return this.zip({
       '[Content_Types].xml':
-        '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
+        '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
       '_rels/.rels':
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
       'xl/workbook.xml':
-        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Report" sheetId="1" r:id="rId1"/></sheets></workbook>',
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Report" sheetId="1" r:id="rId1"/><sheet name="Metadata" sheetId="2" r:id="rId2"/></sheets></workbook>',
       'xl/_rels/workbook.xml.rels':
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
-      'xl/worksheets/sheet1.xml': `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheet}</sheetData></worksheet>`,
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>',
+      'xl/worksheets/sheet1.xml': `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${reportSheet}</sheetData></worksheet>`,
+      'xl/worksheets/sheet2.xml': `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${metadataSheet}</sheetData></worksheet>`,
     });
+  }
+
+  private columnName(index: number): string {
+    let value = index;
+    let result = '';
+    while (value > 0) {
+      value -= 1;
+      result = String.fromCharCode(65 + (value % 26)) + result;
+      value = Math.floor(value / 26);
+    }
+    return result;
   }
 
   private zip(files: Record<string, string>): Buffer {
@@ -676,116 +759,57 @@ export class BillingReportsService {
     return (crc ^ 0xffffffff) >>> 0;
   }
 
-  private async pdf(type: BillingReportType, rows: ReportRow[]): Promise<Buffer> {
-    const document = new PDFDocument({ margin: 40 });
-    const chunks: Buffer[] = [];
-    document.on('data', (chunk: Buffer) => chunks.push(chunk));
-    const done = new Promise<void>((resolve) => document.on('end', resolve));
-    document.fontSize(18).fillColor('#087f8c').text('MERO TELECOM');
-    document.fontSize(14).fillColor('#111827').text(`Billing ${type} report`);
-    document
-      .fontSize(9)
-      .fillColor('#4b5563')
-      .text(`Generated ${new Date().toLocaleString('en-AU')} · AUD`);
-    document.moveDown();
-    for (const row of rows)
-      document
-        .fontSize(8)
-        .fillColor('#111827')
-        .text(
-          Object.entries(row)
-            .map(([key, value]) => `${key}: ${value ?? ''}`)
-            .join('   '),
-        );
-    document.end();
-    await done;
-    return Buffer.concat(chunks);
+  private asRecord(value: unknown): Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
   }
 
-  private range(query: BillingReportQueryDto): ReportRange {
-    const now = new Date();
-    const from = query.from
-      ? this.parseDate(query.from)
-      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const to = query.to
-      ? this.parseDate(query.to, true)
-      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-    if (to <= from) throw new BadRequestException('Report end date must be after the start date.');
-    if (to.getTime() - from.getTime() > 366 * 86_400_000)
-      throw new BadRequestException('Report ranges cannot exceed 366 days.');
-    return { from, to };
+  private reportName(type: BillingReportType): string {
+    const names: Record<BillingReportType, string> = {
+      [BillingReportType.REVENUE]: 'Billing & Revenue Report',
+      [BillingReportType.INVOICES]: 'Invoice Report',
+      [BillingReportType.PAYMENTS]: 'Payment Report',
+      [BillingReportType.RECEIVABLES]: 'Receivables Report',
+      [BillingReportType.REFUNDS]: 'Refund Report',
+      [BillingReportType.SUBSCRIPTIONS]: 'Revenue by Plan Report',
+      [BillingReportType.RECONCILIATION]: 'Payment Reconciliation Report',
+    };
+    return names[type];
   }
 
-  private parseDate(value: string, end = false): Date {
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
-      ? new Date(`${value}T00:00:00.000Z`)
-      : new Date(value);
-    if (Number.isNaN(date.getTime())) throw new BadRequestException('Invalid report date.');
-    if (end && /^\d{4}-\d{2}-\d{2}$/.test(value)) date.setUTCDate(date.getUTCDate() + 1);
-    return date;
+  private reportId(type: BillingReportType, generatedAt: Date): string {
+    const timestamp = generatedAt
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}Z$/, 'Z');
+    return `MT-${type.toUpperCase()}-${timestamp}`;
   }
 
-  private invoiceWhere(query: BillingReportQueryDto, range: ReportRange): Prisma.InvoiceWhereInput {
-    const and: Prisma.InvoiceWhereInput[] = [{ issueDate: { gte: range.from, lt: range.to } }];
-    if (query.customerId) and.push({ customerId: query.customerId });
-    if (query.invoiceStatus) and.push({ status: query.invoiceStatus });
-    if (query.planId)
-      and.push({
-        OR: [{ purchasePlanId: query.planId }, { subscription: { planId: query.planId } }],
-      });
-    if (query.subscriptionStatus) and.push({ subscription: { status: query.subscriptionStatus } });
-    if (query.billingCycle) and.push({ subscription: { billingCycle: query.billingCycle } });
-    if (query.search)
-      and.push({
-        OR: [
-          { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
-          { customer: { firstName: { contains: query.search, mode: 'insensitive' } } },
-          { customer: { lastName: { contains: query.search, mode: 'insensitive' } } },
-          { customer: { email: { contains: query.search, mode: 'insensitive' } } },
-        ],
-      });
-    return { AND: and };
-  }
-
-  private paymentWhere(
-    query: BillingReportQueryDto,
-    range: ReportRange,
-    extra: Prisma.PaymentWhereInput = {},
-  ): Prisma.PaymentWhereInput {
-    const and: Prisma.PaymentWhereInput[] = [
-      { createdAt: { gte: range.from, lt: range.to } },
-      extra,
-    ];
-    if (query.customerId) and.push({ customerId: query.customerId });
-    if (query.paymentStatus) and.push({ status: query.paymentStatus });
-    if (query.search)
-      and.push({
-        OR: [
-          { providerPaymentId: { contains: query.search, mode: 'insensitive' } },
-          { invoice: { invoiceNumber: { contains: query.search, mode: 'insensitive' } } },
-          { customer: { email: { contains: query.search, mode: 'insensitive' } } },
-        ],
-      });
-    return { AND: and };
-  }
-
-  private refundWhere(
-    query: BillingReportQueryDto,
-    range: ReportRange,
-    status?: RefundStatus,
-  ): Prisma.RefundWhereInput {
-    const and: Prisma.RefundWhereInput[] = [{ requestedAt: { gte: range.from, lt: range.to } }];
-    if (query.customerId) and.push({ customerId: query.customerId });
-    if (query.refundStatus) and.push({ status: query.refundStatus });
-    if (status) and.push({ status });
-    if (query.search)
-      and.push({
-        OR: [
-          { stripeRefundId: { contains: query.search, mode: 'insensitive' } },
-          { customer: { email: { contains: query.search, mode: 'insensitive' } } },
-        ],
-      });
-    return { AND: and };
+  private exportFileName(
+    type: BillingReportType,
+    period: ResolvedReportPeriod,
+    extension: 'csv' | 'pdf' | 'xlsx',
+  ): string {
+    const slugs: Record<BillingReportType, string> = {
+      [BillingReportType.REVENUE]: 'revenue',
+      [BillingReportType.INVOICES]: 'billing',
+      [BillingReportType.PAYMENTS]: 'payments',
+      [BillingReportType.RECEIVABLES]: 'receivables',
+      [BillingReportType.REFUNDS]: 'refunds',
+      [BillingReportType.SUBSCRIPTIONS]: 'revenue-by-plan',
+      [BillingReportType.RECONCILIATION]: 'payment-reconciliation',
+    };
+    const from = period.fromLocalDate;
+    const to = period.toLocalDate;
+    const [year, month, day] = from.split('-').map(Number);
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const fullMonth = day === 1 && to === `${from.slice(0, 8)}${String(lastDay).padStart(2, '0')}`;
+    const range = fullMonth ? from.slice(0, 7) : `${from}-to-${to}`;
+    return `mero-telecom-${slugs[type]}-report-${range}.${extension}`.replace(
+      /[^a-zA-Z0-9._-]/g,
+      '-',
+    );
   }
 
   private invoiceOrderBy(query: BillingReportQueryDto): Prisma.InvoiceOrderByWithRelationInput {
@@ -812,7 +836,7 @@ export class BillingReportsService {
 
   private settledAmount(payments: Array<{ amountCents: number; status: PaymentStatus }>): number {
     return payments
-      .filter((payment) => settledPaymentStatuses.includes(payment.status))
+      .filter((payment) => SETTLED_PAYMENT_STATUSES.includes(payment.status))
       .reduce((sum, payment) => sum + payment.amountCents, 0);
   }
 
@@ -823,25 +847,5 @@ export class BillingReportsService {
       total,
       totalPages: Math.ceil(total / query.pageSize),
     };
-  }
-
-  private defaultGroupBy(range: ReportRange): RevenueGroupBy {
-    const days = (range.to.getTime() - range.from.getTime()) / 86_400_000;
-    return days <= 31
-      ? RevenueGroupBy.DAY
-      : days <= 120
-        ? RevenueGroupBy.WEEK
-        : RevenueGroupBy.MONTH;
-  }
-
-  private bucket(date: Date, groupBy: RevenueGroupBy): string {
-    if (groupBy === RevenueGroupBy.MONTH) return date.toISOString().slice(0, 7);
-    if (groupBy === RevenueGroupBy.WEEK) {
-      const copy = new Date(date);
-      const day = copy.getUTCDay() || 7;
-      copy.setUTCDate(copy.getUTCDate() - day + 1);
-      return copy.toISOString().slice(0, 10);
-    }
-    return date.toISOString().slice(0, 10);
   }
 }

@@ -4,17 +4,26 @@ export const PUBLIC_WEBSITE_ROUTE = '/website';
 
 const ROLE_HOME: Record<AppRole, string> = {
   CUSTOMER: '/customer/dashboard',
-  STAFF: '/staff/customers',
-  ADMIN: '/admin/dashboard',
-  SUPER_ADMIN: '/admin/dashboard',
+  STAFF: '/control-centre/dashboard',
+  ADMIN: '/control-centre/dashboard',
+  SUPER_ADMIN: '/control-centre/dashboard',
 };
+
+export function hasRole(user: Pick<SessionUser, 'roles' | 'role'>, ...roles: AppRole[]): boolean {
+  return (user.roles ?? [user.role]).some((role) => roles.includes(role));
+}
+
+export function isMultiWorkspaceUser(user: SessionUser): boolean {
+  return hasRole(user, 'CUSTOMER') && hasRole(user, 'STAFF', 'ADMIN', 'SUPER_ADMIN');
+}
 
 export function getDashboardRoute(role: AppRole): string {
   return ROLE_HOME[role];
 }
 
 export function getHomeRoute(user: SessionUser | null): string {
-  return user ? getDashboardRoute(user.role) : '/';
+  if (!user) return '/';
+  return isMultiWorkspaceUser(user) ? '/choose-workspace' : getDashboardRoute(user.role);
 }
 
 export function isSafeInternalRedirect(value: string | null): value is string {
@@ -32,13 +41,17 @@ export function isSafeInternalRedirect(value: string | null): value is string {
   }
 }
 
-export function canAccessRoute(role: AppRole, pathname: string): boolean {
-  if (pathname === '/customer' || pathname.startsWith('/customer/')) return role === 'CUSTOMER';
+export function canAccessRoute(user: SessionUser, pathname: string): boolean {
+  if (pathname === '/customer' || pathname.startsWith('/customer/'))
+    return hasRole(user, 'CUSTOMER');
+  if (pathname === '/control-centre' || pathname.startsWith('/control-centre/')) {
+    return hasRole(user, 'STAFF', 'ADMIN', 'SUPER_ADMIN');
+  }
   if (pathname === '/staff' || pathname.startsWith('/staff/')) {
-    return role === 'STAFF' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+    return hasRole(user, 'STAFF', 'ADMIN', 'SUPER_ADMIN');
   }
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
-    return role === 'ADMIN' || role === 'SUPER_ADMIN';
+    return hasRole(user, 'ADMIN', 'SUPER_ADMIN');
   }
   return true;
 }
@@ -46,7 +59,7 @@ export function canAccessRoute(role: AppRole, pathname: string): boolean {
 export function getPostLoginRoute(user: SessionUser, returnTo: string | null): string {
   if (isSafeInternalRedirect(returnTo)) {
     const pathname = new URL(returnTo, 'https://merotelecom.invalid').pathname;
-    if (canAccessRoute(user.role, pathname)) return returnTo;
+    if (canAccessRoute(user, pathname)) return returnTo;
   }
-  return getDashboardRoute(user.role);
+  return getHomeRoute(user);
 }

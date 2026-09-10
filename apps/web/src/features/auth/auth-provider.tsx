@@ -19,6 +19,8 @@ export type AppRole = 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | 'CUSTOMER';
 export interface SessionUser {
   id: string;
   email: string;
+  roles: AppRole[];
+  /** Highest role, retained while existing feature policies migrate to roles. */
   role: AppRole;
 }
 

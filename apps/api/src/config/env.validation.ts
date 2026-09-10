@@ -10,9 +10,13 @@ export const validationSchema = Joi.object({
     .uri({ scheme: ['redis', 'rediss'] })
     .required(),
   ADMIN_DASHBOARD_CACHE_TTL_SECONDS: Joi.number().integer().min(5).max(3600).default(60),
+  BUSINESS_TIMEZONE: Joi.string().max(100).default('Australia/Adelaide'),
   REFUND_MAX_FILES: Joi.number().integer().min(1).max(20).default(5),
   REFUND_MAX_FILE_SIZE_MB: Joi.number().integer().min(1).max(100).default(10),
   REFUND_MAX_TOTAL_SIZE_MB: Joi.number().integer().min(1).max(200).default(25),
+  SUPPORT_MAX_FILES: Joi.number().integer().min(1).max(5).default(3),
+  SUPPORT_MAX_FILE_SIZE_MB: Joi.number().integer().min(1).max(25).default(10),
+  SUPPORT_MAX_TOTAL_SIZE_MB: Joi.number().integer().min(1).max(50).default(20),
   REFUND_RECONCILIATION_INTERVAL_MS: Joi.number()
     .integer()
     .min(30_000)
@@ -21,6 +25,21 @@ export const validationSchema = Joi.object({
   REFUND_RECONCILIATION_STALE_AFTER_MINUTES: Joi.number().integer().min(1).max(1440).default(10),
   REFUND_RECONCILIATION_BATCH_SIZE: Joi.number().integer().min(1).max(500).default(50),
   REFUND_ALERT_EMAIL: Joi.string().email().allow('').default(''),
+  NBN_PROVIDER: Joi.string().valid('mock').default('mock'),
+  NBN_MOCK_SCENARIO: Joi.string()
+    .valid('SUCCESS', 'PENDING', 'FAILED', 'MANUAL_REVIEW_REQUIRED')
+    .default('PENDING'),
+  NBN_MOCK_PENDING_POLLS: Joi.number().integer().min(0).max(100).default(1),
+  CANCELLATION_RECONCILIATION_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(30_000)
+    .max(86_400_000)
+    .default(60_000),
+  CANCELLATION_RECONCILIATION_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(500)
+    .default(50),
   ADDRESS_LOOKUP_PROVIDER: Joi.string().valid('geoapify').default('geoapify'),
   GEOAPIFY_API_KEY: Joi.when('ADDRESS_LOOKUP_PROVIDER', {
     is: 'geoapify',
@@ -63,6 +82,12 @@ export const validationSchema = Joi.object({
   JWT_REFRESH_EXPIRES_IN: Joi.string()
     .pattern(/^\d+[smhd]$/)
     .default('7d'),
+  JWT_INTERNAL_ACCESS_EXPIRES_IN: Joi.string()
+    .pattern(/^\d+[smhd]$/)
+    .default('10m'),
+  JWT_INTERNAL_REFRESH_EXPIRES_IN: Joi.string()
+    .pattern(/^\d+[smhd]$/)
+    .default('12h'),
   STRIPE_SECRET_KEY: Joi.string()
     .pattern(/^(?:sk|rk)_test_/)
     .required(),

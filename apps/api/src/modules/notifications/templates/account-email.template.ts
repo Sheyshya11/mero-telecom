@@ -1,8 +1,10 @@
 import type { AccountInvitationReason } from '@prisma/client';
 
 import type { RenderedEmailTemplate } from './invoice-email.template';
+import { renderEmailLogo } from './email-brand';
 
 interface AccountInvitationTemplateData {
+  brandLogoUrl: string;
   customerName: string;
   activationUrl: string;
   expiresAt: Date;
@@ -10,6 +12,7 @@ interface AccountInvitationTemplateData {
 }
 
 interface SubscriptionConfirmationTemplateData {
+  brandLogoUrl: string;
   customerName: string;
   planName: string;
   invoiceNumber: string;
@@ -19,6 +22,7 @@ interface SubscriptionConfirmationTemplateData {
 }
 
 interface StaffInvitationTemplateData {
+  brandLogoUrl: string;
   displayName: string;
   role: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF';
   activationUrl: string;
@@ -56,7 +60,7 @@ export function renderStaffInvitationEmail(
 <html lang="en">
   <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:12px;overflow:hidden">
-      <div style="background:#075985;padding:24px;color:#fff"><div style="font-size:22px;font-weight:700">MERO TELECOM</div></div>
+      <div style="padding:20px 28px;border-bottom:1px solid #e2e8f0">${renderEmailLogo(data.brandLogoUrl)}</div>
       <div style="padding:28px">
         <p>Hello ${escapeHtml(data.displayName)},</p>
         <h1 style="font-size:22px">Join Mero Telecom</h1>
@@ -101,9 +105,9 @@ export function renderAccountInvitationEmail(
 <html lang="en">
   <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:12px;overflow:hidden">
-      <div style="background:#075985;padding:24px;color:#fff">
-        <div style="font-size:22px;font-weight:700">MERO TELECOM</div>
-        <div style="margin-top:4px;font-size:13px">Secure account activation</div>
+      <div style="padding:20px 28px;border-bottom:1px solid #e2e8f0">
+        ${renderEmailLogo(data.brandLogoUrl)}
+        <div style="margin-top:8px;color:#475569;font-size:12px">Secure account activation</div>
       </div>
       <div style="padding:28px">
         <p>Hello ${escapeHtml(data.customerName)},</p>
@@ -146,7 +150,7 @@ export function renderSubscriptionConfirmationEmail(
 <html lang="en">
   <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:12px;overflow:hidden">
-      <div style="background:#075985;padding:24px;color:#fff"><div style="font-size:22px;font-weight:700">MERO TELECOM</div></div>
+      <div style="padding:20px 28px;border-bottom:1px solid #e2e8f0">${renderEmailLogo(data.brandLogoUrl)}</div>
       <div style="padding:28px">
         <p>Hello ${escapeHtml(data.customerName)},</p>
         <h1 style="font-size:22px">Subscription confirmed</h1>

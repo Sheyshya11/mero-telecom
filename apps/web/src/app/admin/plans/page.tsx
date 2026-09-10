@@ -194,7 +194,7 @@ export default function AdminPlansPage() {
     <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">MERO TELECOM · ADMIN</p>
+          <p className="text-sm font-semibold tracking-wide text-sky-700">ADMIN · PLAN CATALOGUE</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Internet plans</h1>
           <p className="mt-2 text-slate-600">
             Create plans and control whether they can be offered to customers.

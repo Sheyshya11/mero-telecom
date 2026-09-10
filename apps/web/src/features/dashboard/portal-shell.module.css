@@ -38,22 +38,7 @@
   min-width: 0;
 }
 .brand {
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: -0.04em;
   white-space: nowrap;
-}
-.brandMuted {
-  color: hsl(var(--muted-foreground));
-}
-.mark {
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.75rem;
-  color: white;
-  background: hsl(var(--primary));
 }
 .role {
   background: hsl(var(--primary-lighter) / 0.6);

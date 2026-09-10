@@ -54,6 +54,31 @@ describe('SubscriptionsService', () => {
     expect(prisma.subscription.update).not.toHaveBeenCalled();
   });
 
+  it('prevents direct active-to-cancelled updates outside the cancellation workflow', async () => {
+    const prisma = {
+      subscription: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'subscription-id',
+          customerId: 'customer-id',
+          planId: 'plan-id',
+          status: SubscriptionStatus.ACTIVE,
+          startDate: new Date('2026-08-01'),
+          endDate: null,
+        }),
+        update: jest.fn(),
+      },
+    };
+    const service = new SubscriptionsService(
+      prisma as unknown as PrismaService,
+      dashboardCache as never,
+    );
+
+    await expect(
+      service.update('subscription-id', { status: SubscriptionStatus.CANCELLED }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
   it('rejects an end date before the effective start date', async () => {
     const prisma = {
       subscription: {

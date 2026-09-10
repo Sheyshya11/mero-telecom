@@ -30,6 +30,7 @@ export class JwtAuthGuard implements CanActivate {
       request.user = {
         ...(await this.authService.getAuthenticatedUser(payload.sub, payload.sid)),
         authenticatedAt: payload.authTime ?? 0,
+        sessionId: payload.sid,
       };
       return true;
     } catch {

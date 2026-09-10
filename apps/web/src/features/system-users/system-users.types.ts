@@ -6,6 +6,7 @@ export interface SystemUser {
   id: string;
   displayName: string | null;
   email: string;
+  roles: SystemRole[];
   role: SystemRole;
   status: UserStatus;
   isActive: boolean;
@@ -34,7 +35,12 @@ export interface SecurityAuditLog {
   entityId: string;
   metadata: unknown;
   createdAt: string;
-  actor: { id: string; displayName: string | null; email: string; role: SystemRole } | null;
+  actor: {
+    id: string;
+    displayName: string | null;
+    email: string;
+    roles: Array<{ role: SystemRole }>;
+  } | null;
 }
 
 export interface Paginated<T> {

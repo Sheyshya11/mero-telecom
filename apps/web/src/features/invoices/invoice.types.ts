@@ -37,7 +37,13 @@ export interface InvoiceList {
 
 export interface InvoiceSubscription {
   id: string;
-  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+  status:
+    | 'PENDING'
+    | 'ACTIVE'
+    | 'CANCELLATION_PENDING'
+    | 'DISCONNECTION_PENDING'
+    | 'SUSPENDED'
+    | 'CANCELLED';
   customer: { customerNumber: string; firstName: string; lastName: string };
   plan: { name: string; monthlyCents: number };
 }

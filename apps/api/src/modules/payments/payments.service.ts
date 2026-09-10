@@ -576,7 +576,14 @@ export class PaymentsService {
             const currentSubscription = await transaction.subscription.findFirst({
               where: {
                 customerId: invoice.customerId,
-                status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.SUSPENDED] },
+                status: {
+                  in: [
+                    SubscriptionStatus.ACTIVE,
+                    SubscriptionStatus.SUSPENDED,
+                    SubscriptionStatus.CANCELLATION_PENDING,
+                    SubscriptionStatus.DISCONNECTION_PENDING,
+                  ],
+                },
               },
             });
             if (currentSubscription) {
@@ -825,7 +832,7 @@ export class PaymentsService {
             data: {
               email: application.applicantEmail,
               passwordHash: null,
-              role: Role.CUSTOMER,
+              roles: { create: { role: Role.CUSTOMER } },
               isActive: false,
               status: UserStatus.INVITATION_PENDING,
             },
@@ -1143,7 +1150,14 @@ export class PaymentsService {
     const current = await this.prisma.subscription.count({
       where: {
         customerId,
-        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.SUSPENDED] },
+        status: {
+          in: [
+            SubscriptionStatus.ACTIVE,
+            SubscriptionStatus.SUSPENDED,
+            SubscriptionStatus.CANCELLATION_PENDING,
+            SubscriptionStatus.DISCONNECTION_PENDING,
+          ],
+        },
       },
     });
     if (current) {
@@ -1245,7 +1259,14 @@ export class PaymentsService {
           const currentSubscription = await transaction.subscription.count({
             where: {
               customerId,
-              status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.SUSPENDED] },
+              status: {
+                in: [
+                  SubscriptionStatus.ACTIVE,
+                  SubscriptionStatus.SUSPENDED,
+                  SubscriptionStatus.CANCELLATION_PENDING,
+                  SubscriptionStatus.DISCONNECTION_PENDING,
+                ],
+              },
             },
           });
           if (currentSubscription) {

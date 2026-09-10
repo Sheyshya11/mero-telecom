@@ -24,6 +24,12 @@ function Fixture({ total = 45 }: { total?: number }) {
     </>
   );
 }
+
+function CustomSortFixture() {
+  const state = useTableQueryParams(['status'], '', 'requestedAt');
+  return <output data-testid="custom-query">{state.query}</output>;
+}
+
 describe('URL table controls', () => {
   beforeEach(() => {
     window.history.replaceState(null, '', '/admin/customers');
@@ -32,6 +38,11 @@ describe('URL table controls', () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+  });
+  it('supports a page-specific default sort', () => {
+    render(<CustomSortFixture />);
+    expect(screen.getByTestId('custom-query')).toHaveTextContent('sortBy=requestedAt');
+    expect(screen.getByTestId('custom-query')).not.toHaveTextContent('sortBy=createdAt');
   });
   it('debounces search, updates the URL and resets the page', () => {
     window.history.replaceState(null, '', '/admin/customers?page=3');

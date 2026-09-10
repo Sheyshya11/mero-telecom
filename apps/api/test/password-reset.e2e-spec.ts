@@ -33,11 +33,10 @@ async function clearPasswordResetRateLimits(): Promise<void> {
   const client = createClient({ url: process.env.REDIS_URL });
   await client.connect();
   try {
-    for await (const keys of client.scanIterator({
-      MATCH: 'mero-telecom:password-reset:*',
-      COUNT: 100,
-    })) {
-      if (keys.length > 0) await client.del(keys);
+    for (const pattern of ['mero-telecom:password-reset:*', 'bull:mero-telecom-email*']) {
+      for await (const keys of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+        if (keys.length > 0) await client.del(keys);
+      }
     }
   } finally {
     client.destroy();
@@ -69,23 +68,25 @@ describe('Password reset API (e2e)', () => {
 
   it('does not disclose unknown, invited, or deactivated accounts', async () => {
     const passwordHash = await hash(originalPassword, 12);
-    await prisma.user.createMany({
-      data: [
-        {
+    await prisma.$transaction([
+      prisma.user.create({
+        data: {
           email: 'invited@password-reset.test',
-          role: Role.CUSTOMER,
+          roles: { create: { role: Role.CUSTOMER } },
           status: UserStatus.INVITATION_PENDING,
           isActive: false,
         },
-        {
+      }),
+      prisma.user.create({
+        data: {
           email: 'deactivated@password-reset.test',
-          role: Role.STAFF,
+          roles: { create: { role: Role.STAFF } },
           status: UserStatus.DEACTIVATED,
           isActive: false,
           passwordHash,
         },
-      ],
-    });
+      }),
+    ]);
 
     for (const [index, email] of [
       'missing@password-reset.test',
@@ -117,7 +118,7 @@ describe('Password reset API (e2e)', () => {
       data: {
         email: 'customer@password-reset.test',
         displayName: 'Reset Customer',
-        role: Role.CUSTOMER,
+        roles: { create: { role: Role.CUSTOMER } },
         status: UserStatus.ACTIVE,
         isActive: true,
         passwordHash,
@@ -160,8 +161,11 @@ describe('Password reset API (e2e)', () => {
       .send({ token: rawToken, newPassword })
       .expect(204);
 
-    const updated = await prisma.user.findUniqueOrThrow({ where: { id: customer.id } });
-    expect(updated.role).toBe(Role.CUSTOMER);
+    const updated = await prisma.user.findUniqueOrThrow({
+      where: { id: customer.id },
+      include: { roles: true },
+    });
+    expect(updated.roles.map(({ role }) => role)).toContain(Role.CUSTOMER);
     expect(updated.status).toBe(UserStatus.ACTIVE);
     expect(updated.isActive).toBe(true);
     expect(await compare(newPassword, updated.passwordHash ?? '')).toBe(true);
@@ -195,7 +199,7 @@ describe('Password reset API (e2e)', () => {
     const account = await prisma.user.create({
       data: {
         email: 'newest-token@password-reset.test',
-        role: Role.CUSTOMER,
+        roles: { create: { role: Role.CUSTOMER } },
         status: UserStatus.ACTIVE,
         isActive: true,
         passwordHash: await hash(originalPassword, 12),
@@ -252,7 +256,7 @@ describe('Password reset API (e2e)', () => {
     const account = await prisma.user.create({
       data: {
         email,
-        role,
+        roles: { create: { role } },
         status,
         isActive,
         passwordHash: await hash(originalPassword, 12),
@@ -273,8 +277,11 @@ describe('Password reset API (e2e)', () => {
       .send({ token: rawToken, newPassword })
       .expect(204);
 
-    const updated = await prisma.user.findUniqueOrThrow({ where: { id: account.id } });
-    expect(updated.role).toBe(role);
+    const updated = await prisma.user.findUniqueOrThrow({
+      where: { id: account.id },
+      include: { roles: true },
+    });
+    expect(updated.roles.map((assignment) => assignment.role)).toContain(role);
     expect(updated.status).toBe(status);
     expect(updated.isActive).toBe(isActive);
   });
@@ -283,7 +290,7 @@ describe('Password reset API (e2e)', () => {
     const account = await prisma.user.create({
       data: {
         email: 'expired@password-reset.test',
-        role: Role.ADMIN,
+        roles: { create: { role: Role.ADMIN } },
         status: UserStatus.ACTIVE,
         isActive: true,
         passwordHash: await hash(originalPassword, 12),

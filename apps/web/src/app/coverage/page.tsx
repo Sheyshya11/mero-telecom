@@ -1,12 +1,13 @@
 import Link from 'next/link';
 
+import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
 import { CoverageChecker } from '../../features/coverage/coverage-checker';
 
 export default function CoveragePage() {
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-6 py-12">
-      <Link className="text-sm font-semibold tracking-wide text-sky-700" href="/">
-        MERO TELECOM
+      <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
+        <MeroTelecomLogo alt="" preload size="compact" />
       </Link>
       <header className="py-8">
         <p className="text-sm font-semibold tracking-wide text-sky-700">SERVICE COVERAGE</p>

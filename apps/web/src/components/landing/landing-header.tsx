@@ -6,19 +6,11 @@ import { useEffect, useRef, useState } from 'react';
 import { getHomeRoute, PUBLIC_WEBSITE_ROUTE } from '../../features/auth/auth-navigation';
 import { type AppRole, useAuth } from '../../features/auth/auth-provider';
 import styles from '../../styles/landing.module.css';
+import { MeroTelecomLogo } from '../brand/mero-telecom-logo';
 import { LandingIcon } from './landing-icons';
 
 function Brand() {
-  return (
-    <span className={styles.brandLockup}>
-      <span className={styles.brandIcon}>
-        <LandingIcon name="wifi" size={20} />
-      </span>
-      <strong>
-        Mero<span>Telecom</span>
-      </strong>
-    </span>
-  );
+  return <MeroTelecomLogo alt="" preload size="header" />;
 }
 
 const navigation = [
@@ -26,7 +18,7 @@ const navigation = [
   ['NBN Plans', '#plans'],
   ['Check Coverage', '#coverage'],
   ['Why Mero', '#why-mero'],
-  ['Help', '#faq'],
+  ['Help & Contact', '/help'],
 ] as const;
 
 const accountNavigation: Record<AppRole, ReadonlyArray<readonly [string, string]>> = {
@@ -37,28 +29,29 @@ const accountNavigation: Record<AppRole, ReadonlyArray<readonly [string, string]
     ['Profile', '/customer/profile'],
   ],
   STAFF: [
-    ['Customers', '/staff/customers'],
-    ['Plans', '/staff/plans'],
-    ['Coverage', '/staff/coverage'],
+    ['Overview', '/control-centre/dashboard'],
+    ['Customers', '/control-centre/customers'],
+    ['Services', '/control-centre/services'],
+    ['Coverage', '/control-centre/coverage'],
   ],
   ADMIN: [
-    ['Dashboard', '/admin/dashboard'],
-    ['Customers', '/admin/customers'],
-    ['Plans', '/admin/plans'],
-    ['Invoices', '/admin/invoices'],
-    ['Team', '/admin/users'],
+    ['Dashboard', '/control-centre/dashboard'],
+    ['Customers', '/control-centre/customers'],
+    ['Plans', '/control-centre/plans'],
+    ['Invoices', '/control-centre/invoices'],
+    ['Team', '/control-centre/staff'],
   ],
   SUPER_ADMIN: [
-    ['Dashboard', '/admin/dashboard'],
-    ['Customers', '/admin/customers'],
-    ['Plans', '/admin/plans'],
-    ['Invoices', '/admin/invoices'],
-    ['Team', '/admin/users'],
+    ['Dashboard', '/control-centre/dashboard'],
+    ['Customers', '/control-centre/customers'],
+    ['Plans', '/control-centre/plans'],
+    ['Invoices', '/control-centre/invoices'],
+    ['Team', '/control-centre/staff'],
   ],
 };
 
 export function LandingBrand() {
-  return <Brand />;
+  return <MeroTelecomLogo size="footer" />;
 }
 
 export function LandingHeader() {

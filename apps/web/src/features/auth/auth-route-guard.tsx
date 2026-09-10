@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
-import { getDashboardRoute } from './auth-navigation';
+import { getHomeRoute, hasRole } from './auth-navigation';
 import { type AppRole, useAuth } from './auth-provider';
 
 export function AuthRouteGuard({
@@ -13,7 +13,7 @@ export function AuthRouteGuard({
   const { isLoading, user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const isAllowed = Boolean(user && allowedRoles.includes(user.role));
+  const isAllowed = Boolean(user && hasRole(user, ...allowedRoles));
 
   useEffect(() => {
     if (isLoading) return;
@@ -22,7 +22,7 @@ export function AuthRouteGuard({
       router.replace(`/login?returnTo=${encodeURIComponent(currentPath)}`);
       return;
     }
-    if (!allowedRoles.includes(user.role)) router.replace(getDashboardRoute(user.role));
+    if (!hasRole(user, ...allowedRoles)) router.replace(getHomeRoute(user));
   }, [allowedRoles, isLoading, pathname, router, user]);
 
   if (isLoading || !isAllowed) {

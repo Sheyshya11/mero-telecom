@@ -19,8 +19,8 @@ export class AccessControlController {
   @Roles(Role.ADMIN)
   @ApiOkResponse({ description: 'Confirms access to an Admin-only API resource.' })
   @ApiForbiddenResponse({ description: 'The authenticated user is not an administrator.' })
-  getAdminAccess(@CurrentUser() user: AuthenticatedUser): { access: true; role: Role } {
-    return { access: true, role: user.role };
+  getAdminAccess(@CurrentUser() user: AuthenticatedUser): { access: true; roles: Role[] } {
+    return { access: true, roles: user.roles };
   }
 
   @Get('customer/:customerId')
@@ -32,7 +32,7 @@ export class AccessControlController {
   getCustomerAccess(
     @Param('customerId', new ParseUUIDPipe()) customerId: string,
     @CurrentUser() user: AuthenticatedUser,
-  ): { access: true; customerId: string; role: Role } {
-    return { access: true, customerId, role: user.role };
+  ): { access: true; customerId: string; roles: Role[] } {
+    return { access: true, customerId, roles: user.roles };
   }
 }

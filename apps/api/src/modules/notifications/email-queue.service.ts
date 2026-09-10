@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AccountInvitationStatus, StaffInvitationStatus } from '@prisma/client';
 import { Queue, Worker, type Job } from 'bullmq';
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
@@ -20,6 +20,11 @@ export type EmailPurpose =
   | 'PASSWORD_RESET'
   | 'PASSWORD_CHANGED'
   | 'SUBSCRIPTION_CONFIRMATION'
+  | 'CANCELLATION_REQUESTED'
+  | 'CANCELLATION_SCHEDULED'
+  | 'CANCELLATION_REVOKED'
+  | 'CANCELLATION_COMPLETED'
+  | 'CANCELLATION_OPERATIONAL_ALERT'
   | 'PLAN_CHANGE_SCHEDULED'
   | 'PLAN_CHANGE_APPLIED'
   | 'PLAN_CHANGE_CANCELLED'
@@ -30,7 +35,39 @@ export type EmailPurpose =
   | 'REFUND_REJECTED'
   | 'REFUND_SUCCEEDED'
   | 'REFUND_FAILED'
-  | 'REFUND_RECONCILIATION_ALERT';
+  | 'REFUND_RECONCILIATION_ALERT'
+  | 'SUPPORT_NEW_CASE'
+  | 'SUPPORT_CUSTOMER_REPLIED'
+  | 'SUPPORT_STAFF_REPLIED'
+  | 'SUPPORT_WAITING_FOR_CUSTOMER'
+  | 'SUPPORT_RESOLVED'
+  | 'SUPPORT_NEW_PROSPECT_ENQUIRY'
+  | 'SUPPORT_PROSPECT_RECEIPT'
+  | 'SUPPORT_PROSPECT_STAFF_REPLIED'
+  | 'SUPPORT_PROSPECT_WAITING_FOR_CUSTOMER'
+  | 'SUPPORT_PROSPECT_RESOLVED'
+  | 'INTERNAL_REQUEST_NEW'
+  | 'INTERNAL_REQUEST_STAFF_REPLIED'
+  | 'INTERNAL_REQUEST_REVIEW_STARTED'
+  | 'INTERNAL_REQUEST_MORE_INFO_REQUIRED'
+  | 'INTERNAL_REQUEST_APPROVED'
+  | 'INTERNAL_REQUEST_REJECTED'
+  | 'INTERNAL_REQUEST_ADMIN_REPLIED'
+  | 'INTERNAL_REQUEST_RESOLVED'
+  | 'INTERNAL_REQUEST_CLOSED'
+  | 'INTERNAL_REQUEST_ESCALATED'
+  | 'INTERNAL_REQUEST_SUPER_ADMIN_ESCALATED'
+  | 'INTERNAL_REQUEST_SUPER_ADMIN_ADMIN_REPLIED'
+  | 'INTERNAL_REQUEST_SUPER_ADMIN_STAFF_REPLIED'
+  | 'INTERNAL_REQUEST_SUPER_ADMIN_REVIEW_STARTED'
+  | 'INTERNAL_REQUEST_SUPER_ADMIN_REPLIED'
+  | 'INTERNAL_REQUEST_SUPER_ADMIN_MORE_INFO_REQUIRED'
+  | 'INTERNAL_REQUEST_SUPER_ADMIN_APPROVED'
+  | 'INTERNAL_REQUEST_SUPER_ADMIN_REJECTED'
+  | 'INTERNAL_REQUEST_RETURNED_TO_ADMIN'
+  | 'INTERNAL_REQUEST_RETURNED'
+  | 'INTERNAL_REQUEST_SUPER_ADMIN_RESOLVED'
+  | 'INTERNAL_REQUEST_SUPER_ADMIN_CLOSED';
 
 interface QueueableEmailMessage {
   to: string;
@@ -48,6 +85,10 @@ interface EmailJobContext {
   passwordResetTokenId?: string;
   userId?: string;
   refundId?: string;
+  supportCaseId?: string;
+  supportMessageId?: string;
+  internalRequestId?: string;
+  cancellationRequestId?: string;
 }
 
 interface EmailJobPayload {
@@ -92,7 +133,8 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
     const configuredEncryptionKey = emailQueue.encryptionKey;
     const keyMaterial = configuredEncryptionKey || configService.getOrThrow('jwt').refreshSecret;
 
-    this.queueName = emailQueue.name;
+    this.queueName =
+      process.env.NODE_ENV === 'test' ? `${emailQueue.name}-${randomUUID()}` : emailQueue.name;
     this.redisUrl = configService.getOrThrow('redis').url;
     this.attempts = emailQueue.attempts;
     this.backoffMilliseconds = emailQueue.backoffMilliseconds;
@@ -228,6 +270,12 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         data: { sentAt: new Date() },
       });
     }
+    if (context.supportMessageId) {
+      await this.prisma.supportMessage.updateMany({
+        where: { id: context.supportMessageId },
+        data: { emailDeliveryStatus: 'SENT' },
+      });
+    }
     const entityId =
       context.invitationId ??
       context.staffInvitationId ??
@@ -235,6 +283,8 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
       context.planChangeRequestId ??
       context.passwordResetTokenId ??
       context.refundId ??
+      context.supportCaseId ??
+      context.internalRequestId ??
       context.userId;
     if (!entityId) return;
     await this.prisma.auditLog.create({
@@ -252,7 +302,11 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
                   ? 'PasswordResetToken'
                   : context.refundId
                     ? 'Refund'
-                    : 'User',
+                    : context.supportCaseId
+                      ? 'SupportCase'
+                      : context.internalRequestId
+                        ? 'InternalRequest'
+                        : 'User',
         entityId,
         metadata: {
           purpose: context.purpose,
@@ -270,6 +324,12 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     try {
       const { context } = this.decrypt(job.data.encryptedPayload);
+      if (context.supportMessageId) {
+        await this.prisma.supportMessage.updateMany({
+          where: { id: context.supportMessageId },
+          data: { emailDeliveryStatus: 'FAILED' },
+        });
+      }
       const entityId =
         context.invitationId ??
         context.staffInvitationId ??
@@ -277,6 +337,8 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         context.planChangeRequestId ??
         context.passwordResetTokenId ??
         context.refundId ??
+        context.supportCaseId ??
+        context.internalRequestId ??
         context.userId;
       if (!entityId) return;
       await this.prisma.auditLog.create({
@@ -294,7 +356,11 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
                     ? 'PasswordResetToken'
                     : context.refundId
                       ? 'Refund'
-                      : 'User',
+                      : context.supportCaseId
+                        ? 'SupportCase'
+                        : context.internalRequestId
+                          ? 'InternalRequest'
+                          : 'User',
           entityId,
           metadata: {
             purpose: context.purpose,

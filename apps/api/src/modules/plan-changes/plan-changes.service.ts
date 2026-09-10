@@ -612,6 +612,14 @@ export class PlanChangesService {
       include: { plan: true, customer: { select: { id: true } } },
     });
     if (!subscription) throw new NotFoundException('Subscription not found.');
+    if (
+      subscription.status === SubscriptionStatus.CANCELLATION_PENDING ||
+      subscription.status === SubscriptionStatus.DISCONNECTION_PENDING
+    ) {
+      throw new ConflictException(
+        'A cancellation is already in progress for this subscription.',
+      );
+    }
     if (subscription.status !== SubscriptionStatus.ACTIVE) {
       throw new BadRequestException('Only an active subscription can change plans.');
     }
@@ -634,6 +642,19 @@ export class PlanChangesService {
     });
     if (blockingInvoices) {
       throw new ConflictException('Pay all outstanding invoices before changing plans.');
+    }
+    const cancellation = await transaction.cancellationRequest.count({
+      where: {
+        subscriptionId: subscription.id,
+        status: {
+          in: ['REQUESTED', 'SCHEDULED', 'PROCESSING', 'DISCONNECTION_PENDING', 'FAILED'],
+        },
+      },
+    });
+    if (cancellation) {
+      throw new ConflictException(
+        'A cancellation is already open for this subscription. Revoke or complete it before changing plans.',
+      );
     }
     if (rejectExistingRequest) {
       const pending = await transaction.planChangeRequest.count({

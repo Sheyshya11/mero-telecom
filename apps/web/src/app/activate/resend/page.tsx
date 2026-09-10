@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { MeroTelecomLogo } from '../../../components/brand/mero-telecom-logo';
 import { apiRequest } from '../../../lib/api/client';
 
 const schema = z.object({ email: z.email('Enter a valid email address.').max(320) });
@@ -24,8 +25,8 @@ export default function ResendActivationPage() {
   return (
     <main className="grid min-h-screen place-items-center px-6 py-12">
       <section className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-7 shadow-sm">
-        <Link className="text-sm font-semibold tracking-wide text-sky-700" href="/">
-          MERO TELECOM
+        <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
+          <MeroTelecomLogo alt="" preload size="auth" />
         </Link>
         <h1 className="mt-3 text-3xl font-bold">Resend activation email</h1>
         <p className="mt-2 text-sm text-slate-600">

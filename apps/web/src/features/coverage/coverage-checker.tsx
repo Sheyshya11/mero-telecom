@@ -7,7 +7,7 @@ import { useState } from 'react';
 
 import { ApiError, apiRequest } from '../../lib/api/client';
 import styles from '../../styles/landing.module.css';
-import { getDashboardRoute } from '../auth/auth-navigation';
+import { getHomeRoute, hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
 import type {
   AddressSuggestion,
@@ -228,7 +228,7 @@ export function CoverageChecker({
                       >
                         Checking account…
                       </span>
-                    ) : user?.role === 'CUSTOMER' ? (
+                    ) : user && hasRole(user, 'CUSTOMER') ? (
                       <Link
                         className={
                           isLanding
@@ -246,7 +246,7 @@ export function CoverageChecker({
                             ? styles.primaryButton
                             : 'button-primary mt-4 inline-flex w-full justify-center'
                         }
-                        href={getDashboardRoute(user.role)}
+                        href={getHomeRoute(user)}
                       >
                         Go to Dashboard
                       </Link>

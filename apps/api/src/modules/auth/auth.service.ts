@@ -1,22 +1,28 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { UserStatus, type Prisma, type User } from '@prisma/client';
+import { UserStatus, type Prisma, type Role, type User } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
 import { randomUUID } from 'crypto';
 
 import type { AppConfig } from '../../config/configuration';
 import { verifyPassword } from '../../common/security/password';
 import { PrismaService } from '../../database/prisma.service';
-import type {
-  AccessTokenPayload,
-  AuthenticatedUser,
-  AuthTokens,
-  RefreshTokenPayload,
+import {
+  primaryRole,
+  type AccessTokenPayload,
+  type AuthenticatedUser,
+  type AuthTokens,
+  type RefreshTokenPayload,
 } from './auth.types';
 import type { LoginDto } from './dto/login.dto';
 
 type SessionClient = Prisma.TransactionClient | PrismaService;
+export interface LoginRequestContext {
+  requestId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -26,9 +32,13 @@ export class AuthService {
     private readonly configService: ConfigService<AppConfig, true>,
   ) {}
 
-  async login(loginDto: LoginDto): Promise<{ tokens: AuthTokens; user: AuthenticatedUser }> {
+  async login(
+    loginDto: LoginDto,
+    context: LoginRequestContext = {},
+  ): Promise<{ tokens: AuthTokens; user: AuthenticatedUser }> {
     const user = await this.prisma.user.findUnique({
       where: { email: loginDto.email.toLowerCase() },
+      include: { roles: { select: { role: true } } },
     });
 
     if (
@@ -38,12 +48,43 @@ export class AuthService {
       !user.passwordHash ||
       !(await verifyPassword(loginDto.password, user.passwordHash))
     ) {
+      try {
+        await this.prisma.auditLog.create({
+          data: {
+            actorUserId: user?.id,
+            action: 'LOGIN_FAILED',
+            entityType: 'Authentication',
+            entityId: user?.id ?? 'unknown-account',
+            metadata: { ...context },
+          },
+        });
+      } catch {
+        // Authentication denial must not depend on audit storage availability.
+      }
       throw new UnauthorizedException('Invalid email or password.');
     }
 
     const authenticatedAt = Math.floor(Date.now() / 1000);
     const tokens = await this.createTokens(user, authenticatedAt);
     await this.createRefreshSession(this.prisma, user.id, tokens.refreshToken);
+
+    const sessionId = (this.jwtService.decode(tokens.refreshToken) as RefreshTokenPayload).sid;
+    const roles = user.roles.map(({ role }) => role);
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          actorUserId: user.id,
+          action: roles.some((role) => role !== 'CUSTOMER')
+            ? 'STAFF_LOGIN_SUCCEEDED'
+            : 'CUSTOMER_LOGIN_SUCCEEDED',
+          entityType: 'Authentication',
+          entityId: user.id,
+          metadata: { ...context, actorRoles: roles, sessionId },
+        },
+      });
+    } catch {
+      // A successful login remains available during a temporary audit-storage outage.
+    }
 
     return { tokens, user: this.toAuthenticatedUser(user, authenticatedAt) };
   }
@@ -52,7 +93,7 @@ export class AuthService {
     const payload = await this.verifyRefreshToken(refreshToken);
     const session = await this.prisma.refreshSession.findUnique({
       where: { id: payload.sid },
-      include: { user: true },
+      include: { user: { include: { roles: { select: { role: true } } } } },
     });
 
     if (
@@ -124,28 +165,43 @@ export class AuthService {
           some: { id: sessionId, revokedAt: null, expiresAt: { gt: new Date() } },
         },
       },
-      select: { id: true, email: true, role: true },
+      select: { id: true, email: true, roles: { select: { role: true } } },
     });
 
     if (!user) {
       throw new UnauthorizedException('User account is unavailable.');
     }
 
-    return user;
+    const roles = user.roles.map(({ role }) => role);
+    return { id: user.id, email: user.email, roles, role: primaryRole(roles) };
   }
 
-  getRefreshTokenLifetimeMilliseconds(): number {
+  getRefreshTokenLifetimeMilliseconds(refreshToken?: string): number {
+    if (refreshToken) {
+      const payload = this.jwtService.decode(refreshToken) as RefreshTokenPayload | null;
+      if (payload?.exp) return Math.max(0, payload.exp * 1_000 - Date.now());
+    }
     return this.parseDuration(this.configService.getOrThrow('jwt').refreshExpiresIn);
   }
 
-  private async createTokens(user: User, authenticatedAt: number): Promise<AuthTokens> {
+  private async createTokens(
+    user: User & { roles: { role: Role }[] },
+    authenticatedAt: number,
+  ): Promise<AuthTokens> {
     const jwtConfig = this.configService.getOrThrow('jwt');
+    const internal = user.roles.some(({ role }) => role !== 'CUSTOMER');
+    const accessExpiresIn = internal
+      ? (jwtConfig.internalAccessExpiresIn ?? jwtConfig.accessExpiresIn)
+      : jwtConfig.accessExpiresIn;
+    const refreshExpiresIn = internal
+      ? (jwtConfig.internalRefreshExpiresIn ?? jwtConfig.refreshExpiresIn)
+      : jwtConfig.refreshExpiresIn;
     const sessionId = randomUUID();
     const accessPayload: AccessTokenPayload = {
       sub: user.id,
       sid: sessionId,
       email: user.email,
-      role: user.role,
+      roles: user.roles.map(({ role }) => role),
       type: 'access',
       authTime: authenticatedAt,
     };
@@ -159,11 +215,11 @@ export class AuthService {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(accessPayload, {
         secret: jwtConfig.accessSecret,
-        expiresIn: this.parseDuration(jwtConfig.accessExpiresIn) / 1000,
+        expiresIn: this.parseDuration(accessExpiresIn) / 1000,
       }),
       this.jwtService.signAsync(refreshPayload, {
         secret: jwtConfig.refreshSecret,
-        expiresIn: this.parseDuration(jwtConfig.refreshExpiresIn) / 1000,
+        expiresIn: this.parseDuration(refreshExpiresIn) / 1000,
       }),
     ]);
 
@@ -186,7 +242,9 @@ export class AuthService {
         id: payload.sid,
         userId,
         tokenHash: await hash(refreshToken, 12),
-        expiresAt: new Date(Date.now() + this.getRefreshTokenLifetimeMilliseconds()),
+        expiresAt: payload.exp
+          ? new Date(payload.exp * 1_000)
+          : new Date(Date.now() + this.getRefreshTokenLifetimeMilliseconds()),
       },
     });
   }
@@ -226,9 +284,10 @@ export class AuthService {
   }
 
   private toAuthenticatedUser(
-    user: Pick<User, 'id' | 'email' | 'role'>,
+    user: Pick<User, 'id' | 'email'> & { roles: { role: Role }[] },
     authenticatedAt?: number,
   ): AuthenticatedUser {
-    return { id: user.id, email: user.email, role: user.role, authenticatedAt };
+    const roles = user.roles.map(({ role }) => role);
+    return { id: user.id, email: user.email, roles, role: primaryRole(roles), authenticatedAt };
   }
 }
