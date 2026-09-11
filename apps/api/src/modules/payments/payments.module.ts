@@ -11,6 +11,7 @@ import { PublicCheckoutContextService } from './public-checkout-context.service'
 import { StripeModule } from './stripe.module';
 import { PlanChangesModule } from '../plan-changes/plan-changes.module';
 import { RefundsModule } from '../refunds/refunds.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { RefundsModule } from '../refunds/refunds.module';
     StripeModule,
     PlanChangesModule,
     RefundsModule,
+    SubscriptionsModule,
   ],
   controllers: [PaymentsController],
   providers: [PaymentsService, PublicCheckoutContextService],

@@ -11,11 +11,19 @@ export interface CustomerDashboard {
     status:
       | 'PENDING'
       | 'ACTIVE'
+      | 'PAST_DUE'
       | 'CANCELLATION_PENDING'
       | 'DISCONNECTION_PENDING'
       | 'SUSPENDED'
       | 'CANCELLED';
     startDate: string;
+    pastDueAt: string | null;
+    gracePeriodEndsAt: string | null;
+    suspendedAt: string | null;
+    suspensionReason: 'NON_PAYMENT' | 'ADMINISTRATIVE' | 'FRAUD' | 'COMPLIANCE' | 'OTHER' | null;
+    reactivatedAt: string | null;
+    provisioningStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | null;
+    provisioningFailure: string | null;
     plan: {
       name: string;
       downloadMbps: number;
@@ -25,12 +33,7 @@ export interface CustomerDashboard {
   } | null;
   cancellation: {
     requestNumber: string;
-    status:
-      | 'REQUESTED'
-      | 'SCHEDULED'
-      | 'PROCESSING'
-      | 'DISCONNECTION_PENDING'
-      | 'FAILED';
+    status: 'REQUESTED' | 'SCHEDULED' | 'PROCESSING' | 'DISCONNECTION_PENDING' | 'FAILED';
     effectiveAt: string;
     canRevoke: boolean;
   } | null;

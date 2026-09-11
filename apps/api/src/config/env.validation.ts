@@ -11,6 +11,13 @@ export const validationSchema = Joi.object({
     .required(),
   ADMIN_DASHBOARD_CACHE_TTL_SECONDS: Joi.number().integer().min(5).max(3600).default(60),
   BUSINESS_TIMEZONE: Joi.string().max(100).default('Australia/Adelaide'),
+  OVERDUE_GRACE_PERIOD_DAYS: Joi.number().integer().min(1).max(30).default(7),
+  NON_PAYMENT_TERMINATION_DAYS: Joi.number().integer().min(8).max(365).default(30),
+  OVERDUE_LIFECYCLE_INTERVAL_MS: Joi.number().integer().min(30_000).max(86_400_000).default(60_000),
+  OVERDUE_LIFECYCLE_BATCH_SIZE: Joi.number().integer().min(1).max(500).default(50),
+  BILLING_PROVISIONING_MOCK_RESULT: Joi.string()
+    .valid('SUCCESS', 'PENDING', 'FAILED')
+    .default('SUCCESS'),
   REFUND_MAX_FILES: Joi.number().integer().min(1).max(20).default(5),
   REFUND_MAX_FILE_SIZE_MB: Joi.number().integer().min(1).max(100).default(10),
   REFUND_MAX_TOTAL_SIZE_MB: Joi.number().integer().min(1).max(200).default(25),
@@ -35,11 +42,7 @@ export const validationSchema = Joi.object({
     .min(30_000)
     .max(86_400_000)
     .default(60_000),
-  CANCELLATION_RECONCILIATION_BATCH_SIZE: Joi.number()
-    .integer()
-    .min(1)
-    .max(500)
-    .default(50),
+  CANCELLATION_RECONCILIATION_BATCH_SIZE: Joi.number().integer().min(1).max(500).default(50),
   ADDRESS_LOOKUP_PROVIDER: Joi.string().valid('geoapify').default('geoapify'),
   GEOAPIFY_API_KEY: Joi.when('ADDRESS_LOOKUP_PROVIDER', {
     is: 'geoapify',

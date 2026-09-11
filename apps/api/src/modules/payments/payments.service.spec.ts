@@ -75,6 +75,11 @@ function makeService(prisma: Partial<PrismaService>) {
     } as never,
     { sendSubscriptionConfirmation: jest.fn().mockResolvedValue({}) } as never,
     { processStripeEvent: jest.fn().mockResolvedValue(undefined) } as never,
+    { processStripeEvent: jest.fn().mockResolvedValue(undefined) } as never,
+    {
+      handleConfirmedPayment: jest.fn().mockResolvedValue(undefined),
+      handlePaymentFailure: jest.fn().mockResolvedValue(undefined),
+    } as never,
   );
 }
 
@@ -116,6 +121,11 @@ function makePublicService(prisma: Partial<PrismaService>) {
     invitations as never,
     notifications as never,
     { processStripeEvent: jest.fn().mockResolvedValue(undefined) } as never,
+    { processStripeEvent: jest.fn().mockResolvedValue(undefined) } as never,
+    {
+      handleConfirmedPayment: jest.fn().mockResolvedValue(undefined),
+      handlePaymentFailure: jest.fn().mockResolvedValue(undefined),
+    } as never,
   );
   return { addressSelections, invitations, notifications, publicCheckoutContext, service };
 }
@@ -876,5 +886,42 @@ describe('PaymentsService', () => {
     await expect(
       service.processStripeWebhook(Buffer.from('{"id":"evt_invalid"}'), 't=1,v1=invalid'),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('routes a signed invoice payment failure into the overdue lifecycle', async () => {
+    const service = makeService({});
+    const payload = JSON.stringify({
+      id: 'evt_invoice_payment_failed',
+      object: 'event',
+      type: 'checkout.session.async_payment_failed',
+      data: {
+        object: {
+          id: 'cs_failed_invoice',
+          object: 'checkout.session',
+          payment_status: 'unpaid',
+          amount_total: 9_900,
+          currency: 'aud',
+          client_reference_id: invoiceId,
+          metadata: { invoiceId, customerId },
+        },
+      },
+    });
+    const stripe = (service as unknown as { stripe: Stripe }).stripe;
+    const signature = stripe.webhooks.generateTestHeaderString({ payload, secret: stripeSecret });
+
+    await service.processStripeWebhook(Buffer.from(payload), signature);
+
+    const lifecycle = (
+      service as unknown as {
+        subscriptionLifecycle: { handlePaymentFailure: jest.Mock };
+      }
+    ).subscriptionLifecycle;
+    expect(lifecycle.handlePaymentFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerEventId: 'evt_invoice_payment_failed',
+        invoiceId,
+        providerSessionId: 'cs_failed_invoice',
+      }),
+    );
   });
 });

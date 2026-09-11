@@ -1,5 +1,5 @@
-import { IsDateString, IsEnum, IsIn, IsOptional, IsUUID } from 'class-validator';
-import { BillingCycle, PaymentStatus, SubscriptionStatus } from '@prisma/client';
+import { IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { BillingCycle, PaymentStatus, SubscriptionStatus, SuspensionReason } from '@prisma/client';
 import { ListQueryDto } from '../../../common/pagination';
 
 export class UpdateSubscriptionDto {
@@ -20,4 +20,15 @@ export class SubscriptionQueryDto extends ListQueryDto {
   @IsOptional() @IsDateString({ strict: true }) activatedTo?: string;
   @IsOptional() @IsIn(['true', 'false']) cancelled?: string;
   @IsOptional() @IsIn(['true', 'false']) pendingPlanChange?: string;
+  @IsOptional()
+  @IsIn(['GRACE_EXPIRING', 'ELIGIBLE_FOR_TERMINATION'])
+  lifecycle?: 'GRACE_EXPIRING' | 'ELIGIBLE_FOR_TERMINATION';
+}
+
+export class ExtendGracePeriodDto {
+  @IsInt() @Min(1) @Max(30) days!: number;
+}
+
+export class SuspendSubscriptionDto {
+  @IsEnum(SuspensionReason) reason!: Exclude<SuspensionReason, 'NON_PAYMENT'>;
 }

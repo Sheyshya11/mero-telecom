@@ -41,6 +41,7 @@ import { StripeClientService } from './stripe-client.service';
 import { PlanChangesService } from '../plan-changes/plan-changes.service';
 import { PublicCheckoutContextService } from './public-checkout-context.service';
 import { RefundsService } from '../refunds/refunds.service';
+import { SubscriptionLifecycleService } from '../subscriptions/subscription-lifecycle.service';
 
 const planPurchaseInclude = {
   customer: true,
@@ -91,6 +92,7 @@ export class PaymentsService {
     private readonly notifications: NotificationService,
     private readonly planChanges: PlanChangesService,
     private readonly refunds: RefundsService,
+    private readonly subscriptionLifecycle: SubscriptionLifecycleService,
   ) {
     this.stripe = stripeClient.client;
   }
@@ -484,6 +486,14 @@ export class PaymentsService {
       await this.refunds.processStripeEvent(event);
       return;
     }
+    if (event.type === 'invoice.payment_failed') {
+      await this.processStripeInvoiceFailure(event);
+      return;
+    }
+    if (event.type === 'invoice.paid') {
+      await this.processStripeInvoicePaid(event);
+      return;
+    }
     if (
       event.type !== 'checkout.session.completed' &&
       event.type !== 'checkout.session.async_payment_succeeded' &&
@@ -499,6 +509,22 @@ export class PaymentsService {
     }
     if (session.metadata?.checkoutKind === 'public_subscription') {
       await this.processPublicCheckoutEvent(event, session);
+      return;
+    }
+    if (event.type === 'checkout.session.async_payment_failed') {
+      const invoiceId = session.metadata?.invoiceId ?? session.client_reference_id;
+      if (!invoiceId) {
+        throw new BadRequestException('Stripe Checkout session is missing an invoice reference.');
+      }
+      await this.subscriptionLifecycle.handlePaymentFailure({
+        providerEventId: event.id,
+        eventType: event.type,
+        invoiceId,
+        providerSessionId: session.id,
+        expectedCustomerId: session.metadata?.customerId,
+        expectedAmountCents: session.amount_total ?? undefined,
+        expectedCurrency: session.currency ?? undefined,
+      });
       return;
     }
     if (
@@ -579,6 +605,7 @@ export class PaymentsService {
                 status: {
                   in: [
                     SubscriptionStatus.ACTIVE,
+                    SubscriptionStatus.PAST_DUE,
                     SubscriptionStatus.SUSPENDED,
                     SubscriptionStatus.CANCELLATION_PENDING,
                     SubscriptionStatus.DISCONNECTION_PENDING,
@@ -644,6 +671,96 @@ export class PaymentsService {
       }
       throw error;
     }
+    await this.dashboardCache.invalidate();
+    await this.subscriptionLifecycle.handleConfirmedPayment(invoiceId);
+  }
+
+  private async processStripeInvoiceFailure(
+    event: Stripe.InvoicePaymentFailedEvent,
+  ): Promise<void> {
+    const stripeInvoice = event.data.object;
+    const invoiceId = stripeInvoice.metadata?.invoiceId ?? stripeInvoice.metadata?.meroInvoiceId;
+    if (!invoiceId) return;
+    await this.subscriptionLifecycle.handlePaymentFailure({
+      providerEventId: event.id,
+      eventType: event.type,
+      invoiceId,
+      expectedCustomerId: stripeInvoice.metadata?.customerId,
+      expectedAmountCents: stripeInvoice.amount_due,
+      expectedCurrency: stripeInvoice.currency,
+    });
+  }
+
+  private async processStripeInvoicePaid(event: Stripe.InvoicePaidEvent): Promise<void> {
+    const stripeInvoice = event.data.object;
+    const invoiceId = stripeInvoice.metadata?.invoiceId ?? stripeInvoice.metadata?.meroInvoiceId;
+    if (!invoiceId) return;
+    try {
+      await this.prisma.$transaction(
+        async (transaction) => {
+          if (
+            await transaction.paymentWebhookEvent.findUnique({
+              where: { providerEventId: event.id },
+            })
+          ) {
+            return;
+          }
+          const invoice = await transaction.invoice.findUnique({ where: { id: invoiceId } });
+          if (
+            !invoice ||
+            !invoice.subscriptionId ||
+            invoice.customerId !== stripeInvoice.metadata?.customerId ||
+            invoice.totalCents !== stripeInvoice.amount_paid ||
+            invoice.currency !== stripeInvoice.currency.toUpperCase()
+          ) {
+            throw new BadRequestException(
+              'Stripe invoice payment does not match a Mero Telecom subscription invoice.',
+            );
+          }
+          const payment = await transaction.payment.upsert({
+            where: {
+              provider_providerPaymentId: {
+                provider: PaymentProvider.STRIPE,
+                providerPaymentId: `stripe-invoice:${stripeInvoice.id}`,
+              },
+            },
+            create: {
+              invoiceId: invoice.id,
+              customerId: invoice.customerId,
+              provider: PaymentProvider.STRIPE,
+              providerPaymentId: `stripe-invoice:${stripeInvoice.id}`,
+              amountCents: stripeInvoice.amount_paid,
+              currency: invoice.currency,
+              status: PaymentStatus.SUCCEEDED,
+              paidAt: new Date(event.created * 1_000),
+            },
+            update: { status: PaymentStatus.SUCCEEDED, paidAt: new Date(event.created * 1_000) },
+          });
+          await transaction.invoice.update({
+            where: { id: invoice.id },
+            data: { status: InvoiceStatus.PAID, paidAt: new Date(event.created * 1_000) },
+          });
+          await transaction.paymentWebhookEvent.create({
+            data: {
+              provider: PaymentProvider.STRIPE,
+              providerEventId: event.id,
+              eventType: event.type,
+              paymentId: payment.id,
+            },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error: unknown) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const stored = await this.prisma.paymentWebhookEvent.findUnique({
+          where: { providerEventId: event.id },
+        });
+        if (stored) return;
+      }
+      throw error;
+    }
+    await this.subscriptionLifecycle.handleConfirmedPayment(invoiceId);
     await this.dashboardCache.invalidate();
   }
 
@@ -1153,6 +1270,7 @@ export class PaymentsService {
         status: {
           in: [
             SubscriptionStatus.ACTIVE,
+            SubscriptionStatus.PAST_DUE,
             SubscriptionStatus.SUSPENDED,
             SubscriptionStatus.CANCELLATION_PENDING,
             SubscriptionStatus.DISCONNECTION_PENDING,
@@ -1262,6 +1380,7 @@ export class PaymentsService {
               status: {
                 in: [
                   SubscriptionStatus.ACTIVE,
+                  SubscriptionStatus.PAST_DUE,
                   SubscriptionStatus.SUSPENDED,
                   SubscriptionStatus.CANCELLATION_PENDING,
                   SubscriptionStatus.DISCONNECTION_PENDING,

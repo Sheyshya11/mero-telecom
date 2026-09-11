@@ -201,9 +201,25 @@ export function CustomerDashboardView() {
                   </div>
                 </div>
                 <div className={styles.panelActionRow}>
-                  <Link className="button-secondary" href="/customer/subscription">
-                    Manage plan
-                  </Link>
+                  {dashboard.subscription.status === 'ACTIVE' ? (
+                    <Link className="button-secondary" href="/customer/subscription">
+                      Manage plan
+                    </Link>
+                  ) : dashboard.subscription.status === 'PAST_DUE' ||
+                    dashboard.subscription.status === 'SUSPENDED' ? (
+                    <>
+                      <Link className="button-primary" href="/customer/invoices">
+                        Pay overdue balance
+                      </Link>
+                      <span className="text-sm text-slate-600">
+                        Plan changes are unavailable until the overdue balance is resolved.
+                      </span>
+                    </>
+                  ) : (
+                    <Link className="button-secondary" href="/customer/subscription">
+                      View service
+                    </Link>
+                  )}
                 </div>
               </>
             ) : (

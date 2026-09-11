@@ -62,7 +62,7 @@ describe('Admin list validation', () => {
     });
   }
   it.each([
-    [SubscriptionQueryDto, { status: 'PAST_DUE' }],
+    [SubscriptionQueryDto, { status: 'UNKNOWN_STATUS' }],
     [InvoiceQueryDto, { status: 'unknown' }],
     [RefundQueryDto, { reason: 'unknown' }],
     [SystemUserQueryDto, { role: 'OWNER' }],

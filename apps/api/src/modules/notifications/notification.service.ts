@@ -45,6 +45,11 @@ import {
   renderCancellationOperationalAlert,
   type CancellationEmailEvent,
 } from './templates/cancellation-email.template';
+import {
+  renderOverdueEmail,
+  type OverdueEmailData,
+  type OverdueEmailEvent,
+} from './templates/overdue-email.template';
 
 export interface InvoiceEmailData {
   invoiceNumber: string;
@@ -164,6 +169,28 @@ export class NotificationService {
       { to: recipient, ...template },
       { purpose, planChangeRequestId: input.planChangeRequestId },
       `plan-change-${input.planChangeRequestId}-${input.event.toLowerCase()}`,
+    );
+    return { recipient, messageId: `queued:${result.jobId}` };
+  }
+
+  async sendOverdueLifecycleNotification(
+    input: Omit<OverdueEmailData, 'event' | 'brandLogoUrl' | 'dashboardUrl'> & {
+      event: OverdueEmailEvent;
+      subscriptionId: string;
+      customerEmail: string;
+      idempotencySuffix: string;
+    },
+  ): Promise<InvoiceEmailResult> {
+    const recipient = this.invoiceRecipient(input.customerEmail);
+    const template = renderOverdueEmail({
+      ...input,
+      brandLogoUrl: this.brandLogoUrl(),
+      dashboardUrl: `${this.configService.getOrThrow('app').frontendUrl}/customer/dashboard`,
+    });
+    const result = await this.emailQueue.enqueue(
+      { to: recipient, ...template },
+      { purpose: input.event, subscriptionId: input.subscriptionId },
+      `overdue-${input.subscriptionId}-${input.idempotencySuffix}`,
     );
     return { recipient, messageId: `queued:${result.jobId}` };
   }

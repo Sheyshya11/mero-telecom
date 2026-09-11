@@ -23,11 +23,13 @@ import { SuperAdminDashboardView } from './super-admin-dashboard';
 
 const statusColors = {
   ACTIVE: '#0b8791',
+  PAST_DUE: '#d97706',
   CANCELLATION_PENDING: '#d97706',
   DISCONNECTION_PENDING: '#ea580c',
   PENDING: '#55bcc3',
   SUSPENDED: '#e49a26',
   CANCELLED: '#94a3b8',
+  TERMINATED: '#475569',
 };
 
 const quickActions: Array<{

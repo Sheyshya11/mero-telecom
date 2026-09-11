@@ -172,7 +172,15 @@ export function CustomerManagement() {
             {
               key: 'subscriptionStatus',
               label: 'Subscription status',
-              options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'CANCELLED', 'NO_SUBSCRIPTION'],
+              options: [
+                'ACTIVE',
+                'PAST_DUE',
+                'PENDING',
+                'SUSPENDED',
+                'TERMINATED',
+                'CANCELLED',
+                'NO_SUBSCRIPTION',
+              ],
             },
             { key: 'planId', label: 'Plan', options: planOptions },
             {

@@ -20,6 +20,12 @@ export type EmailPurpose =
   | 'PASSWORD_RESET'
   | 'PASSWORD_CHANGED'
   | 'SUBSCRIPTION_CONFIRMATION'
+  | 'PAYMENT_FAILED'
+  | 'OVERDUE_REMINDER'
+  | 'SUSPENSION_WARNING'
+  | 'SERVICE_SUSPENDED'
+  | 'PAYMENT_RECEIVED'
+  | 'SERVICE_RESTORATION_REQUESTED'
   | 'CANCELLATION_REQUESTED'
   | 'CANCELLATION_SCHEDULED'
   | 'CANCELLATION_REVOKED'
@@ -89,6 +95,7 @@ interface EmailJobContext {
   supportMessageId?: string;
   internalRequestId?: string;
   cancellationRequestId?: string;
+  subscriptionId?: string;
 }
 
 interface EmailJobPayload {
@@ -285,6 +292,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
       context.refundId ??
       context.supportCaseId ??
       context.internalRequestId ??
+      context.subscriptionId ??
       context.userId;
     if (!entityId) return;
     await this.prisma.auditLog.create({
@@ -306,7 +314,9 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
                       ? 'SupportCase'
                       : context.internalRequestId
                         ? 'InternalRequest'
-                        : 'User',
+                        : context.subscriptionId
+                          ? 'Subscription'
+                          : 'User',
         entityId,
         metadata: {
           purpose: context.purpose,
@@ -339,6 +349,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         context.refundId ??
         context.supportCaseId ??
         context.internalRequestId ??
+        context.subscriptionId ??
         context.userId;
       if (!entityId) return;
       await this.prisma.auditLog.create({
@@ -360,7 +371,9 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
                         ? 'SupportCase'
                         : context.internalRequestId
                           ? 'InternalRequest'
-                          : 'User',
+                          : context.subscriptionId
+                            ? 'Subscription'
+                            : 'User',
           entityId,
           metadata: {
             purpose: context.purpose,

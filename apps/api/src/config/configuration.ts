@@ -16,6 +16,13 @@ export interface AppConfig {
   billingReporting: {
     timezone: string;
   };
+  overdueLifecycle: {
+    gracePeriodDays: number;
+    terminationDays: number;
+    schedulerIntervalMilliseconds: number;
+    batchSize: number;
+    provisioningMockResult: 'SUCCESS' | 'PENDING' | 'FAILED';
+  };
   refundAttachments: {
     maxFiles: number;
     maxFileSizeBytes: number;
@@ -128,6 +135,16 @@ export default (): AppConfig => ({
   },
   billingReporting: {
     timezone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Adelaide',
+  },
+  overdueLifecycle: {
+    gracePeriodDays: Number(process.env.OVERDUE_GRACE_PERIOD_DAYS ?? 7),
+    terminationDays: Number(process.env.NON_PAYMENT_TERMINATION_DAYS ?? 30),
+    schedulerIntervalMilliseconds: Number(process.env.OVERDUE_LIFECYCLE_INTERVAL_MS ?? 60_000),
+    batchSize: Number(process.env.OVERDUE_LIFECYCLE_BATCH_SIZE ?? 50),
+    provisioningMockResult: (process.env.BILLING_PROVISIONING_MOCK_RESULT ?? 'SUCCESS') as
+      | 'SUCCESS'
+      | 'PENDING'
+      | 'FAILED',
   },
   refundAttachments: {
     maxFiles: Number(process.env.REFUND_MAX_FILES ?? 5),

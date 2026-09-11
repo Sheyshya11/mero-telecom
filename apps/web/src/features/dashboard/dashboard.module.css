@@ -601,9 +601,16 @@
 }
 
 .badge[data-status='SUSPENDED'],
+.badge[data-status='PAST_DUE'],
 .badge[data-status='OVERDUE'] {
   background: hsl(var(--warning) / 0.14);
   color: hsl(32 92% 36%);
+}
+
+.badge[data-status='TERMINATED'],
+.badge[data-status='CANCELLED'] {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
 }
 
 .badge[data-status='FAILED'] {

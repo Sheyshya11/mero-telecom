@@ -23,13 +23,19 @@ type Subscription = {
   status:
     | 'PENDING'
     | 'ACTIVE'
+    | 'PAST_DUE'
     | 'CANCELLATION_PENDING'
     | 'DISCONNECTION_PENDING'
     | 'SUSPENDED'
-    | 'CANCELLED';
+    | 'CANCELLED'
+    | 'TERMINATED';
   startDate: string;
   currentPeriodStart: string;
   currentPeriodEnd: string;
+  pastDueAt?: string | null;
+  gracePeriodEndsAt?: string | null;
+  suspendedAt?: string | null;
+  suspensionReason?: 'NON_PAYMENT' | 'ADMINISTRATIVE' | 'FRAUD' | 'COMPLIANCE' | 'OTHER' | null;
   plan: Plan;
 };
 
@@ -122,9 +128,13 @@ export default function CustomerSubscriptionPage() {
   const currentSubscription = useMemo(
     () =>
       subscriptions.data?.find((subscription) =>
-        ['ACTIVE', 'SUSPENDED', 'CANCELLATION_PENDING', 'DISCONNECTION_PENDING'].includes(
-          subscription.status,
-        ),
+        [
+          'ACTIVE',
+          'PAST_DUE',
+          'SUSPENDED',
+          'CANCELLATION_PENDING',
+          'DISCONNECTION_PENDING',
+        ].includes(subscription.status),
       ),
     [subscriptions.data],
   );
@@ -362,10 +372,43 @@ export default function CustomerSubscriptionPage() {
       ) : null}
 
       {currentSubscription?.status === 'SUSPENDED' ? (
-        <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-          Plan changes are unavailable while this subscription is suspended. Contact support to
-          resolve the suspension first.
-        </p>
+        <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-950">
+          <p className="font-semibold">Service suspended</p>
+          <p className="mt-1 text-sm">
+            {currentSubscription.suspensionReason === 'NON_PAYMENT'
+              ? 'Your service is suspended due to an outstanding payment. Pay the overdue balance to begin restoration.'
+              : 'Plan changes are unavailable while this service is suspended. Contact support for assistance.'}
+          </p>
+          <a
+            className="button-primary mt-4 inline-flex"
+            href={
+              currentSubscription.suspensionReason === 'NON_PAYMENT'
+                ? '/customer/invoices'
+                : '/customer/support'
+            }
+          >
+            {currentSubscription.suspensionReason === 'NON_PAYMENT'
+              ? 'Pay overdue balance'
+              : 'Contact support'}
+          </a>
+        </div>
+      ) : null}
+
+      {currentSubscription?.status === 'PAST_DUE' ? (
+        <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+          <p className="font-semibold">Payment overdue</p>
+          <p className="mt-1 text-sm">
+            Your internet service remains active
+            {currentSubscription.gracePeriodEndsAt
+              ? ` until ${formatDate(currentSubscription.gracePeriodEndsAt)}`
+              : ' during the grace period'}
+            . Pay the overdue balance to avoid suspension. Plan changes are unavailable until your
+            account is up to date.
+          </p>
+          <a className="button-primary mt-4 inline-flex" href="/customer/invoices">
+            Pay now
+          </a>
+        </div>
       ) : null}
 
       {currentSubscription?.status === 'ACTIVE' && !pendingChange ? (
@@ -716,19 +759,23 @@ function subscriptionStatusLabel(status: Subscription['status']): string {
   const labels: Record<Subscription['status'], string> = {
     PENDING: 'Pending activation',
     ACTIVE: 'Active',
+    PAST_DUE: 'Past due',
     SUSPENDED: 'Suspended',
     CANCELLATION_PENDING: 'Cancellation scheduled',
     DISCONNECTION_PENDING: 'Cancellation in progress',
     CANCELLED: 'Ended',
+    TERMINATED: 'Terminated',
   };
   return labels[status];
 }
 
 function subscriptionStatusTone(status: Subscription['status']): string {
   if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-800';
+  if (status === 'PAST_DUE') return 'bg-amber-100 text-amber-900';
   if (status === 'CANCELLATION_PENDING') return 'bg-amber-100 text-amber-900';
   if (status === 'DISCONNECTION_PENDING') return 'bg-sky-100 text-sky-800';
   if (status === 'SUSPENDED') return 'bg-rose-100 text-rose-800';
+  if (status === 'TERMINATED') return 'bg-slate-200 text-slate-900';
   return 'bg-slate-100 text-slate-700';
 }
 

@@ -20,13 +20,33 @@ type Subscription = {
   status:
     | 'PENDING'
     | 'ACTIVE'
+    | 'PAST_DUE'
     | 'CANCELLATION_PENDING'
     | 'DISCONNECTION_PENDING'
     | 'SUSPENDED'
-    | 'CANCELLED';
+    | 'CANCELLED'
+    | 'TERMINATED';
   startDate: string;
   currentPeriodEnd: string;
-  customer: Customer;
+  pastDueAt: string | null;
+  gracePeriodEndsAt: string | null;
+  suspendedAt: string | null;
+  suspensionReason: 'NON_PAYMENT' | 'ADMINISTRATIVE' | 'FRAUD' | 'COMPLIANCE' | 'OTHER' | null;
+  eligibleForTerminationAt: string | null;
+  provisioningStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | null;
+  provisioningFailure: string | null;
+  remindersSent: number;
+  invoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    totalCents: number;
+    dueDate: string;
+    status: 'ISSUED' | 'OVERDUE';
+    payments: Array<{ status: string; createdAt: string }>;
+  }>;
+  customer: Customer & {
+    supportCases: Array<{ id: string; caseNumber: string; subject: string; status: string }>;
+  };
   plan: {
     id: string;
     name: string;
@@ -84,6 +104,7 @@ export default function AdminSubscriptionsPage() {
     'activatedTo',
     'cancelled',
     'pendingPlanChange',
+    'lifecycle',
   ]);
   const changeTable = useTableQueryParams(['status', 'type'], 'changes_');
 
@@ -123,10 +144,18 @@ export default function AdminSubscriptionsPage() {
     ),
   });
   const transition = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: Subscription['status'] }) =>
+    mutationFn: ({
+      id,
+      action,
+      body,
+    }: {
+      id: string;
+      action: 'suspend' | 'reactivate' | 'extend-grace-period' | 'terminate';
+      body?: Record<string, unknown>;
+    }) =>
       apiRequest<Subscription>(
-        `/subscriptions/${id}`,
-        { method: 'PATCH', body: JSON.stringify({ status }) },
+        `/subscriptions/${id}/${action}`,
+        { method: 'POST', ...(body ? { body: JSON.stringify(body) } : {}) },
         accessToken,
       ),
     onSuccess: async () => {
@@ -201,10 +230,12 @@ export default function AdminSubscriptionsPage() {
               options: [
                 'PENDING',
                 'ACTIVE',
+                'PAST_DUE',
                 'CANCELLATION_PENDING',
                 'DISCONNECTION_PENDING',
                 'SUSPENDED',
                 'CANCELLED',
+                'TERMINATED',
               ],
             },
             { key: 'planId', label: 'Plan', options: planOptions },
@@ -218,6 +249,11 @@ export default function AdminSubscriptionsPage() {
             { key: 'activatedTo', label: 'Service start to', type: 'date' },
             { key: 'cancelled', label: 'Cancelled', options: ['true', 'false'] },
             { key: 'pendingPlanChange', label: 'Pending plan change', options: ['true', 'false'] },
+            {
+              key: 'lifecycle',
+              label: 'Overdue lifecycle',
+              options: ['GRACE_EXPIRING', 'ELIGIBLE_FOR_TERMINATION'],
+            },
           ]}
         />
         {subscriptions.isPending ? <TableSkeleton /> : null}
@@ -249,7 +285,7 @@ export default function AdminSubscriptionsPage() {
                   {subscription.plan.name} · {subscription.plan.downloadMbps}/
                   {subscription.plan.uploadMbps} Mbps · starts {formatDate(subscription.startDate)}
                 </p>
-                {subscription.status === 'ACTIVE' ? (
+                {subscription.status === 'ACTIVE' && user.role !== 'STAFF' ? (
                   <p className="mt-1 text-xs text-slate-500">
                     Current period ends {formatDateTime(subscription.currentPeriodEnd)}
                   </p>
@@ -260,20 +296,59 @@ export default function AdminSubscriptionsPage() {
                   <button
                     className="button-secondary"
                     disabled={transition.isPending}
-                    onClick={() => transition.mutate({ id: subscription.id, status: 'SUSPENDED' })}
+                    onClick={() =>
+                      transition.mutate({
+                        id: subscription.id,
+                        action: 'suspend',
+                        body: { reason: 'ADMINISTRATIVE' },
+                      })
+                    }
                     type="button"
                   >
                     Suspend
                   </button>
                 ) : null}
-                {subscription.status === 'SUSPENDED' ? (
+                {subscription.status === 'SUSPENDED' && user.role !== 'STAFF' ? (
                   <button
                     className="button-primary"
                     disabled={transition.isPending}
-                    onClick={() => transition.mutate({ id: subscription.id, status: 'ACTIVE' })}
+                    onClick={() => transition.mutate({ id: subscription.id, action: 'reactivate' })}
                     type="button"
                   >
                     Reactivate
+                  </button>
+                ) : null}
+                {subscription.status === 'PAST_DUE' ? (
+                  <button
+                    className="button-secondary"
+                    disabled={transition.isPending || user.role === 'STAFF'}
+                    onClick={() =>
+                      transition.mutate({
+                        id: subscription.id,
+                        action: 'extend-grace-period',
+                        body: { days: 3 },
+                      })
+                    }
+                    title={
+                      user.role === 'STAFF' ? 'Administrator permission is required.' : undefined
+                    }
+                    type="button"
+                  >
+                    Extend grace 3 days
+                  </button>
+                ) : null}
+                {subscription.status === 'SUSPENDED' &&
+                subscription.suspensionReason === 'NON_PAYMENT' &&
+                subscription.eligibleForTerminationAt &&
+                new Date(subscription.eligibleForTerminationAt) <= new Date() &&
+                user.role === 'SUPER_ADMIN' ? (
+                  <button
+                    className="button-secondary text-rose-700"
+                    disabled={transition.isPending}
+                    onClick={() => transition.mutate({ id: subscription.id, action: 'terminate' })}
+                    type="button"
+                  >
+                    Terminate
                   </button>
                 ) : null}
                 {subscription.status !== 'CANCELLED' ? (
@@ -282,6 +357,68 @@ export default function AdminSubscriptionsPage() {
                   </Link>
                 ) : null}
               </div>
+              {subscription.invoices[0] ? (
+                <dl className="grid w-full gap-2 rounded-lg bg-slate-50 p-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
+                  <div>
+                    <dt className="text-xs text-slate-500">Invoice</dt>
+                    <dd className="font-medium">{subscription.invoices[0].invoiceNumber}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-500">Amount due</dt>
+                    <dd className="font-medium">
+                      {formatMoney(subscription.invoices[0].totalCents)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-500">Due date</dt>
+                    <dd>{formatDate(subscription.invoices[0].dueDate)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-500">Days overdue</dt>
+                    <dd>
+                      {Math.max(
+                        0,
+                        Math.floor(
+                          (Date.now() - new Date(subscription.invoices[0].dueDate).getTime()) /
+                            86_400_000,
+                        ),
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-500">Grace ends</dt>
+                    <dd>
+                      {subscription.gracePeriodEndsAt
+                        ? formatDateTime(subscription.gracePeriodEndsAt)
+                        : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-500">Provisioning</dt>
+                    <dd>
+                      {subscription.provisioningStatus ?? 'Not requested'}
+                      {subscription.provisioningFailure ? ' · needs review' : ''}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-500">Payment attempts</dt>
+                    <dd>
+                      {subscription.invoices.reduce(
+                        (total, invoice) => total + invoice.payments.length,
+                        0,
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-500">Reminders sent</dt>
+                    <dd>{subscription.remindersSent}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-500">Support cases</dt>
+                    <dd>{subscription.customer.supportCases.length || 'None'}</dd>
+                  </div>
+                </dl>
+              ) : null}
             </article>
           ))}
         </div>

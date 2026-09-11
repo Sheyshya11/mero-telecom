@@ -11,7 +11,24 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import { SubscriptionQueryDto, UpdateSubscriptionDto } from './dto/subscription.dto';
 
-const include = { customer: true, plan: true } satisfies Prisma.SubscriptionInclude;
+const include = {
+  customer: {
+    include: {
+      supportCases: {
+        select: { id: true, caseNumber: true, subject: true, status: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
+        take: 3,
+      },
+    },
+  },
+  plan: true,
+  invoices: {
+    where: { status: { in: ['ISSUED', 'OVERDUE'] } },
+    orderBy: { dueDate: 'asc' },
+    include: { payments: { orderBy: { createdAt: 'desc' }, take: 1 } },
+  },
+  provisioningRequests: { orderBy: { createdAt: 'desc' }, take: 1 },
+} satisfies Prisma.SubscriptionInclude;
 
 @Injectable()
 export class SubscriptionsService {
@@ -43,6 +60,16 @@ export class SubscriptionsService {
       where.sourcePlanChanges =
         query.pendingPlanChange === 'true' ? { some: condition } : { none: condition };
     }
+    if (query.lifecycle === 'GRACE_EXPIRING') {
+      const inTwentyFourHours = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      where.status = SubscriptionStatus.PAST_DUE;
+      where.gracePeriodEndsAt = { lte: inTwentyFourHours, gt: new Date() };
+    }
+    if (query.lifecycle === 'ELIGIBLE_FOR_TERMINATION') {
+      where.status = SubscriptionStatus.SUSPENDED;
+      where.suspensionReason = 'NON_PAYMENT';
+      where.eligibleForTerminationAt = { lte: new Date() };
+    }
     const search = query.search?.trim();
     if (search)
       where.OR = [
@@ -63,8 +90,25 @@ export class SubscriptionsService {
       }),
       this.prisma.subscription.count({ where }),
     ]);
+    const reminderAudits = data.length
+      ? await this.prisma.auditLog.findMany({
+          where: {
+            entityType: 'Subscription',
+            entityId: { in: data.map((subscription) => subscription.id) },
+            action: { in: ['OVERDUE_REMINDER_SENT', 'SUSPENSION_WARNING_SENT'] },
+          },
+          select: { entityId: true },
+        })
+      : [];
+    const reminderCounts = reminderAudits.reduce<Map<string, number>>(
+      (counts, audit) => counts.set(audit.entityId, (counts.get(audit.entityId) ?? 0) + 1),
+      new Map(),
+    );
     return {
-      data,
+      data: data.map((subscription) => ({
+        ...subscription,
+        remindersSent: reminderCounts.get(subscription.id) ?? 0,
+      })),
       meta: buildPaginationMeta(query, total),
     };
   }
@@ -88,7 +132,11 @@ export class SubscriptionsService {
   async update(id: string, input: UpdateSubscriptionDto) {
     const subscription = await this.prisma.subscription.findUnique({ where: { id }, include });
     if (!subscription) throw new NotFoundException('Subscription not found.');
-    if (input.status) this.assertTransition(subscription.status, input.status);
+    if (input.status && input.status !== subscription.status) {
+      throw new BadRequestException(
+        'Subscription status changes must use the authorised lifecycle actions.',
+      );
+    }
     const startDate = input.startDate ? new Date(input.startDate) : subscription.startDate;
     const endDate =
       input.endDate === undefined
@@ -144,19 +192,5 @@ export class SubscriptionsService {
     const plan = await this.prisma.internetPlan.findUnique({ where: { id } });
     if (!plan) throw new NotFoundException('Internet plan not found.');
     if (!plan.isActive) throw new BadRequestException('An inactive plan cannot be activated.');
-  }
-  private assertTransition(from: SubscriptionStatus, to: SubscriptionStatus) {
-    const allowed: Record<SubscriptionStatus, SubscriptionStatus[]> = {
-      PENDING: [],
-      ACTIVE: [SubscriptionStatus.SUSPENDED],
-      CANCELLATION_PENDING: [],
-      DISCONNECTION_PENDING: [],
-      SUSPENDED: [SubscriptionStatus.ACTIVE],
-      CANCELLED: [],
-    };
-    if (from !== to && !allowed[from].includes(to))
-      throw new BadRequestException(
-        `Cannot change a ${from.toLowerCase()} subscription to ${to.toLowerCase()}.`,
-      );
   }
 }

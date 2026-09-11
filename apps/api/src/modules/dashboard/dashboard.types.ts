@@ -155,6 +155,13 @@ export interface CustomerDashboardSummary {
     id: string;
     status: SubscriptionStatus;
     startDate: string;
+    pastDueAt: string | null;
+    gracePeriodEndsAt: string | null;
+    suspendedAt: string | null;
+    suspensionReason: 'NON_PAYMENT' | 'ADMINISTRATIVE' | 'FRAUD' | 'COMPLIANCE' | 'OTHER' | null;
+    reactivatedAt: string | null;
+    provisioningStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | null;
+    provisioningFailure: string | null;
     plan: {
       name: string;
       downloadMbps: number;

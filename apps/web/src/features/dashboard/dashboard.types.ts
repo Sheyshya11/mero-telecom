@@ -29,10 +29,12 @@ export interface AdminDashboard {
     status:
       | 'PENDING'
       | 'ACTIVE'
+      | 'PAST_DUE'
       | 'CANCELLATION_PENDING'
       | 'DISCONNECTION_PENDING'
       | 'SUSPENDED'
-      | 'CANCELLED';
+      | 'CANCELLED'
+      | 'TERMINATED';
     count: number;
   }>;
   recentInvoices: Array<{

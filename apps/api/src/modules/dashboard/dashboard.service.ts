@@ -671,6 +671,7 @@ export class DashboardService {
           status: {
             in: [
               SubscriptionStatus.ACTIVE,
+              SubscriptionStatus.PAST_DUE,
               SubscriptionStatus.SUSPENDED,
               SubscriptionStatus.CANCELLATION_PENDING,
               SubscriptionStatus.DISCONNECTION_PENDING,
@@ -682,6 +683,13 @@ export class DashboardService {
           status: true,
           startDate: true,
           currentPeriodEnd: true,
+          pastDueAt: true,
+          gracePeriodEndsAt: true,
+          suspendedAt: true,
+          suspensionReason: true,
+          reactivatedAt: true,
+          provisioningStatus: true,
+          provisioningFailure: true,
           createdAt: true,
           plan: {
             select: {
@@ -811,13 +819,7 @@ export class DashboardService {
         where: {
           customerId: customer.id,
           status: {
-            in: [
-              'REQUESTED',
-              'SCHEDULED',
-              'PROCESSING',
-              'DISCONNECTION_PENDING',
-              'FAILED',
-            ],
+            in: ['REQUESTED', 'SCHEDULED', 'PROCESSING', 'DISCONNECTION_PENDING', 'FAILED'],
           },
         },
         select: {
@@ -862,11 +864,31 @@ export class DashboardService {
     if (currentSubscription?.status === SubscriptionStatus.SUSPENDED) {
       pendingAction = {
         type: 'SERVICE',
-        title: 'Internet service suspended',
-        description: 'Your internet service is currently suspended. Review your service details.',
-        actionLabel: 'View service',
-        actionUrl: '/customer/subscription',
+        title: 'Service suspended',
+        description:
+          currentSubscription.suspensionReason === 'NON_PAYMENT'
+            ? `Your service is suspended due to ${formatMoney(outstandingInvoiceCents)} outstanding. Pay the complete overdue balance to begin restoration.`
+            : `Your service is suspended (${currentSubscription.suspensionReason?.toLowerCase().replaceAll('_', ' ') ?? 'reason under review'}). Contact support for assistance.`,
+        actionLabel:
+          currentSubscription.suspensionReason === 'NON_PAYMENT'
+            ? 'Pay overdue balance'
+            : 'Contact support',
+        actionUrl:
+          currentSubscription.suspensionReason === 'NON_PAYMENT'
+            ? '/customer/invoices'
+            : '/customer/support',
         severity: 'critical',
+      };
+    } else if (currentSubscription?.status === SubscriptionStatus.PAST_DUE) {
+      pendingAction = {
+        type: 'PAYMENT',
+        title: 'Payment overdue',
+        description: currentSubscription.gracePeriodEndsAt
+          ? `Your internet service remains active until ${formatDate(currentSubscription.gracePeriodEndsAt)}. Pay ${formatMoney(outstandingInvoiceCents)} to avoid suspension.`
+          : `Pay ${formatMoney(outstandingInvoiceCents)} to avoid service suspension.`,
+        actionLabel: 'Pay now',
+        actionUrl: '/customer/invoices',
+        severity: 'warning',
       };
     } else if (activeCancellation) {
       pendingAction = {
@@ -1024,7 +1046,9 @@ export class DashboardService {
         title:
           currentSubscription.status === SubscriptionStatus.ACTIVE
             ? 'Internet service activated'
-            : 'Internet service suspended',
+            : currentSubscription.status === SubscriptionStatus.PAST_DUE
+              ? 'Payment overdue'
+              : 'Internet service suspended',
         description: currentSubscription.plan.name,
         occurredAt: currentSubscription.createdAt.toISOString(),
         amountCents: null,
@@ -1066,6 +1090,13 @@ export class DashboardService {
             id: currentSubscription.id,
             status: currentSubscription.status,
             startDate: currentSubscription.startDate.toISOString(),
+            pastDueAt: currentSubscription.pastDueAt?.toISOString() ?? null,
+            gracePeriodEndsAt: currentSubscription.gracePeriodEndsAt?.toISOString() ?? null,
+            suspendedAt: currentSubscription.suspendedAt?.toISOString() ?? null,
+            suspensionReason: currentSubscription.suspensionReason,
+            reactivatedAt: currentSubscription.reactivatedAt?.toISOString() ?? null,
+            provisioningStatus: currentSubscription.provisioningStatus,
+            provisioningFailure: currentSubscription.provisioningFailure,
             plan: {
               name: currentSubscription.plan.name,
               downloadMbps: currentSubscription.plan.downloadMbps,
@@ -1086,11 +1117,13 @@ export class DashboardService {
         : null,
       billing: {
         nextPaymentAmountCents:
-          currentSubscription?.status === SubscriptionStatus.ACTIVE
+          currentSubscription?.status === SubscriptionStatus.ACTIVE ||
+          currentSubscription?.status === SubscriptionStatus.PAST_DUE
             ? currentSubscription.plan.monthlyCents
             : null,
         nextBillingDate:
-          currentSubscription?.status === SubscriptionStatus.ACTIVE
+          currentSubscription?.status === SubscriptionStatus.ACTIVE ||
+          currentSubscription?.status === SubscriptionStatus.PAST_DUE
             ? currentSubscription.currentPeriodEnd.toISOString()
             : null,
         outstandingInvoiceCents,
@@ -1118,6 +1151,10 @@ function adminSubscriptionActivityTitle(status: SubscriptionStatus) {
       return 'Subscription activated';
     case SubscriptionStatus.SUSPENDED:
       return 'Subscription suspended';
+    case SubscriptionStatus.PAST_DUE:
+      return 'Subscription marked past due';
+    case SubscriptionStatus.TERMINATED:
+      return 'Subscription terminated';
     case SubscriptionStatus.CANCELLED:
       return 'Subscription cancelled';
     default:
