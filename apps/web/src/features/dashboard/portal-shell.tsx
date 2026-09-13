@@ -79,7 +79,6 @@ const navigation = {
     ['plans', 'Plans'],
     ['coverage', 'Coverage'],
     ['staff', 'Team'],
-    ['audit-logs', 'Audit logs'],
   ],
 } as const;
 
@@ -169,7 +168,12 @@ export function PortalShell({ children }: Readonly<{ children: React.ReactNode }
               : navigation[area]
             ).map(([path, label]) => {
               const href = `/${area}/${path}`;
-              const active = pathname === href || pathname.startsWith(`${href}/`);
+              const active =
+                pathname === href ||
+                pathname.startsWith(`${href}/`) ||
+                (area === 'control-centre' &&
+                  path === 'staff' &&
+                  pathname.startsWith('/control-centre/audit-logs'));
               return (
                 <Link key={href} href={href} aria-current={active ? 'page' : undefined}>
                   {label}

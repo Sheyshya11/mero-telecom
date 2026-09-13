@@ -56,7 +56,7 @@ const quickActions: Array<{
     description: 'Invite and manage internal team members',
   },
   {
-    href: '/admin/users',
+    href: '/control-centre/audit-logs',
     icon: 'eye',
     label: 'View audit logs',
     description: 'Inspect privileged security activity',

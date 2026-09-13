@@ -71,6 +71,24 @@ describe('PortalShell navigation', () => {
     expect(nav.getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/admin/dashboard');
   });
 
+  it('keeps audit history inside Team for the Super Admin control centre', () => {
+    mocks.role = 'SUPER_ADMIN';
+    mocks.pathname = '/control-centre/audit-logs';
+    render(
+      <PortalShell>
+        <main>Team and access</main>
+      </PortalShell>,
+    );
+
+    const nav = within(screen.getByRole('navigation'));
+    expect(nav.getByRole('link', { name: 'Team' })).toHaveAttribute(
+      'href',
+      '/control-centre/staff',
+    );
+    expect(nav.getByRole('link', { name: 'Team' })).toHaveAttribute('aria-current', 'page');
+    expect(nav.queryByRole('link', { name: 'Audit logs' })).not.toBeInTheDocument();
+  });
+
   it('provides only customer account links to customers', () => {
     mocks.role = 'CUSTOMER';
     mocks.pathname = '/customer/invoices';

@@ -129,7 +129,7 @@ describe('SuperAdminDashboardView', () => {
     expect(screen.getByText('PostgreSQL is responding normally.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /View audit logs/ })).toHaveAttribute(
       'href',
-      '/admin/users',
+      '/control-centre/audit-logs',
     );
 
     const attention = screen.getByRole('heading', { name: 'Needs attention' }).closest('section');

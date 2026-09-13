@@ -55,7 +55,9 @@ type PendingAction =
   | { kind: 'resend'; invitation: StaffInvitation }
   | { kind: 'revoke'; invitation: StaffInvitation };
 
-export function SystemUserManagement() {
+export function SystemUserManagement({
+  initialSection = 'members',
+}: Readonly<{ initialSection?: TeamSection }>) {
   const { accessToken, isLoading, user } = useAuth();
   const queryClient = useQueryClient();
   const table = useTableQueryParams(['role', 'status', 'active', 'createdFrom', 'createdTo']);
@@ -64,7 +66,7 @@ export function SystemUserManagement() {
     'audit_',
   );
   const invitationTable = useTableQueryParams([], 'invitations_');
-  const [section, setSection] = useState<TeamSection>('members');
+  const [section, setSection] = useState<TeamSection>(initialSection);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
