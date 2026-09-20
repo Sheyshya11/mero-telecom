@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Role, UserStatus } from '@prisma/client';
+import { CustomerStatus, Prisma, Role, UserStatus } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
 import { buildPaginationMeta, dateRange } from '../../common/pagination';
@@ -242,6 +242,12 @@ export class SystemUsersService {
               roles: { select: { role: true } },
             },
           });
+          if (updated.customer) {
+            await transaction.customer.update({
+              where: { id: updated.customer.id },
+              data: { status: this.customerStatusForUserStatus(input.status) },
+            });
+          }
           await this.revokeSessions(transaction, user.id);
           await transaction.auditLog.create({
             data: {
@@ -318,6 +324,11 @@ export class SystemUsersService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+  }
+
+  private customerStatusForUserStatus(status: UserStatus): CustomerStatus {
+    if (status === UserStatus.DEACTIVATED) return CustomerStatus.INACTIVE;
+    return status as CustomerStatus;
   }
 
   private roleChangeAction(previous: Role, next: Role): string {

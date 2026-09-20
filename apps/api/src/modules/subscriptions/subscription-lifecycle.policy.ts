@@ -2,7 +2,11 @@ import { BadRequestException } from '@nestjs/common';
 import { SubscriptionStatus } from '@prisma/client';
 
 const allowedTransitions: Record<SubscriptionStatus, readonly SubscriptionStatus[]> = {
-  PENDING: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED],
+  PENDING: [
+    SubscriptionStatus.ACTIVE,
+    SubscriptionStatus.CANCELLED,
+    SubscriptionStatus.CANCELLATION_PENDING,
+  ],
   ACTIVE: [
     SubscriptionStatus.PAST_DUE,
     SubscriptionStatus.SUSPENDED,
@@ -14,11 +18,19 @@ const allowedTransitions: Record<SubscriptionStatus, readonly SubscriptionStatus
     SubscriptionStatus.CANCELLATION_PENDING,
   ],
   CANCELLATION_PENDING: [
+    SubscriptionStatus.PENDING,
     SubscriptionStatus.ACTIVE,
     SubscriptionStatus.PAST_DUE,
+    SubscriptionStatus.SUSPENDED,
     SubscriptionStatus.DISCONNECTION_PENDING,
   ],
-  DISCONNECTION_PENDING: [SubscriptionStatus.CANCELLED],
+  DISCONNECTION_PENDING: [
+    SubscriptionStatus.PENDING,
+    SubscriptionStatus.ACTIVE,
+    SubscriptionStatus.PAST_DUE,
+    SubscriptionStatus.SUSPENDED,
+    SubscriptionStatus.CANCELLED,
+  ],
   SUSPENDED: [
     SubscriptionStatus.ACTIVE,
     SubscriptionStatus.CANCELLATION_PENDING,

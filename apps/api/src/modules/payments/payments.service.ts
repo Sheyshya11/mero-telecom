@@ -622,6 +622,7 @@ export class PaymentsService {
               data: {
                 customerId: invoice.customerId,
                 planId: invoice.purchasePlanId,
+                monthlyCents: invoice.totalCents,
                 status: SubscriptionStatus.ACTIVE,
                 startDate: this.utcDate(activatedAt),
                 billingAnchorDay,
@@ -981,6 +982,7 @@ export class PaymentsService {
             data: {
               customerId: customer.id,
               planId: application.planId,
+              monthlyCents: application.amountCents,
               status: SubscriptionStatus.ACTIVE,
               startDate: this.utcDate(paidAt),
               billingAnchorDay,

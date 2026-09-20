@@ -19,10 +19,22 @@ const actor = (role: Role, id = `${role.toLowerCase()}-id`): AuthenticatedUser =
 describe('CancellationWorkflowPolicyService', () => {
   const policy = new CancellationWorkflowPolicyService();
 
-  it('allows a customer to request cancellation only for their own active service', () => {
+  it('allows a customer to request cancellation for their own current service', () => {
     expect(() =>
       policy.assertCanRequest(
         { status: SubscriptionStatus.ACTIVE, customer: { userId: 'customer-id' } },
+        actor(Role.CUSTOMER, 'customer-id'),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      policy.assertCanRequest(
+        { status: SubscriptionStatus.PAST_DUE, customer: { userId: 'customer-id' } },
+        actor(Role.CUSTOMER, 'customer-id'),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      policy.assertCanRequest(
+        { status: SubscriptionStatus.SUSPENDED, customer: { userId: 'customer-id' } },
         actor(Role.CUSTOMER, 'customer-id'),
       ),
     ).not.toThrow();
@@ -51,13 +63,34 @@ describe('CancellationWorkflowPolicyService', () => {
     const record = {
       status: CancellationStatus.SCHEDULED,
       providerStatus: CancellationProviderStatus.NOT_SUBMITTED,
+      effectiveAt: new Date('2026-10-01T00:00:00.000Z'),
       customer: { userId: 'customer-id' },
     };
-    expect(() => policy.assertCanRevoke(record, actor(Role.CUSTOMER, 'customer-id'))).not.toThrow();
+    const now = new Date('2026-09-01T00:00:00.000Z');
+    expect(() =>
+      policy.assertCanRevoke(record, actor(Role.CUSTOMER, 'customer-id'), now),
+    ).not.toThrow();
     expect(() =>
       policy.assertCanRevoke(
         { ...record, status: CancellationStatus.DISCONNECTION_PENDING },
         actor(Role.CUSTOMER, 'customer-id'),
+        now,
+      ),
+    ).toThrow(ConflictException);
+  });
+
+  it('rejects a revoke at or after the cancellation effective time', () => {
+    const effectiveAt = new Date('2026-09-01T00:00:00.000Z');
+    expect(() =>
+      policy.assertCanRevoke(
+        {
+          status: CancellationStatus.SCHEDULED,
+          providerStatus: CancellationProviderStatus.NOT_SUBMITTED,
+          effectiveAt,
+          customer: { userId: 'customer-id' },
+        },
+        actor(Role.CUSTOMER, 'customer-id'),
+        effectiveAt,
       ),
     ).toThrow(ConflictException);
   });

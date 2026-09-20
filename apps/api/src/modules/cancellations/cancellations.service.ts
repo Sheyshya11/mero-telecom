@@ -10,7 +10,9 @@ import {
   PlanChangeStatus,
   Prisma,
   Role,
+  ServiceProvisioningStatus,
   SubscriptionStatus,
+  SuspensionReason,
 } from '@prisma/client';
 
 import { buildPaginationMeta, dateRange } from '../../common/pagination';
@@ -19,6 +21,8 @@ import { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import { NotificationService } from '../notifications/notification.service';
+import { ProvisioningService } from '../subscriptions/provisioning.service';
+import { assertSubscriptionTransition } from '../subscriptions/subscription-lifecycle.policy';
 import { CancellationWorkflowPolicyService } from './cancellation-workflow-policy.service';
 import type { CancellationQueryDto, CreateCancellationDto } from './dto/cancellation.dto';
 import { WholesaleDisconnectionProvider } from './providers/wholesale-disconnection.provider';
@@ -74,6 +78,8 @@ export class CancellationsService {
   private readonly logger = new Logger(CancellationsService.name);
   private readonly batchSize: number;
   private readonly configuredScenario: MockDisconnectionScenario;
+  private readonly gracePeriodDays: number;
+  private readonly terminationDays: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -81,11 +87,15 @@ export class CancellationsService {
     private readonly provider: WholesaleDisconnectionProvider,
     private readonly notifications: NotificationService,
     private readonly dashboardCache: AdminDashboardCacheService,
+    private readonly provisioning: ProvisioningService,
     configService: ConfigService<AppConfig, true>,
   ) {
     const config = configService.getOrThrow('cancellation');
+    const overdueLifecycle = configService.getOrThrow('overdueLifecycle');
     this.batchSize = config.batchSize;
     this.configuredScenario = config.mockScenario as MockDisconnectionScenario;
+    this.gracePeriodDays = overdueLifecycle.gracePeriodDays;
+    this.terminationDays = overdueLifecycle.terminationDays;
   }
 
   async preview(subscriptionId: string, type: CancellationType, actor: AuthenticatedUser) {
@@ -95,6 +105,11 @@ export class CancellationsService {
     });
     if (!subscription) throw new NotFoundException('Subscription not found.');
     this.workflow.assertCanRequest(subscription, actor);
+    if (subscription.status !== SubscriptionStatus.ACTIVE && type !== CancellationType.IMMEDIATE) {
+      throw new ConflictException(
+        'A pending, past-due, or suspended service can only be cancelled as soon as possible.',
+      );
+    }
     const outstanding = await this.outstandingBalance(subscription.customerId);
     return {
       subscriptionId: subscription.id,
@@ -148,11 +163,11 @@ export class CancellationsService {
           }
           this.workflow.assertCanRequest(subscription, actor);
           if (
-            subscription.status === SubscriptionStatus.PENDING &&
+            subscription.status !== SubscriptionStatus.ACTIVE &&
             input.type !== CancellationType.IMMEDIATE
           ) {
             throw new ConflictException(
-              'A pending activation can only be withdrawn as soon as possible.',
+              'A pending, past-due, or suspended service can only be cancelled as soon as possible.',
             );
           }
           const activePlanChange = await transaction.planChangeRequest.findFirst({
@@ -206,6 +221,10 @@ export class CancellationsService {
             },
             include: cancellationInclude,
           });
+          assertSubscriptionTransition(
+            subscription.status,
+            SubscriptionStatus.CANCELLATION_PENDING,
+          );
           const subscriptionUpdate = await transaction.subscription.updateMany({
             where: { id: subscription.id, status: subscription.status },
             data: { status: SubscriptionStatus.CANCELLATION_PENDING },
@@ -265,7 +284,7 @@ export class CancellationsService {
 
   async revoke(subscriptionId: string, actor: AuthenticatedUser) {
     const revokedAt = new Date();
-    const request = await this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (transaction) => {
         await this.lockSubscription(transaction, subscriptionId);
         const existing = await transaction.cancellationRequest.findFirst({
@@ -293,29 +312,29 @@ export class CancellationsService {
             'This cancellation started processing before it could be revoked.',
           );
         }
-        const restored = await transaction.subscription.updateMany({
-          where: { id: subscriptionId, status: SubscriptionStatus.CANCELLATION_PENDING },
-          data: { status: existing.subscriptionStatusBefore },
-        });
-        if (restored.count !== 1) {
-          throw new ConflictException(
-            'The service state changed before this cancellation could be revoked.',
-          );
-        }
+        const needsProvisioningRestore = await this.restoreAfterCancellation(
+          transaction,
+          existing,
+          revokedAt,
+        );
         await this.audit(transaction, existing, actor, 'CANCELLATION_REVOKED', {
           oldStatus: CancellationStatus.SCHEDULED,
           newStatus: CancellationStatus.REVOKED,
         });
-        return transaction.cancellationRequest.findUniqueOrThrow({
+        const request = await transaction.cancellationRequest.findUniqueOrThrow({
           where: { id: existing.id },
           include: cancellationInclude,
         });
+        return { needsProvisioningRestore, request };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    await this.notifyCustomer('REVOKED', request);
+    if (result.needsProvisioningRestore) {
+      await this.provisioning.restoreService(subscriptionId, revokedAt);
+    }
+    await this.notifyCustomer('REVOKED', result.request);
     await this.dashboardCache.invalidate();
-    return this.customerResponse(request);
+    return this.customerResponse(result.request);
   }
 
   async revokeForOperations(requestNumber: string, actor: AuthenticatedUser) {
@@ -521,7 +540,11 @@ export class CancellationsService {
       };
     }
 
-    const applied = await this.applyProviderResult(claimed, result, now);
+    const outcome = await this.applyProviderResult(claimed, result, now);
+    const applied = outcome?.request;
+    if (outcome?.needsProvisioningRestore) {
+      await this.provisioning.restoreService(claimed.request.subscriptionId, now);
+    }
     if (applied?.status === CancellationStatus.COMPLETED) {
       await this.notifyCustomer('COMPLETED', applied);
     } else if (applied?.status === CancellationStatus.FAILED) {
@@ -559,6 +582,36 @@ export class CancellationsService {
           ...(allowFailed ? [CancellationStatus.FAILED] : []),
         ];
         if (!eligible.includes(request.status)) return null;
+        let statusBeforeRetry: SubscriptionStatus | undefined;
+        if (request.status === CancellationStatus.FAILED) {
+          const subscription = await transaction.subscription.findUnique({
+            where: { id: request.subscriptionId },
+            select: { status: true },
+          });
+          if (
+            !subscription ||
+            (subscription.status !== SubscriptionStatus.ACTIVE &&
+              subscription.status !== SubscriptionStatus.PENDING &&
+              subscription.status !== SubscriptionStatus.PAST_DUE &&
+              subscription.status !== SubscriptionStatus.SUSPENDED)
+          ) {
+            throw new ConflictException(
+              'The service cannot re-enter cancellation from its current state.',
+            );
+          }
+          statusBeforeRetry = subscription.status;
+          assertSubscriptionTransition(
+            subscription.status,
+            SubscriptionStatus.CANCELLATION_PENDING,
+          );
+          const subscriptionChanged = await transaction.subscription.updateMany({
+            where: { id: request.subscriptionId, status: subscription.status },
+            data: { status: SubscriptionStatus.CANCELLATION_PENDING },
+          });
+          if (subscriptionChanged.count !== 1) {
+            throw new ConflictException('The service changed while cancellation was retried.');
+          }
+        }
         const scenario = scenarioOverride ?? request.providerScenario ?? this.configuredScenario;
         const changed = await transaction.cancellationRequest.updateMany({
           where: { id, version: request.version, status: request.status },
@@ -567,6 +620,7 @@ export class CancellationsService {
             processingStartedAt: request.processingStartedAt ?? now,
             failedReason: null,
             providerScenario: scenario,
+            subscriptionStatusBefore: statusBeforeRetry,
             attemptCount: { increment: 1 },
             version: { increment: 1 },
           },
@@ -592,7 +646,7 @@ export class CancellationsService {
       failureReason?: string;
     },
     now: Date,
-  ): Promise<CancellationRecord | null> {
+  ): Promise<{ request: CancellationRecord; needsProvisioningRestore: boolean } | null> {
     return this.prisma.$transaction(
       async (transaction) => {
         await this.lockSubscription(transaction, claimed.request.subscriptionId);
@@ -677,22 +731,20 @@ export class CancellationsService {
               version: { increment: 1 },
             },
           });
-          await transaction.subscription.updateMany({
-            where: {
-              id: current.subscriptionId,
-              status: {
-                in: [
-                  SubscriptionStatus.CANCELLATION_PENDING,
-                  SubscriptionStatus.DISCONNECTION_PENDING,
-                ],
-              },
-            },
-            data: { status: current.subscriptionStatusBefore },
-          });
+          const needsProvisioningRestore = await this.restoreAfterCancellation(
+            transaction,
+            current,
+            now,
+          );
           await this.audit(transaction, claimed.request, undefined, `${operationName}_FAILED`, {
             providerReference: result.providerReference || null,
             providerStatus: result.status,
           });
+          const request = await transaction.cancellationRequest.findUniqueOrThrow({
+            where: { id: current.id },
+            include: cancellationInclude,
+          });
+          return { request, needsProvisioningRestore };
         } else {
           await transaction.cancellationRequest.update({
             where: { id: current.id },
@@ -710,13 +762,133 @@ export class CancellationsService {
             data: { status: SubscriptionStatus.DISCONNECTION_PENDING },
           });
         }
-        return transaction.cancellationRequest.findUniqueOrThrow({
+        const request = await transaction.cancellationRequest.findUniqueOrThrow({
           where: { id: current.id },
           include: cancellationInclude,
         });
+        return { request, needsProvisioningRestore: false };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+  }
+
+  private async restoreAfterCancellation(
+    transaction: Prisma.TransactionClient,
+    request: Pick<CancellationRecord, 'id' | 'subscriptionId' | 'subscriptionStatusBefore'>,
+    now: Date,
+  ): Promise<boolean> {
+    const subscription = await transaction.subscription.findUnique({
+      where: { id: request.subscriptionId },
+    });
+    if (
+      !subscription ||
+      (subscription.status !== SubscriptionStatus.CANCELLATION_PENDING &&
+        subscription.status !== SubscriptionStatus.DISCONNECTION_PENDING)
+    ) {
+      throw new ConflictException(
+        'The service state changed before the cancellation could restore it.',
+      );
+    }
+
+    const overdueInvoice = await transaction.invoice.findFirst({
+      where: {
+        subscriptionId: request.subscriptionId,
+        status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE] },
+        dueDate: { lte: now },
+      },
+      orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
+    });
+    if (overdueInvoice?.status === InvoiceStatus.ISSUED) {
+      await transaction.invoice.update({
+        where: { id: overdueInvoice.id },
+        data: { status: InvoiceStatus.OVERDUE, overdueAt: now },
+      });
+    }
+
+    const previousStatus = request.subscriptionStatusBefore;
+    const wasNonPaymentSuspension =
+      previousStatus === SubscriptionStatus.SUSPENDED &&
+      subscription.suspensionReason === SuspensionReason.NON_PAYMENT;
+    const restoredStatus =
+      previousStatus === SubscriptionStatus.PENDING
+        ? SubscriptionStatus.PENDING
+        : previousStatus === SubscriptionStatus.SUSPENDED
+          ? overdueInvoice || !wasNonPaymentSuspension
+            ? SubscriptionStatus.SUSPENDED
+            : SubscriptionStatus.ACTIVE
+          : overdueInvoice
+            ? SubscriptionStatus.PAST_DUE
+            : SubscriptionStatus.ACTIVE;
+    const needsProvisioningRestore =
+      wasNonPaymentSuspension && restoredStatus === SubscriptionStatus.ACTIVE;
+    const overdueAt = overdueInvoice?.overdueAt ?? (overdueInvoice ? now : null);
+    const restoringExistingPastDue = previousStatus === SubscriptionStatus.PAST_DUE;
+    const pastDueAt = restoringExistingPastDue ? (subscription.pastDueAt ?? overdueAt) : overdueAt;
+    const data: Prisma.SubscriptionUpdateManyMutationInput = {
+      status: restoredStatus,
+      ...(restoredStatus === SubscriptionStatus.PAST_DUE && pastDueAt
+        ? {
+            pastDueAt,
+            gracePeriodEndsAt:
+              (restoringExistingPastDue && subscription.gracePeriodEndsAt) ||
+              addUtcDays(pastDueAt, this.gracePeriodDays),
+            eligibleForTerminationAt:
+              (restoringExistingPastDue && subscription.eligibleForTerminationAt) ||
+              addUtcDays(pastDueAt, this.terminationDays),
+            suspensionReason: null,
+            overdueReminderStage: restoringExistingPastDue ? subscription.overdueReminderStage : 0,
+            suspensionWarningSentAt: restoringExistingPastDue
+              ? subscription.suspensionWarningSentAt
+              : null,
+          }
+        : {}),
+      ...(restoredStatus === SubscriptionStatus.ACTIVE
+        ? {
+            pastDueAt: null,
+            gracePeriodEndsAt: null,
+            suspendedAt: null,
+            suspensionReason: null,
+            eligibleForTerminationAt: null,
+            terminationReviewQueuedAt: null,
+            overdueReminderStage: 0,
+            suspensionWarningSentAt: null,
+            reactivatedAt: previousStatus === SubscriptionStatus.ACTIVE ? undefined : now,
+            provisioningStatus: needsProvisioningRestore
+              ? ServiceProvisioningStatus.PENDING
+              : undefined,
+            provisioningFailure: needsProvisioningRestore ? null : undefined,
+          }
+        : {}),
+    };
+    assertSubscriptionTransition(subscription.status, restoredStatus);
+    const restored = await transaction.subscription.updateMany({
+      where: {
+        id: request.subscriptionId,
+        status: {
+          in: [SubscriptionStatus.CANCELLATION_PENDING, SubscriptionStatus.DISCONNECTION_PENDING],
+        },
+      },
+      data,
+    });
+    if (restored.count !== 1) {
+      throw new ConflictException(
+        'The service state changed before the cancellation could restore it.',
+      );
+    }
+    await transaction.auditLog.create({
+      data: {
+        action: 'SUBSCRIPTION_RESTORED_AFTER_CANCELLATION',
+        entityType: 'Subscription',
+        entityId: request.subscriptionId,
+        metadata: {
+          cancellationRequestId: request.id,
+          previousStatus: subscription.status,
+          restoredStatus,
+          overdueInvoiceId: overdueInvoice?.id ?? null,
+        },
+      },
+    });
+    return needsProvisioningRestore;
   }
 
   private async outstandingBalance(customerId: string): Promise<number> {
@@ -827,7 +999,8 @@ export class CancellationsService {
       plan: request.subscription.plan,
       canRevoke:
         request.status === CancellationStatus.SCHEDULED &&
-        request.providerStatus === CancellationProviderStatus.NOT_SUBMITTED,
+        request.providerStatus === CancellationProviderStatus.NOT_SUBMITTED &&
+        request.effectiveAt > new Date(),
       statusMessage: this.customerStatusMessage(request),
       reused,
     };
@@ -851,7 +1024,8 @@ export class CancellationsService {
         canRevoke:
           (actor.role === Role.ADMIN || actor.role === Role.SUPER_ADMIN) &&
           request.status === CancellationStatus.SCHEDULED &&
-          request.providerStatus === CancellationProviderStatus.NOT_SUBMITTED,
+          request.providerStatus === CancellationProviderStatus.NOT_SUBMITTED &&
+          request.effectiveAt > new Date(),
         canEscalate: actor.role === Role.STAFF && request.status === CancellationStatus.FAILED,
       },
     };
@@ -908,4 +1082,10 @@ export class CancellationsService {
   private utcDate(value: Date): Date {
     return new Date(`${value.toISOString().slice(0, 10)}T00:00:00.000Z`);
   }
+}
+
+function addUtcDays(value: Date, days: number): Date {
+  const result = new Date(value);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
 }

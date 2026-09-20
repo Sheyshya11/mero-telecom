@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   AccountInvitationReason,
   AddressType,
@@ -20,9 +25,19 @@ import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { UpdateCustomerDto, UpdateOwnCustomerDto } from './dto/update-customer.dto';
 import {
   type CustomerResponse,
+  type CustomerCreationResponse,
   type PaginatedCustomersResponse,
   toCustomerResponse,
 } from './customers.types';
+
+const currentSubscriptionStatuses = [
+  SubscriptionStatus.ACTIVE,
+  SubscriptionStatus.PAST_DUE,
+  SubscriptionStatus.PENDING,
+  SubscriptionStatus.CANCELLATION_PENDING,
+  SubscriptionStatus.DISCONNECTION_PENDING,
+  SubscriptionStatus.SUSPENDED,
+] as const;
 
 const customerAccountInclude = {
   user: {
@@ -35,6 +50,23 @@ const customerAccountInclude = {
       },
     },
   },
+  addresses: {
+    where: { type: AddressType.SERVICE },
+    select: {
+      addressLine1: true,
+      addressLine2: true,
+      suburb: true,
+      state: true,
+      postcode: true,
+    },
+    take: 1,
+  },
+  subscriptions: {
+    where: { status: { in: [...currentSubscriptionStatuses] } },
+    select: { status: true, plan: { select: { id: true, name: true } } },
+    orderBy: [{ startDate: 'desc' as const }, { createdAt: 'desc' as const }],
+    take: 1,
+  },
 } satisfies Prisma.CustomerInclude;
 
 @Injectable()
@@ -45,7 +77,10 @@ export class CustomersService {
     private readonly invitations: AccountInvitationsService,
   ) {}
 
-  async create(input: CreateCustomerDto, actor: AuthenticatedUser): Promise<CustomerResponse> {
+  async create(
+    input: CreateCustomerDto,
+    actor: AuthenticatedUser,
+  ): Promise<CustomerCreationResponse> {
     const email = this.normalizeEmail(input.email);
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -75,10 +110,10 @@ export class CustomersService {
             data: {
               userId: user.id,
               customerNumber: this.createCustomerNumber(),
-              firstName: input.firstName.trim(),
-              lastName: input.lastName.trim(),
+              firstName: this.requiredText(input.firstName, 'First name'),
+              lastName: this.requiredText(input.lastName, 'Last name'),
               email,
-              phone: input.phone,
+              phone: input.phone.trim(),
               ...residential,
               state: residential.state.toUpperCase(),
               status: CustomerStatus.INVITATION_PENDING,
@@ -112,9 +147,9 @@ export class CustomersService {
           return { customer: responseCustomer, invitation };
         });
 
-        await this.invitations.queueDelivery(result.invitation);
+        const invitationQueued = await this.invitations.queueDelivery(result.invitation);
         await this.dashboardCache.invalidate();
-        return toCustomerResponse(result.customer);
+        return { ...toCustomerResponse(result.customer), invitationQueued };
       } catch (error) {
         if (error instanceof ConflictException) throw error;
         if (this.isUniqueConstraintError(error) && attempt < 2) continue;
@@ -161,17 +196,20 @@ export class CustomersService {
         }
       : {};
     if (query.status) where.status = query.status;
+    if (query.accountStatus) where.user = { is: { status: query.accountStatus } };
     if (query.state) where.state = query.state;
     if (query.postcode) where.postcode = query.postcode;
     const createdAt = dateRange(query.createdFrom, query.createdTo);
     if (createdAt) where.createdAt = createdAt;
     if (query.subscriptionStatus === 'NO_SUBSCRIPTION') {
-      where.subscriptions = { none: {} };
-      if (query.planId) where.AND = [{ subscriptions: { some: { planId: query.planId } } }];
+      if (query.planId) {
+        throw new BadRequestException('A plan cannot be combined with the no-subscription filter.');
+      }
+      where.subscriptions = { none: { status: { in: [...currentSubscriptionStatuses] } } };
     } else if (query.subscriptionStatus || query.planId) {
       where.subscriptions = {
         some: {
-          ...(query.subscriptionStatus ? { status: query.subscriptionStatus } : {}),
+          status: query.subscriptionStatus ?? { in: [...currentSubscriptionStatuses] },
           ...(query.planId ? { planId: query.planId } : {}),
         },
       };
@@ -180,25 +218,7 @@ export class CustomersService {
     const [customers, total] = await this.prisma.$transaction([
       this.prisma.customer.findMany({
         where,
-        include: {
-          ...customerAccountInclude,
-          subscriptions: {
-            where: {
-              status: {
-                in: [
-                  SubscriptionStatus.ACTIVE,
-                  SubscriptionStatus.PENDING,
-                  SubscriptionStatus.CANCELLATION_PENDING,
-                  SubscriptionStatus.DISCONNECTION_PENDING,
-                  SubscriptionStatus.SUSPENDED,
-                ],
-              },
-            },
-            select: { status: true, plan: { select: { id: true, name: true } } },
-            orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
-            take: 1,
-          },
-        },
+        include: customerAccountInclude,
         orderBy: [{ [query.sortBy ?? 'createdAt']: query.sortOrder ?? 'desc' }, { id: 'asc' }],
         skip,
         take: query.limit,
@@ -240,15 +260,30 @@ export class CustomersService {
       include: { user: true },
     });
     if (!existing) throw new NotFoundException('Customer not found.');
-    const data = this.getUpdateData(actor.role, input);
+    const requestedData = this.getUpdateData(actor.role, input);
 
     try {
       const customer = await this.prisma.$transaction(async (transaction) => {
+        const userUpdate =
+          existing.user && (actor.role === Role.SUPER_ADMIN || actor.role === Role.ADMIN)
+            ? this.userUpdateForCustomer(existing.user, input)
+            : {};
+        const data: Prisma.CustomerUpdateInput = {
+          ...requestedData,
+          ...(userUpdate.status
+            ? { status: this.customerStatusForUserStatus(userUpdate.status) }
+            : {}),
+        };
         const updated = await transaction.customer.update({ where: { id: customerId }, data });
         if (existing.user && (actor.role === Role.SUPER_ADMIN || actor.role === Role.ADMIN)) {
-          const userUpdate = this.userUpdateForCustomer(existing.user, input);
           if (Object.keys(userUpdate).length > 0) {
             await transaction.user.update({ where: { id: existing.user.id }, data: userUpdate });
+          }
+          if (userUpdate.status && userUpdate.status !== existing.user.status) {
+            await transaction.refreshSession.updateMany({
+              where: { userId: existing.user.id, revokedAt: null },
+              data: { revokedAt: new Date() },
+            });
           }
         }
         if (
@@ -280,13 +315,18 @@ export class CustomersService {
   }
 
   async updateOwn(userId: string, input: UpdateOwnCustomerDto): Promise<CustomerResponse> {
-    const customer = await this.prisma.customer.findUnique({ where: { userId } });
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      include: {
+        addresses: { where: { type: AddressType.SERVICE }, take: 1 },
+      },
+    });
     if (!customer) throw new NotFoundException('No customer profile is linked to this account.');
 
     const updatedCustomer = await this.prisma.$transaction(async (transaction) => {
-      const updated = await transaction.customer.update({
+      await transaction.customer.update({
         where: { id: customer.id },
-        data: input,
+        data: { phone: input.phone?.trim() },
       });
       if (
         input.addressLine1 !== undefined ||
@@ -295,15 +335,26 @@ export class CustomersService {
         input.state !== undefined ||
         input.postcode !== undefined
       ) {
+        const currentServiceAddress = customer.addresses[0] ?? customer;
+        const serviceAddress = {
+          addressLine1: input.addressLine1 ?? currentServiceAddress.addressLine1,
+          addressLine2:
+            input.addressLine2 === undefined
+              ? currentServiceAddress.addressLine2
+              : input.addressLine2,
+          suburb: input.suburb ?? currentServiceAddress.suburb,
+          state: input.state ?? currentServiceAddress.state,
+          postcode: input.postcode ?? currentServiceAddress.postcode,
+        };
         await transaction.customerAddress.upsert({
           where: {
-            customerId_type: { customerId: customer.id, type: AddressType.RESIDENTIAL },
+            customerId_type: { customerId: customer.id, type: AddressType.SERVICE },
           },
           create: {
             customerId: customer.id,
-            ...this.addressData(AddressType.RESIDENTIAL, updated),
+            ...this.addressData(AddressType.SERVICE, serviceAddress),
           },
-          update: this.addressData(AddressType.RESIDENTIAL, updated),
+          update: this.addressData(AddressType.SERVICE, serviceAddress),
         });
       }
       return transaction.customer.findUniqueOrThrow({
@@ -318,20 +369,43 @@ export class CustomersService {
   private getUpdateData(role: Role, input: UpdateCustomerDto): Prisma.CustomerUpdateInput {
     if (role === Role.SUPER_ADMIN || role === Role.ADMIN) {
       return {
-        ...input,
+        firstName:
+          input.firstName === undefined
+            ? undefined
+            : this.requiredText(input.firstName, 'First name'),
+        lastName:
+          input.lastName === undefined ? undefined : this.requiredText(input.lastName, 'Last name'),
         email: input.email ? this.normalizeEmail(input.email) : undefined,
+        phone: input.phone?.trim(),
+        addressLine1:
+          input.addressLine1 === undefined
+            ? undefined
+            : this.requiredText(input.addressLine1, 'Address'),
+        addressLine2:
+          input.addressLine2 === undefined ? undefined : input.addressLine2?.trim() || null,
+        suburb: input.suburb === undefined ? undefined : this.requiredText(input.suburb, 'Suburb'),
         state: input.state?.toUpperCase(),
+        postcode: input.postcode?.trim(),
+        status: input.status,
       };
     }
     const { phone, addressLine1, addressLine2, suburb, state, postcode } = input;
-    return { phone, addressLine1, addressLine2, suburb, state: state?.toUpperCase(), postcode };
+    return {
+      phone: phone?.trim(),
+      addressLine1:
+        addressLine1 === undefined ? undefined : this.requiredText(addressLine1, 'Address'),
+      addressLine2: addressLine2 === undefined ? undefined : addressLine2?.trim() || null,
+      suburb: suburb === undefined ? undefined : this.requiredText(suburb, 'Suburb'),
+      state: state?.toUpperCase(),
+      postcode: postcode?.trim(),
+    };
   }
 
   private userUpdateForCustomer(
     user: { passwordHash: string | null; emailVerifiedAt: Date | null },
     input: UpdateCustomerDto,
-  ): Prisma.UserUpdateInput {
-    const data: Prisma.UserUpdateInput = {};
+  ): { email?: string; status?: UserStatus; isActive?: boolean } {
+    const data: { email?: string; status?: UserStatus; isActive?: boolean } = {};
     if (input.email) data.email = this.normalizeEmail(input.email);
     if (input.status === CustomerStatus.SUSPENDED) {
       data.status = UserStatus.SUSPENDED;
@@ -352,11 +426,11 @@ export class CustomersService {
 
   private residentialAddress(input: CreateCustomerDto) {
     return {
-      addressLine1: input.addressLine1,
-      addressLine2: input.addressLine2,
-      suburb: input.suburb,
+      addressLine1: this.requiredText(input.addressLine1, 'Address'),
+      addressLine2: input.addressLine2?.trim() || null,
+      suburb: this.requiredText(input.suburb, 'Suburb'),
       state: input.state.toUpperCase(),
-      postcode: input.postcode,
+      postcode: input.postcode.trim(),
     };
   }
 
@@ -372,12 +446,23 @@ export class CustomersService {
   ) {
     return {
       type,
-      addressLine1: address.addressLine1,
-      addressLine2: address.addressLine2 || null,
-      suburb: address.suburb,
+      addressLine1: this.requiredText(address.addressLine1, 'Address'),
+      addressLine2: address.addressLine2?.trim() || null,
+      suburb: this.requiredText(address.suburb, 'Suburb'),
       state: address.state.toUpperCase(),
-      postcode: address.postcode,
+      postcode: address.postcode.trim(),
     };
+  }
+
+  private customerStatusForUserStatus(status: UserStatus): CustomerStatus {
+    if (status === UserStatus.DEACTIVATED) return CustomerStatus.INACTIVE;
+    return status as CustomerStatus;
+  }
+
+  private requiredText(value: string, label: string): string {
+    const normalized = value.trim();
+    if (!normalized) throw new BadRequestException(`${label} is required.`);
+    return normalized;
   }
 
   private createCustomerNumber(): string {

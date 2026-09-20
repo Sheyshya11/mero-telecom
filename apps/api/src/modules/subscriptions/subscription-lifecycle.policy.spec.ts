@@ -10,6 +10,11 @@ describe('subscription lifecycle policy', () => {
     [SubscriptionStatus.PAST_DUE, SubscriptionStatus.SUSPENDED],
     [SubscriptionStatus.SUSPENDED, SubscriptionStatus.ACTIVE],
     [SubscriptionStatus.SUSPENDED, SubscriptionStatus.TERMINATED],
+    [SubscriptionStatus.PENDING, SubscriptionStatus.CANCELLATION_PENDING],
+    [SubscriptionStatus.CANCELLATION_PENDING, SubscriptionStatus.PAST_DUE],
+    [SubscriptionStatus.CANCELLATION_PENDING, SubscriptionStatus.SUSPENDED],
+    [SubscriptionStatus.DISCONNECTION_PENDING, SubscriptionStatus.PAST_DUE],
+    [SubscriptionStatus.DISCONNECTION_PENDING, SubscriptionStatus.SUSPENDED],
   ])('allows %s → %s', (from, to) => {
     expect(() => assertSubscriptionTransition(from, to)).not.toThrow();
   });

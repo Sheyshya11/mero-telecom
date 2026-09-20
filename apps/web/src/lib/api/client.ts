@@ -71,13 +71,15 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
+    const responseMessage =
+      typeof body === 'object' && body !== null && 'message' in body ? body.message : undefined;
     const message =
-      typeof body === 'object' &&
-      body !== null &&
-      'message' in body &&
-      typeof body.message === 'string'
-        ? body.message
-        : 'The request could not be completed.';
+      typeof responseMessage === 'string'
+        ? responseMessage
+        : Array.isArray(responseMessage) &&
+            responseMessage.every((item) => typeof item === 'string')
+          ? responseMessage.join(' ')
+          : 'The request could not be completed.';
     throw new ApiError(message, response.status);
   }
 

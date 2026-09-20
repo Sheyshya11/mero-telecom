@@ -1,7 +1,11 @@
-import { IsOptional, IsString, Length, MaxLength, Matches } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsIn, IsOptional, IsString, MaxLength, Matches, MinLength } from 'class-validator';
+
+export const AUSTRALIAN_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'] as const;
 
 export class AddressDto {
   @IsString()
+  @MinLength(1)
   @MaxLength(255)
   addressLine1!: string;
 
@@ -11,11 +15,15 @@ export class AddressDto {
   addressLine2?: string;
 
   @IsString()
+  @MinLength(1)
   @MaxLength(100)
   suburb!: string;
 
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
   @IsString()
-  @Length(2, 3)
+  @IsIn(AUSTRALIAN_STATES)
   state!: string;
 
   @IsString()

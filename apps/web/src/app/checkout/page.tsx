@@ -17,6 +17,7 @@ import type {
   CoverageResult,
   PublicCheckoutContext,
 } from '../../features/coverage/coverage.types';
+import type { PublicInternetPlan } from '../../features/plans/plan.types';
 import { ApiError, apiRequest } from '../../lib/api/client';
 
 const checkoutSchema = z
@@ -57,14 +58,7 @@ const checkoutSchema = z
 
 type CheckoutValues = z.infer<typeof checkoutSchema>;
 
-interface PublicPlan {
-  id: string;
-  name: string;
-  description: string | null;
-  downloadMbps: number;
-  uploadMbps: number;
-  monthlyCents: number;
-}
+type PublicPlan = PublicInternetPlan;
 
 export default function CheckoutPage() {
   return (

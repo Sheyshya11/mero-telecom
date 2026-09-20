@@ -42,7 +42,7 @@ function createPrisma() {
       count: jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(0),
       findMany: jest
         .fn()
-        .mockResolvedValueOnce([{ plan: { monthlyCents: 6900 } }])
+        .mockResolvedValueOnce([{ monthlyCents: 6900 }])
         .mockResolvedValueOnce([]),
       groupBy: jest
         .fn()
@@ -343,6 +343,7 @@ describe('DashboardService customer summary', () => {
         findFirst: jest.fn().mockResolvedValue({
           id: 'subscription-1',
           status: SubscriptionStatus.ACTIVE,
+          monthlyCents: 9900,
           startDate: new Date('2026-08-24T00:00:00.000Z'),
           currentPeriodEnd: new Date('2026-09-24T00:00:00.000Z'),
           createdAt: new Date('2026-08-24T00:00:00.000Z'),

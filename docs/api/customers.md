@@ -10,14 +10,23 @@ All customer endpoints require a bearer access token.
 | `GET/PATCH /api/v1/customers/me`                       | CUSTOMER                     | Read/update the authenticated customer profile.            |
 | `POST /api/v1/customers/:customerId/invitation/resend` | ADMIN                        | Revoke old links and send a new activation link.           |
 
-STAFF and CUSTOMER updates are deliberately limited to approved contact/address fields. Only an
-ADMIN can change customer identity fields or account status.
+STAFF updates are deliberately limited to approved contact and residential-address fields.
+CUSTOMER self-service updates affect contact details and the stored service address. Only an ADMIN
+can change customer identity fields or account status.
 
 Admin creation never accepts or generates a password. It creates a nullable-password `User` and
 an `INVITATION_PENDING` customer, stores residential/service/billing addresses, and sends a
 single-use activation URL. Only a SHA-256 hash of the random token is stored. Activation sets the
 customer-chosen bcrypt password and changes both account records to `ACTIVE`. Suspended,
 deactivated, or invitation-pending users cannot log in or refresh a session.
+
+Customer creation returns `invitationQueued` so the operator can distinguish a created account from
+a successfully queued invitation email. Resending an invitation similarly returns `{ queued }`.
+Account-status changes keep the customer and login records aligned and revoke existing sessions.
+
+The customer list supports `accountStatus`, current-plan and subscription-status filters. The
+`NO_SUBSCRIPTION` value means no current/pending service; ended subscription history is preserved
+and does not exclude the customer.
 
 Public `POST /api/v1/auth/activation/verify`, `POST /api/v1/auth/activation`, and
 `POST /api/v1/auth/activation/resend` support the activation UI. Resend returns a neutral response

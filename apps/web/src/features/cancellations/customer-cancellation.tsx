@@ -72,17 +72,21 @@ export function CustomerCancellation({
     status: string;
     currentPeriodStart: string;
     currentPeriodEnd: string;
+    monthlyCents: number;
     plan: { name: string; monthlyCents: number };
   };
   accessToken: string | null;
 }>) {
   const queryClient = useQueryClient();
+  const canCancel = ['ACTIVE', 'PAST_DUE', 'SUSPENDED'].includes(subscription.status);
+  const canSchedule = subscription.status === 'ACTIVE';
   const [step, setStep] = useState(0);
-  const [type, setType] = useState<CancellationType>('END_OF_PERIOD');
+  const [type, setType] = useState<CancellationType>(canSchedule ? 'END_OF_PERIOD' : 'IMMEDIATE');
   const [reason, setReason] = useState<CancellationReason>('MOVING_HOME');
   const [reasonDetails, setReasonDetails] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const cancellationType: CancellationType = canSchedule ? type : 'IMMEDIATE';
 
   const cancellation = useQuery({
     queryKey: ['subscription-cancellation', subscription.id],
@@ -95,14 +99,14 @@ export function CustomerCancellation({
     enabled: Boolean(accessToken),
   });
   const preview = useQuery({
-    queryKey: ['subscription-cancellation-preview', subscription.id, type],
+    queryKey: ['subscription-cancellation-preview', subscription.id, cancellationType],
     queryFn: () =>
       apiRequest<CancellationPreview>(
-        `/subscriptions/${subscription.id}/cancellation/preview?type=${type}`,
+        `/subscriptions/${subscription.id}/cancellation/preview?type=${cancellationType}`,
         {},
         accessToken,
       ),
-    enabled: Boolean(accessToken && step === 3 && subscription.status === 'ACTIVE'),
+    enabled: Boolean(accessToken && step === 3 && canCancel),
   });
   const requestCancellation = useMutation({
     mutationFn: () =>
@@ -111,7 +115,7 @@ export function CustomerCancellation({
         {
           method: 'POST',
           body: JSON.stringify({
-            type,
+            type: cancellationType,
             reason,
             reasonDetails: reasonDetails.trim() || undefined,
             confirmed,
@@ -263,7 +267,7 @@ export function CustomerCancellation({
     );
   }
 
-  if (subscription.status !== 'ACTIVE') return null;
+  if (!canCancel) return null;
 
   return (
     <section
@@ -289,10 +293,7 @@ export function CustomerCancellation({
         <div className="mt-5">
           <dl className="grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
             <Fact label="Current plan" value={subscription.plan.name} />
-            <Fact
-              label="Monthly price"
-              value={`${formatMoney(subscription.plan.monthlyCents)}/month`}
-            />
+            <Fact label="Monthly price" value={`${formatMoney(subscription.monthlyCents)}/month`} />
             <Fact
               label="Current billing period"
               value={`${formatDate(subscription.currentPeriodStart)} – ${formatDate(subscription.currentPeriodEnd)}`}
@@ -315,26 +316,33 @@ export function CustomerCancellation({
             <legend className="font-semibold text-slate-900">
               When would you like your service to end?
             </legend>
-            <label className="mt-3 flex gap-3 rounded-xl border border-slate-200 p-4">
-              <input
-                checked={type === 'END_OF_PERIOD'}
-                name="cancellation-type"
-                onChange={() => {
-                  setType('END_OF_PERIOD');
-                  setConfirmed(false);
-                }}
-                type="radio"
-              />
-              <span>
-                <strong>At the end of my current billing period</strong>
-                <span className="mt-1 block text-sm text-slate-600">
-                  Service continues until {formatDate(subscription.currentPeriodEnd)}.
+            {canSchedule ? (
+              <label className="mt-3 flex gap-3 rounded-xl border border-slate-200 p-4">
+                <input
+                  checked={type === 'END_OF_PERIOD'}
+                  name="cancellation-type"
+                  onChange={() => {
+                    setType('END_OF_PERIOD');
+                    setConfirmed(false);
+                  }}
+                  type="radio"
+                />
+                <span>
+                  <strong>At the end of my current billing period</strong>
+                  <span className="mt-1 block text-sm text-slate-600">
+                    Service continues until {formatDate(subscription.currentPeriodEnd)}.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+            ) : (
+              <p className="mt-3 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
+                Past-due or suspended services can only be cancelled as soon as possible.
+                Outstanding invoices remain payable after cancellation.
+              </p>
+            )}
             <label className="mt-3 flex gap-3 rounded-xl border border-slate-200 p-4">
               <input
-                checked={type === 'IMMEDIATE'}
+                checked={cancellationType === 'IMMEDIATE'}
                 name="cancellation-type"
                 onChange={() => {
                   setType('IMMEDIATE');
@@ -422,7 +430,11 @@ export function CustomerCancellation({
               <dl className="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
                 <Fact
                   label="Cancellation type"
-                  value={type === 'END_OF_PERIOD' ? 'End of billing period' : 'As soon as possible'}
+                  value={
+                    cancellationType === 'END_OF_PERIOD'
+                      ? 'End of billing period'
+                      : 'As soon as possible'
+                  }
                 />
                 <Fact label="Service end" value={formatDate(preview.data.proposedServiceEndAt)} />
                 <Fact

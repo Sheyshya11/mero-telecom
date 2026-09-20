@@ -769,6 +769,18 @@ describe('Mero Telecom API (e2e)', () => {
       })
       .expect(201);
     planId = plan.body.id;
+    await prisma.planCoverageRule.create({
+      data: { planId, technology: AccessTechnology.FTTP, scopeKey: 'GLOBAL' },
+    });
+    await request(app.getHttpServer())
+      .patch(`/api/v1/plans/${planId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        expectedUpdatedAt: plan.body.updatedAt,
+        isPublic: true,
+        isAvailable: true,
+      })
+      .expect(200);
 
     await request(app.getHttpServer())
       .post('/api/v1/payments/public-plan-checkout-session')
@@ -881,18 +893,16 @@ describe('Mero Telecom API (e2e)', () => {
         canRevoke: true,
       }),
     );
-    expect(
-      await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } }),
-    ).toEqual(expect.objectContaining({ status: SubscriptionStatus.CANCELLATION_PENDING }));
+    expect(await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } })).toEqual(
+      expect.objectContaining({ status: SubscriptionStatus.CANCELLATION_PENDING }),
+    );
 
     const repeated = await request(app.getHttpServer())
       .post(`/api/v1/subscriptions/${subscription.id}/cancellation`)
       .set('Authorization', `Bearer ${token}`)
       .send(scheduledInput)
       .expect(201);
-    expect(repeated.body).toEqual(
-      expect.objectContaining({ id: scheduled.body.id, reused: true }),
-    );
+    expect(repeated.body).toEqual(expect.objectContaining({ id: scheduled.body.id, reused: true }));
     expect(
       await prisma.cancellationRequest.count({ where: { subscriptionId: subscription.id } }),
     ).toBe(1);
@@ -908,9 +918,9 @@ describe('Mero Telecom API (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(201);
     expect(revoked.body.status).toBe(CancellationStatus.REVOKED);
-    expect(
-      await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } }),
-    ).toEqual(expect.objectContaining({ status: SubscriptionStatus.ACTIVE }));
+    expect(await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } })).toEqual(
+      expect.objectContaining({ status: SubscriptionStatus.ACTIVE }),
+    );
 
     const immediate = await request(app.getHttpServer())
       .post(`/api/v1/subscriptions/${subscription.id}/cancellation`)
@@ -930,9 +940,9 @@ describe('Mero Telecom API (e2e)', () => {
 
     const reconciled = await app.get(CancellationsService).reconcileDue(new Date(), 10);
     expect(reconciled.processed).toBeGreaterThanOrEqual(1);
-    expect(
-      await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } }),
-    ).toEqual(expect.objectContaining({ status: SubscriptionStatus.CANCELLED }));
+    expect(await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } })).toEqual(
+      expect.objectContaining({ status: SubscriptionStatus.CANCELLED }),
+    );
     expect(await prisma.invoice.findUnique({ where: { id: invoice.id } })).not.toBeNull();
     expect(
       await prisma.cancellationRequest.findUniqueOrThrow({ where: { id: immediate.body.id } }),
@@ -2920,7 +2930,20 @@ describe('Mero Telecom API (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ name, downloadMbps, uploadMbps, monthlyCents })
       .expect(201);
-    return response.body.id as string;
+    const id = response.body.id as string;
+    await prisma.planCoverageRule.create({
+      data: { planId: id, technology: AccessTechnology.FTTP, scopeKey: 'GLOBAL' },
+    });
+    await request(app.getHttpServer())
+      .patch(`/api/v1/plans/${id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        expectedUpdatedAt: response.body.updatedAt,
+        isPublic: true,
+        isAvailable: true,
+      })
+      .expect(200);
+    return id;
   }
 
   async function startUpgrade(subscriptionId: string, targetPlanId: string) {
@@ -3035,6 +3058,7 @@ describe('Mero Telecom API (e2e)', () => {
       data: {
         customerId,
         planId,
+        monthlyCents: 6900,
         startDate: currentPeriodStart,
         billingAnchorDay,
         currentPeriodStart,

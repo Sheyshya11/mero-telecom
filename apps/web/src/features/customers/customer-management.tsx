@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   DataTableControls,
   DataTablePagination,
@@ -11,6 +11,7 @@ import {
 } from '../../components/data-table';
 
 import { useAuth } from '../auth/auth-provider';
+import { hasRole } from '../auth/auth-navigation';
 import { usePlanOptions } from '../plans/use-plan-options';
 import { ApiError } from '../../lib/api/client';
 import {
@@ -27,7 +28,7 @@ export function CustomerManagement() {
   const { accessToken, isLoading, user } = useAuth();
   const queryClient = useQueryClient();
   const table = useTableQueryParams([
-    'status',
+    'accountStatus',
     'subscriptionStatus',
     'planId',
     'state',
@@ -39,24 +40,54 @@ export function CustomerManagement() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
-  const planOptions = usePlanOptions(accessToken, isAdmin || user?.role === 'STAFF');
+  const [notice, setNotice] = useState<{
+    tone: 'success' | 'warning' | 'error';
+    text: string;
+  } | null>(null);
+  const formDialogRef = useRef<HTMLElement>(null);
+  const detailsDialogRef = useRef<HTMLElement>(null);
+  const isAdmin = Boolean(user && hasRole(user, 'SUPER_ADMIN', 'ADMIN'));
+  const isInternal = Boolean(user && hasRole(user, 'SUPER_ADMIN', 'ADMIN', 'STAFF'));
+  const planOptions = usePlanOptions(accessToken, isInternal);
+
+  useEffect(() => {
+    if (table.values.subscriptionStatus === 'NO_SUBSCRIPTION' && table.values.planId) {
+      table.update({ planId: '' });
+    }
+  }, [table.update, table.values.planId, table.values.subscriptionStatus]);
+
+  useDialogFocus(isFormOpen, formDialogRef, () => {
+    setIsFormOpen(false);
+    setEditingCustomer(null);
+    setError(null);
+  });
+  useDialogFocus(Boolean(selectedCustomer), detailsDialogRef, () => setSelectedCustomer(null));
 
   const queryKey = ['customers', table.query];
   const customersQuery = useQuery({
     queryKey,
     queryFn: () => getCustomers(accessToken ?? '', table.page, table.values.search, table.query),
     placeholderData: keepPreviousData,
-    enabled: Boolean(accessToken && (isAdmin || user?.role === 'STAFF')),
+    enabled: Boolean(
+      accessToken &&
+      isInternal &&
+      !(table.values.subscriptionStatus === 'NO_SUBSCRIPTION' && table.values.planId),
+    ),
   });
 
   const createMutation = useMutation({
     mutationFn: (values: CustomerFormValues) => createCustomer(accessToken ?? '', values),
-    onSuccess: async () => {
+    onSuccess: async (customer) => {
       await queryClient.invalidateQueries({ queryKey: ['customers'] });
       closeForm();
+      setNotice({
+        tone: customer.invitationQueued ? 'success' : 'warning',
+        text: customer.invitationQueued
+          ? 'Customer created and the invitation email was queued.'
+          : 'Customer created, but the invitation email could not be queued. Use “Resend invitation” after checking email delivery.',
+      });
     },
-    onError: showError,
+    onError: showFormError,
   });
   const updateMutation = useMutation({
     mutationFn: (values: CustomerFormValues) =>
@@ -65,18 +96,29 @@ export function CustomerManagement() {
       await queryClient.invalidateQueries({ queryKey: ['customers'] });
       closeForm();
     },
-    onError: showError,
+    onError: showFormError,
   });
   const resendMutation = useMutation({
     mutationFn: (customerId: string) => resendCustomerInvitation(accessToken ?? '', customerId),
-    onSuccess: async () => {
+    onSuccess: async ({ queued }) => {
       await queryClient.invalidateQueries({ queryKey: ['customers'] });
-      setError(null);
+      setNotice({
+        tone: queued ? 'success' : 'warning',
+        text: queued
+          ? 'A new invitation email was queued.'
+          : 'A new invitation link was created, but its email could not be queued. Check email delivery before trying again.',
+      });
     },
-    onError: showError,
+    onError: (reason) => {
+      setNotice({
+        tone: 'error',
+        text:
+          reason instanceof ApiError ? reason.message : 'Unable to resend the customer invitation.',
+      });
+    },
   });
 
-  function showError(reason: Error) {
+  function showFormError(reason: Error) {
     setError(reason instanceof ApiError ? reason.message : 'Unable to save the customer.');
   }
 
@@ -103,7 +145,7 @@ export function CustomerManagement() {
     return <StatusMessage message="Sign in with the seeded admin account to manage customers." />;
   }
 
-  if (!isAdmin && user.role !== 'STAFF') {
+  if (!isInternal) {
     return <StatusMessage message="Customer management requires staff access." />;
   }
 
@@ -162,12 +204,12 @@ export function CustomerManagement() {
         <DataTableControls
           state={table}
           placeholder="Search customers by name, email, phone or account number..."
-          sorts={['createdAt', 'updatedAt', 'firstName', 'lastName', 'email', 'status']}
+          sorts={['createdAt', 'updatedAt', 'firstName', 'lastName', 'email']}
           fields={[
             {
-              key: 'status',
+              key: 'accountStatus',
               label: 'Account status',
-              options: ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'INVITATION_PENDING'],
+              options: ['ACTIVE', 'DEACTIVATED', 'SUSPENDED', 'INVITATION_PENDING'],
             },
             {
               key: 'subscriptionStatus',
@@ -182,7 +224,9 @@ export function CustomerManagement() {
                 'NO_SUBSCRIPTION',
               ],
             },
-            { key: 'planId', label: 'Plan', options: planOptions },
+            ...(table.values.subscriptionStatus === 'NO_SUBSCRIPTION'
+              ? []
+              : [{ key: 'planId', label: 'Current plan', options: planOptions }]),
             {
               key: 'state',
               label: 'State',
@@ -193,6 +237,15 @@ export function CustomerManagement() {
             { key: 'createdTo', label: 'Created to', type: 'date' },
           ]}
         />
+
+        {notice ? (
+          <p
+            className={`mt-5 rounded-md p-3 text-sm ${noticeTone(notice.tone)}`}
+            role={notice.tone === 'error' ? 'alert' : 'status'}
+          >
+            {notice.text}
+          </p>
+        ) : null}
 
         {customersQuery.isPending ? <TableSkeleton /> : null}
         {customersQuery.isError ? (
@@ -225,11 +278,7 @@ export function CustomerManagement() {
                     </th>
                     <th className="px-3 py-3">Address</th>
                     <th className="px-3 py-3">Subscription</th>
-                    <th className="px-3 py-3">
-                      <SortHeader state={table} field="status">
-                        Account
-                      </SortHeader>
-                    </th>
+                    <th className="px-3 py-3">Account</th>
                     <th className="px-3 py-3" aria-label="Actions" />
                   </tr>
                 </thead>
@@ -293,10 +342,15 @@ export function CustomerManagement() {
                             <button
                               className="button-secondary"
                               disabled={resendMutation.isPending}
-                              onClick={() => resendMutation.mutate(customer.id)}
+                              onClick={() => {
+                                setNotice(null);
+                                resendMutation.mutate(customer.id);
+                              }}
                               type="button"
                             >
-                              Resend invitation
+                              {resendMutation.isPending && resendMutation.variables === customer.id
+                                ? 'Sending…'
+                                : 'Resend invitation'}
                             </button>
                           ) : null}
                         </div>
@@ -311,7 +365,7 @@ export function CustomerManagement() {
                 {table.values.search
                   ? 'No customers match your search.'
                   : [
-                        'status',
+                        'accountStatus',
                         'subscriptionStatus',
                         'planId',
                         'state',
@@ -334,13 +388,15 @@ export function CustomerManagement() {
       </section>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-10 grid place-items-center bg-slate-950/40 p-4">
+        <div className="fixed inset-0 z-10 overflow-y-auto bg-slate-950/40 p-4 sm:grid sm:place-items-center">
           <section
+            aria-labelledby="customer-form-title"
             aria-modal="true"
-            className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl"
+            className="mx-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
+            ref={formDialogRef}
             role="dialog"
           >
-            <h2 className="text-xl font-bold text-slate-950">
+            <h2 className="text-xl font-bold text-slate-950" id="customer-form-title">
               {editingCustomer ? 'Edit customer' : 'Create customer'}
             </h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -363,10 +419,12 @@ export function CustomerManagement() {
         </div>
       ) : null}
       {selectedCustomer ? (
-        <div className="fixed inset-0 z-10 grid place-items-center bg-slate-950/40 p-4">
+        <div className="fixed inset-0 z-10 overflow-y-auto bg-slate-950/40 p-4 sm:grid sm:place-items-center">
           <section
+            aria-labelledby="customer-details-title"
             aria-modal="true"
-            className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl"
+            className="mx-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
+            ref={detailsDialogRef}
             role="dialog"
           >
             <div className="flex items-start justify-between gap-4">
@@ -374,7 +432,7 @@ export function CustomerManagement() {
                 <p className="text-sm font-semibold tracking-wide text-sky-700">
                   {selectedCustomer.customerNumber}
                 </p>
-                <h2 className="mt-1 text-xl font-bold text-slate-950">
+                <h2 className="mt-1 text-xl font-bold text-slate-950" id="customer-details-title">
                   {selectedCustomer.firstName} {selectedCustomer.lastName}
                 </h2>
               </div>
@@ -456,5 +514,66 @@ function Detail({ label, value }: Readonly<{ label: string; value: string }>) {
       <dt className="font-medium text-slate-500">{label}</dt>
       <dd className="mt-1 break-words text-slate-900">{value}</dd>
     </div>
+  );
+}
+
+function noticeTone(tone: 'success' | 'warning' | 'error') {
+  if (tone === 'success') return 'bg-emerald-50 text-emerald-800';
+  if (tone === 'warning') return 'bg-amber-50 text-amber-900';
+  return 'bg-rose-50 text-rose-800';
+}
+
+function useDialogFocus(
+  open: boolean,
+  dialogRef: React.RefObject<HTMLElement | null>,
+  close: () => void,
+) {
+  const closeRef = useRef(close);
+  closeRef.current = close;
+
+  useEffect(() => {
+    if (!open || !dialogRef.current) return;
+    const dialog = dialogRef.current;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusable = focusableElements(dialog);
+    focusable[0]?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const elements = focusableElements(dialog);
+      if (!elements.length) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [dialogRef, open]);
+}
+
+function focusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]',
+    ),
   );
 }
