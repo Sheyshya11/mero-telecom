@@ -8,16 +8,7 @@ import { apiRequest } from '../../lib/api/client';
 import styles from '../../styles/landing.module.css';
 import { getHomeRoute, hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
-
-interface PublicPlan {
-  id: string;
-  name: string;
-  description: string | null;
-  highlights?: string[];
-  downloadMbps: number;
-  uploadMbps: number;
-  monthlyCents: number;
-}
+import type { PublicInternetPlan } from './plan.types';
 
 function formatMonthlyPrice(monthlyCents: number): string {
   const amount = monthlyCents / 100;
@@ -50,7 +41,7 @@ export function PublicPlanGrid({
   const isLanding = variant === 'landing';
   const query = useQuery({
     queryKey: ['public-plans'],
-    queryFn: () => apiRequest<PublicPlan[]>('/plans/public'),
+    queryFn: () => apiRequest<PublicInternetPlan[]>('/plans/public'),
   });
 
   if (query.isPending) {
@@ -93,7 +84,7 @@ export function PublicPlanGrid({
   return (
     <div className={isLanding ? styles.plansGrid : 'mt-8 grid gap-5 md:grid-cols-3'}>
       {query.data.map((plan) => {
-        const isPopular = isLanding && plan.downloadMbps === 50;
+        const isPopular = isLanding && plan.isFeatured;
         const highlights = plan.highlights?.length
           ? plan.highlights
           : getPlanHighlights(plan.downloadMbps);

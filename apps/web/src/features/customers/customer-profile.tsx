@@ -9,14 +9,15 @@ import { z } from 'zod';
 import { ApiError, apiRequest } from '../../lib/api/client';
 import { hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
+import { australianStates } from './customer.schemas';
 import type { Customer } from './customer.types';
 
 const profileSchema = z.object({
   phone: z.string().regex(/^(?:\+61|0)4\d{8}$/, 'Enter an Australian mobile number.'),
-  addressLine1: z.string().min(1, 'Address is required.').max(255),
-  addressLine2: z.string().max(255),
-  suburb: z.string().min(1, 'Suburb is required.').max(100),
-  state: z.string().min(2).max(3),
+  addressLine1: z.string().trim().min(1, 'Address is required.').max(255),
+  addressLine2: z.string().trim().max(255),
+  suburb: z.string().trim().min(1, 'Suburb is required.').max(100),
+  state: z.enum(australianStates, 'Select an Australian state or territory.'),
   postcode: z.string().regex(/^\d{4}$/, 'Enter a four-digit postcode.'),
 });
 
@@ -44,13 +45,14 @@ export function CustomerProfile() {
 
   useEffect(() => {
     if (!profile.data) return;
+    const address = profile.data.serviceAddress ?? profile.data;
     form.reset({
       phone: profile.data.phone,
-      addressLine1: profile.data.addressLine1,
-      addressLine2: profile.data.addressLine2 ?? '',
-      suburb: profile.data.suburb,
-      state: profile.data.state,
-      postcode: profile.data.postcode,
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2 ?? '',
+      suburb: address.suburb,
+      state: address.state as ProfileValues['state'],
+      postcode: address.postcode,
     });
   }, [form, profile.data]);
 
@@ -109,7 +111,11 @@ export function CustomerProfile() {
               <input className="field" {...form.register('suburb')} />
             </Field>
             <Field label="State" error={form.formState.errors.state?.message}>
-              <input className="field" {...form.register('state')} />
+              <select className="field" {...form.register('state')}>
+                {australianStates.map((state) => (
+                  <option key={state}>{state}</option>
+                ))}
+              </select>
             </Field>
             <Field label="Postcode" error={form.formState.errors.postcode?.message}>
               <input className="field" inputMode="numeric" {...form.register('postcode')} />

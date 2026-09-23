@@ -1,6 +1,6 @@
 import { apiRequest } from '../../lib/api/client';
 import type { CustomerFormValues } from './customer.schemas';
-import type { Customer, PaginatedCustomers } from './customer.types';
+import type { Customer, CustomerCreationResult, PaginatedCustomers } from './customer.types';
 
 export function getCustomers(
   accessToken: string,
@@ -21,20 +21,23 @@ export function getCustomers(
   );
 }
 
-export function createCustomer(accessToken: string, input: CustomerFormValues): Promise<Customer> {
+export function createCustomer(
+  accessToken: string,
+  input: CustomerFormValues,
+): Promise<CustomerCreationResult> {
   const customerInput = {
     firstName: input.firstName,
     lastName: input.lastName,
     email: input.email,
     phone: input.phone,
     addressLine1: input.addressLine1,
-    addressLine2: input.addressLine2,
+    addressLine2: input.addressLine2?.trim() || undefined,
     suburb: input.suburb,
     state: input.state,
     postcode: input.postcode,
   };
 
-  return apiRequest<Customer>(
+  return apiRequest<CustomerCreationResult>(
     '/customers',
     { method: 'POST', body: JSON.stringify(customerInput) },
     accessToken,
@@ -48,7 +51,10 @@ export function updateCustomer(
 ): Promise<Customer> {
   return apiRequest<Customer>(
     `/customers/${customerId}`,
-    { method: 'PATCH', body: JSON.stringify(input) },
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ ...input, addressLine2: input.addressLine2?.trim() || null }),
+    },
     accessToken,
   );
 }

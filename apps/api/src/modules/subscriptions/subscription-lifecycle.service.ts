@@ -144,14 +144,23 @@ export class SubscriptionLifecycleService {
   async markDueInvoicesOverdue(now = new Date()): Promise<number> {
     const invoices = await this.prisma.invoice.findMany({
       where: {
-        status: InvoiceStatus.ISSUED,
-        dueDate: { lt: now },
-        subscriptionId: { not: null },
+        OR: [
+          {
+            status: InvoiceStatus.ISSUED,
+            dueDate: { lt: now },
+            subscriptionId: { not: null },
+          },
+          {
+            status: InvoiceStatus.OVERDUE,
+            subscription: { is: { status: SubscriptionStatus.ACTIVE } },
+          },
+        ],
       },
       select: { id: true },
       orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
       take: this.batchSize,
     });
+    let processed = 0;
     for (const invoice of invoices) {
       const result = await this.prisma.$transaction(
         async (transaction) => {
@@ -159,17 +168,23 @@ export class SubscriptionLifecycleService {
             where: { id: invoice.id },
             include: lifecycleInvoiceInclude,
           });
-          if (!current || current.status !== InvoiceStatus.ISSUED) return null;
+          if (
+            !current ||
+            (current.status !== InvoiceStatus.ISSUED && current.status !== InvoiceStatus.OVERDUE)
+          ) {
+            return null;
+          }
           return this.markPastDue(transaction, current, now);
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
+      if (result) processed += 1;
       if (result?.statusChanged) {
         await this.notify(result.invoice, 'OVERDUE_REMINDER', 'initial');
       }
     }
-    if (invoices.length) await this.dashboardCache.invalidate();
-    return invoices.length;
+    if (processed) await this.dashboardCache.invalidate();
+    return processed;
   }
 
   async handleConfirmedPayment(invoiceId: string): Promise<void> {
@@ -308,13 +323,20 @@ export class SubscriptionLifecycleService {
           data: { suspensionWarningSentAt: now },
         });
         if (claimed.count) {
-          await this.notifyRecord(
+          const delivered = await this.notifyRecord(
             subscription,
             subscription.customer,
             invoice,
             'SUSPENSION_WARNING',
             'warning',
           );
+          if (!delivered) {
+            await this.prisma.subscription.updateMany({
+              where: { id: subscription.id, suspensionWarningSentAt: now },
+              data: { suspensionWarningSentAt: null },
+            });
+            continue;
+          }
           await this.prisma.auditLog.create({
             data: {
               action: 'SUSPENSION_WARNING_SENT',
@@ -340,13 +362,20 @@ export class SubscriptionLifecycleService {
         data: { overdueReminderStage: stage },
       });
       if (claimed.count) {
-        await this.notifyRecord(
+        const delivered = await this.notifyRecord(
           subscription,
           subscription.customer,
           invoice,
           'OVERDUE_REMINDER',
           `day-${elapsedDays}`,
         );
+        if (!delivered) {
+          await this.prisma.subscription.updateMany({
+            where: { id: subscription.id, overdueReminderStage: stage },
+            data: { overdueReminderStage: subscription.overdueReminderStage },
+          });
+          continue;
+        }
         await this.prisma.auditLog.create({
           data: {
             action: 'OVERDUE_REMINDER_SENT',
@@ -396,27 +425,59 @@ export class SubscriptionLifecycleService {
   }
 
   async extendGracePeriod(id: string, days: number, actor: AuthenticatedUser) {
-    const subscription = await this.prisma.subscription.findUnique({ where: { id } });
-    if (!subscription) throw new NotFoundException('Subscription not found.');
-    if (subscription.status !== SubscriptionStatus.PAST_DUE || !subscription.gracePeriodEndsAt) {
-      throw new BadRequestException(
-        'Only a past-due subscription can have its grace period extended.',
-      );
-    }
-    const gracePeriodEndsAt = addUtcDays(subscription.gracePeriodEndsAt, days);
-    const updated = await this.prisma.subscription.update({
-      where: { id },
-      data: { gracePeriodEndsAt, suspensionWarningSentAt: null },
-    });
-    await this.prisma.auditLog.create({
-      data: {
-        actorUserId: actor.id,
-        action: 'OVERDUE_GRACE_PERIOD_EXTENDED',
-        entityType: 'Subscription',
-        entityId: id,
-        metadata: { days, previousEndsAt: subscription.gracePeriodEndsAt, gracePeriodEndsAt },
+    const updated = await this.prisma.$transaction(
+      async (transaction) => {
+        const subscription = await transaction.subscription.findUnique({ where: { id } });
+        if (!subscription) throw new NotFoundException('Subscription not found.');
+        if (
+          subscription.status !== SubscriptionStatus.PAST_DUE ||
+          !subscription.gracePeriodEndsAt
+        ) {
+          throw new BadRequestException(
+            'Only a past-due subscription can have its grace period extended.',
+          );
+        }
+        const gracePeriodEndsAt = addUtcDays(subscription.gracePeriodEndsAt, days);
+        const terminationOffsetDays = Math.max(0, this.terminationDays - this.gracePeriodDays);
+        const eligibleForTerminationAt = subscription.eligibleForTerminationAt
+          ? addUtcDays(subscription.eligibleForTerminationAt, days)
+          : addUtcDays(gracePeriodEndsAt, terminationOffsetDays);
+        const changed = await transaction.subscription.updateMany({
+          where: {
+            id,
+            status: SubscriptionStatus.PAST_DUE,
+            gracePeriodEndsAt: subscription.gracePeriodEndsAt,
+            eligibleForTerminationAt: subscription.eligibleForTerminationAt,
+          },
+          data: {
+            gracePeriodEndsAt,
+            eligibleForTerminationAt,
+            suspensionWarningSentAt: null,
+          },
+        });
+        if (changed.count !== 1) {
+          throw new ConflictException('Subscription changed while its grace period was extended.');
+        }
+        await transaction.auditLog.create({
+          data: {
+            actorUserId: actor.id,
+            action: 'OVERDUE_GRACE_PERIOD_EXTENDED',
+            entityType: 'Subscription',
+            entityId: id,
+            metadata: {
+              days,
+              previousEndsAt: subscription.gracePeriodEndsAt,
+              gracePeriodEndsAt,
+              previousEligibleForTerminationAt: subscription.eligibleForTerminationAt,
+              eligibleForTerminationAt,
+            },
+          },
+        });
+        return transaction.subscription.findUniqueOrThrow({ where: { id } });
       },
-    });
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+    await this.dashboardCache.invalidate();
     return updated;
   }
 
@@ -736,9 +797,9 @@ export class SubscriptionLifecycleService {
     invoice: LifecycleInvoice,
     event: Parameters<NotificationService['sendOverdueLifecycleNotification']>[0]['event'],
     suffix: string,
-  ): Promise<void> {
-    if (!invoice.subscription) return;
-    await this.notifyRecord(invoice.subscription, invoice.customer, invoice, event, suffix);
+  ): Promise<boolean> {
+    if (!invoice.subscription) return false;
+    return this.notifyRecord(invoice.subscription, invoice.customer, invoice, event, suffix);
   }
 
   private async notifyRecord(
@@ -753,8 +814,8 @@ export class SubscriptionLifecycleService {
     invoice: Pick<LifecycleInvoice, 'invoiceNumber' | 'totalCents' | 'currency' | 'dueDate'>,
     event: Parameters<NotificationService['sendOverdueLifecycleNotification']>[0]['event'],
     suffix: string,
-  ): Promise<void> {
-    if (!subscription) return;
+  ): Promise<boolean> {
+    if (!subscription) return false;
     try {
       await this.notifications.sendOverdueLifecycleNotification({
         event,
@@ -769,6 +830,7 @@ export class SubscriptionLifecycleService {
         gracePeriodEndsAt: subscription.gracePeriodEndsAt,
         suspendedAt: subscription.suspendedAt,
       });
+      return true;
     } catch (error: unknown) {
       this.logger.error(
         JSON.stringify({
@@ -778,6 +840,7 @@ export class SubscriptionLifecycleService {
           error: error instanceof Error ? error.name : 'UnknownError',
         }),
       );
+      return false;
     }
   }
 

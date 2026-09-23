@@ -884,7 +884,7 @@ function ReportTable({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border/70">
               {rows.map((row, index) => (
                 <tr
                   key={String(

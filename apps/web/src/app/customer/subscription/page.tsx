@@ -7,16 +7,10 @@ import { useAuth } from '../../../features/auth/auth-provider';
 import { hasRole } from '../../../features/auth/auth-navigation';
 import { CustomerCancellation } from '../../../features/cancellations/customer-cancellation';
 import { PlanCheckoutButton } from '../../../features/payments/stripe-checkout-button';
+import type { PublicInternetPlan } from '../../../features/plans/plan.types';
 import { ApiError, apiRequest } from '../../../lib/api/client';
 
-type Plan = {
-  id: string;
-  name: string;
-  description: string | null;
-  downloadMbps: number;
-  uploadMbps: number;
-  monthlyCents: number;
-};
+type Plan = PublicInternetPlan;
 
 type Subscription = {
   id: string;
@@ -32,6 +26,7 @@ type Subscription = {
   startDate: string;
   currentPeriodStart: string;
   currentPeriodEnd: string;
+  monthlyCents: number;
   pastDueAt?: string | null;
   gracePeriodEndsAt?: string | null;
   suspendedAt?: string | null;
@@ -311,7 +306,7 @@ export default function CustomerSubscriptionPage() {
                 <h2 className="font-semibold text-foreground">{subscription.plan.name}</h2>
                 <p className="mt-2 text-muted-foreground">
                   {subscription.plan.downloadMbps}/{subscription.plan.uploadMbps} Mbps ·{' '}
-                  {formatMoney(subscription.plan.monthlyCents)}/month
+                  {formatMoney(subscription.monthlyCents)}/month
                 </p>
               </div>
               <span

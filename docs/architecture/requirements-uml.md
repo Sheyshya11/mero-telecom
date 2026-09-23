@@ -601,6 +601,7 @@ classDiagram
     +Boolean isActive
     +Boolean isPublic
     +Boolean isAvailable
+    +Boolean isFeatured
     +Int tierRank
   }
 
@@ -608,6 +609,7 @@ classDiagram
     +UUID id
     +UUID customerId
     +UUID planId
+    +Int monthlyCents
     +SubscriptionStatus status
     +Date startDate
     +Date endDate
@@ -880,6 +882,7 @@ classDiagram
     +Int downloadMbps
     +Int monthlyCents
     +Boolean isAvailable
+    +Boolean isFeatured
   }
 
   class Customer {

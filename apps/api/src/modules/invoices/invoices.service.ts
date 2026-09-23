@@ -57,7 +57,7 @@ export class InvoicesService {
             );
           }
 
-          const amounts = this.billing.calculateGstInclusiveAmounts(subscription.plan.monthlyCents);
+          const amounts = this.billing.calculateGstInclusiveAmounts(subscription.monthlyCents);
           const invoiceNumber = await this.nextInvoiceNumber(transaction, issueDate);
           const description = `${subscription.plan.name} monthly internet service — ${this.billing.billingPeriodLabel(issueDate)}`;
 

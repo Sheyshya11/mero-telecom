@@ -55,4 +55,37 @@ describe('Customer list query', () => {
     expect(findMany.mock.calls[0][0].where).not.toEqual({});
     expect(findMany.mock.calls[0][0].where.OR).toBeUndefined();
   });
+
+  it('filters account status through the linked login account', async () => {
+    await service.findAll(
+      Object.assign(new PaginationQueryDto(), { accountStatus: 'DEACTIVATED' }),
+    );
+    expect(findMany.mock.calls[0][0].where.user).toEqual({
+      is: { status: 'DEACTIVATED' },
+    });
+  });
+
+  it('treats customers with only ended services as having no current subscription', async () => {
+    await service.findAll(
+      Object.assign(new PaginationQueryDto(), { subscriptionStatus: 'NO_SUBSCRIPTION' }),
+    );
+    expect(findMany.mock.calls[0][0].where.subscriptions).toEqual({
+      none: {
+        status: {
+          in: expect.arrayContaining(['ACTIVE', 'PAST_DUE', 'PENDING', 'SUSPENDED']),
+        },
+      },
+    });
+  });
+
+  it('rejects a plan combined with the no-subscription filter', async () => {
+    await expect(
+      service.findAll(
+        Object.assign(new PaginationQueryDto(), {
+          subscriptionStatus: 'NO_SUBSCRIPTION',
+          planId: 'plan-id',
+        }),
+      ),
+    ).rejects.toThrow('A plan cannot be combined');
+  });
 });

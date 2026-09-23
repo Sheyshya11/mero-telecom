@@ -11,6 +11,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 export interface CancellationPolicyRecord {
   status: CancellationStatus;
   providerStatus: CancellationProviderStatus;
+  effectiveAt: Date;
   customer: { userId: string | null };
 }
 
@@ -43,14 +44,22 @@ export class CancellationWorkflowPolicyService {
   ): void {
     this.assertCanRequestActor(subscription, actor);
     if (actor.role === Role.CUSTOMER) {
-      if (subscription.status !== SubscriptionStatus.ACTIVE) {
-        throw new ConflictException('Only an active internet service can be cancelled online.');
+      if (
+        subscription.status !== SubscriptionStatus.ACTIVE &&
+        subscription.status !== SubscriptionStatus.PAST_DUE &&
+        subscription.status !== SubscriptionStatus.SUSPENDED
+      ) {
+        throw new ConflictException(
+          'Only a current or suspended internet service can be cancelled online.',
+        );
       }
       return;
     }
     if (
       subscription.status !== SubscriptionStatus.ACTIVE &&
-      subscription.status !== SubscriptionStatus.PENDING
+      subscription.status !== SubscriptionStatus.PENDING &&
+      subscription.status !== SubscriptionStatus.PAST_DUE &&
+      subscription.status !== SubscriptionStatus.SUSPENDED
     ) {
       throw new ConflictException(
         'This subscription cannot enter cancellation from its current state.',
@@ -58,14 +67,19 @@ export class CancellationWorkflowPolicyService {
     }
   }
 
-  assertCanRevoke(record: CancellationPolicyRecord, actor: AuthenticatedUser): void {
+  assertCanRevoke(
+    record: CancellationPolicyRecord,
+    actor: AuthenticatedUser,
+    now = new Date(),
+  ): void {
     if (actor.role === Role.CUSTOMER) this.assertCustomerOwns(record, actor);
     else if (actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN) {
       throw new ForbiddenException('You do not have permission to revoke this cancellation.');
     }
     if (
       record.status !== CancellationStatus.SCHEDULED ||
-      record.providerStatus !== CancellationProviderStatus.NOT_SUBMITTED
+      record.providerStatus !== CancellationProviderStatus.NOT_SUBMITTED ||
+      record.effectiveAt <= now
     ) {
       throw new ConflictException(
         'This cancellation is already being processed. Please contact Mero Telecom support.',

@@ -116,7 +116,7 @@ export class DashboardService {
       this.prisma.subscription.count({ where: { status: SubscriptionStatus.ACTIVE } }),
       this.prisma.subscription.findMany({
         where: { status: SubscriptionStatus.ACTIVE },
-        select: { plan: { select: { monthlyCents: true } } },
+        select: { monthlyCents: true },
       }),
       this.prisma.invoice.aggregate({
         where: { status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE] } },
@@ -406,7 +406,7 @@ export class DashboardService {
         customerCount,
         activeSubscriptions,
         monthlyRecurringRevenueCents: activeSubscriptionPlans.reduce(
-          (total, subscription) => total + subscription.plan.monthlyCents,
+          (total, subscription) => total + subscription.monthlyCents,
           0,
         ),
         outstandingInvoiceCents: outstanding._sum.totalCents ?? 0,
@@ -691,6 +691,7 @@ export class DashboardService {
           provisioningStatus: true,
           provisioningFailure: true,
           createdAt: true,
+          monthlyCents: true,
           plan: {
             select: {
               name: true,
@@ -1101,7 +1102,7 @@ export class DashboardService {
               name: currentSubscription.plan.name,
               downloadMbps: currentSubscription.plan.downloadMbps,
               uploadMbps: currentSubscription.plan.uploadMbps,
-              monthlyCents: currentSubscription.plan.monthlyCents,
+              monthlyCents: currentSubscription.monthlyCents,
             },
           }
         : null,
@@ -1119,7 +1120,7 @@ export class DashboardService {
         nextPaymentAmountCents:
           currentSubscription?.status === SubscriptionStatus.ACTIVE ||
           currentSubscription?.status === SubscriptionStatus.PAST_DUE
-            ? currentSubscription.plan.monthlyCents
+            ? currentSubscription.monthlyCents
             : null,
         nextBillingDate:
           currentSubscription?.status === SubscriptionStatus.ACTIVE ||

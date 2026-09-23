@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { customerSchema, type CustomerFormValues } from './customer.schemas';
+import { australianStates, customerSchema, type CustomerFormValues } from './customer.schemas';
 import type { Customer } from './customer.types';
 
 interface CustomerFormProps {
@@ -52,7 +52,7 @@ export function CustomerForm({
             addressLine1: customer.addressLine1,
             addressLine2: customer.addressLine2 ?? '',
             suburb: customer.suburb,
-            state: customer.state,
+            state: customer.state as CustomerFormValues['state'],
             postcode: customer.postcode,
             status: customer.status,
           }
@@ -64,7 +64,12 @@ export function CustomerForm({
     <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="First name" error={form.formState.errors.firstName?.message}>
-          <input className="field" readOnly={!canEditIdentity} {...form.register('firstName')} />
+          <input
+            autoFocus
+            className="field"
+            readOnly={!canEditIdentity}
+            {...form.register('firstName')}
+          />
         </Field>
         <Field label="Last name" error={form.formState.errors.lastName?.message}>
           <input className="field" readOnly={!canEditIdentity} {...form.register('lastName')} />
@@ -94,7 +99,11 @@ export function CustomerForm({
           <input className="field" {...form.register('suburb')} />
         </Field>
         <Field label="State" error={form.formState.errors.state?.message}>
-          <input className="field" {...form.register('state')} />
+          <select className="field" {...form.register('state')}>
+            {australianStates.map((state) => (
+              <option key={state}>{state}</option>
+            ))}
+          </select>
         </Field>
         <Field label="Postcode" error={form.formState.errors.postcode?.message}>
           <input className="field" inputMode="numeric" {...form.register('postcode')} />

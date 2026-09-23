@@ -33,7 +33,11 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { UpdateCustomerDto, UpdateOwnCustomerDto } from './dto/update-customer.dto';
 import { CustomersService } from './customers.service';
-import type { CustomerResponse, PaginatedCustomersResponse } from './customers.types';
+import type {
+  CustomerCreationResponse,
+  CustomerResponse,
+  PaginatedCustomersResponse,
+} from './customers.types';
 
 @ApiTags('customers')
 @ApiBearerAuth()
@@ -49,7 +53,7 @@ export class CustomersController {
   create(
     @Body() input: CreateCustomerDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<CustomerResponse> {
+  ): Promise<CustomerCreationResponse> {
     return this.customersService.create(input, user);
   }
 

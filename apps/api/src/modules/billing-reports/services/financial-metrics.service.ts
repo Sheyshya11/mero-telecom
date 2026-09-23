@@ -314,14 +314,13 @@ export class FinancialMetricsService {
         ...(query.customerId ? { customerId: query.customerId } : {}),
         ...(query.planId ? { planId: query.planId } : {}),
       },
-      select: { billingCycle: true, plan: { select: { monthlyCents: true } } },
+      select: { billingCycle: true, monthlyCents: true },
     });
     // MRR is GST-exclusive recurring plan value. Monthly is currently the only cadence;
     // the switch remains explicit so quarterly/yearly normalization can be added safely.
     const mrrCents = subscriptions.reduce((sum, subscription) => {
       const exclusive =
-        subscription.plan.monthlyCents -
-        this.calculations.gstFromInclusive(subscription.plan.monthlyCents);
+        subscription.monthlyCents - this.calculations.gstFromInclusive(subscription.monthlyCents);
       switch (subscription.billingCycle) {
         case 'MONTHLY':
           return sum + exclusive;

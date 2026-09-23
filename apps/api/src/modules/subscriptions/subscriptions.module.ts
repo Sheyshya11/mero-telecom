@@ -18,6 +18,6 @@ import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
     ProvisioningService,
     OverdueLifecycleSchedulerService,
   ],
-  exports: [SubscriptionLifecycleService, PaymentEligibilityService],
+  exports: [SubscriptionLifecycleService, PaymentEligibilityService, ProvisioningService],
 })
 export class SubscriptionsModule {}

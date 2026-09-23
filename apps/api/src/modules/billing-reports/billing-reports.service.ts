@@ -340,7 +340,7 @@ export class BillingReportsService {
                 },
               ],
             },
-            select: { id: true },
+            select: { id: true, monthlyCents: true },
           },
         },
       }),
@@ -371,9 +371,13 @@ export class BillingReportsService {
     const totalActive = plans.reduce((sum, plan) => sum + plan.subscriptions.length, 0);
     const data = plans.map((plan) => {
       const activeServices = plan.subscriptions.length;
-      const mrrCents =
-        activeServices *
-        (plan.monthlyCents - this.calculations.gstFromInclusive(plan.monthlyCents));
+      const mrrCents = plan.subscriptions.reduce(
+        (sum, subscription) =>
+          sum +
+          (subscription.monthlyCents -
+            this.calculations.gstFromInclusive(subscription.monthlyCents)),
+        0,
+      );
       const allInvoices = invoiceRows.filter(
         (invoice) => (invoice.purchasePlanId ?? invoice.subscription?.planId) === plan.id,
       );

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
 import { absoluteApiUrl, ApiError, apiRequest } from '../../lib/api/client';
+import { DataTablePagination, useTableQueryParams } from '../../components/data-table';
 import { hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
 import {
@@ -45,6 +46,8 @@ interface BillingInvoice {
 export function CustomerRefunds() {
   const { accessToken, isLoading, user } = useAuth();
   const queryClient = useQueryClient();
+  const paymentTable = useTableQueryParams([], 'payment');
+  const refundTable = useTableQueryParams([], 'refund');
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [reason, setReason] = useState<RefundReason>('SERVICE_UNAVAILABLE');
   const [details, setDetails] = useState('');
@@ -55,14 +58,17 @@ export function CustomerRefunds() {
   const [error, setError] = useState<string | null>(null);
 
   const invoices = useQuery({
-    queryKey: ['customer-invoices', 'refund-options'],
+    queryKey: ['customer-invoices', 'refund-options', paymentTable.query],
     queryFn: () =>
-      apiRequest<{ data: BillingInvoice[] }>('/invoices/me?limit=100', {}, accessToken),
+      apiRequest<{
+        data: BillingInvoice[];
+        meta: { page: number; limit: number; total: number; totalPages: number };
+      }>(`/invoices/me?${paymentTable.query}`, {}, accessToken),
     enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
   const refunds = useQuery({
-    queryKey: ['customer-refunds'],
-    queryFn: () => apiRequest<RefundList>('/me/refunds?limit=100', {}, accessToken),
+    queryKey: ['customer-refunds', refundTable.query],
+    queryFn: () => apiRequest<RefundList>(`/me/refunds?${refundTable.query}`, {}, accessToken),
     enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
   const requestRefund = useMutation({
@@ -97,10 +103,18 @@ export function CustomerRefunds() {
   });
 
   if (isLoading) return <Status message="Restoring your session…" />;
-  if (user?.role !== 'CUSTOMER') return <Status message="Customer access is required." />;
+  if (!user || !hasRole(user, 'CUSTOMER')) return <Status message="Customer access is required." />;
   if (invoices.isPending || refunds.isPending) return <Status message="Loading billing history…" />;
   if (invoices.isError || refunds.isError || !invoices.data || !refunds.data) {
-    return <Status message="Unable to load refund information." />;
+    return (
+      <Status
+        message="Unable to load refund information."
+        onRetry={() => {
+          void invoices.refetch();
+          void refunds.refetch();
+        }}
+      />
+    );
   }
 
   const activePaymentIds = new Set(
@@ -198,6 +212,12 @@ export function CustomerRefunds() {
             <p className="py-6 text-muted-foreground">No completed payments are available.</p>
           ) : null}
         </div>
+        <DataTablePagination
+          state={paymentTable}
+          meta={invoices.data.meta}
+          busy={invoices.isFetching}
+          noun="invoices"
+        />
       </section>
 
       {paymentId ? (
@@ -376,6 +396,12 @@ export function CustomerRefunds() {
             <p className="text-muted-foreground">You have not requested a refund.</p>
           ) : null}
         </div>
+        <DataTablePagination
+          state={refundTable}
+          meta={refunds.data.meta}
+          busy={refunds.isFetching}
+          noun="refund requests"
+        />
       </section>
     </main>
   );
@@ -588,10 +614,17 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function Status({ message }: Readonly<{ message: string }>) {
+function Status({ message, onRetry }: Readonly<{ message: string; onRetry?: () => void }>) {
   return (
     <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
-      <p>{message}</p>
+      <div>
+        <p>{message}</p>
+        {onRetry ? (
+          <button className="button-secondary mt-4" onClick={onRetry} type="button">
+            Retry
+          </button>
+        ) : null}
+      </div>
     </main>
   );
 }

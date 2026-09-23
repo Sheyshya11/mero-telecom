@@ -1,58 +1,37 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { hasRole } from '../../../features/auth/auth-navigation';
 import { useAuth } from '../../../features/auth/auth-provider';
+import type { InternetPlan } from '../../../features/plans/plan.types';
+import { formatPlanMoney, parsePlanHighlights } from '../../../features/plans/plan.utils';
 import { ApiError, apiRequest } from '../../../lib/api/client';
-
-interface Plan {
-  id: string;
-  name: string;
-  description: string | null;
-  highlights: string[];
-  downloadMbps: number;
-  uploadMbps: number;
-  monthlyCents: number;
-}
-
-function parseHighlights(value: string): string[] {
-  return value
-    .split('\n')
-    .map((highlight) => highlight.trim())
-    .filter(Boolean);
-}
-
-function formatMoney(cents: number): string {
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
 
 export default function StaffPlansPage() {
   const { accessToken, isLoading, user } = useAuth();
   const queryClient = useQueryClient();
-  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [editingPlan, setEditingPlan] = useState<InternetPlan | null>(null);
   const [highlightsText, setHighlightsText] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
-  const canEditHighlights =
-    user?.role === 'STAFF' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const dialogRef = useRef<HTMLElement>(null);
+  const mutationPendingRef = useRef(false);
+  const canEditHighlights = Boolean(user && hasRole(user, 'STAFF', 'ADMIN', 'SUPER_ADMIN'));
 
   const plansQuery = useQuery({
     queryKey: ['plans'],
-    queryFn: () => apiRequest<Plan[]>('/plans', {}, accessToken ?? ''),
+    queryFn: () => apiRequest<InternetPlan[]>('/plans', {}, accessToken ?? ''),
     enabled: Boolean(accessToken && canEditHighlights),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, highlights }: { id: string; highlights: string[] }) =>
-      apiRequest<Plan>(
-        `/plans/${id}/highlights`,
+    mutationFn: ({ plan, highlights }: { plan: InternetPlan; highlights: string[] }) =>
+      apiRequest<InternetPlan>(
+        `/plans/${plan.id}/highlights`,
         {
           method: 'PATCH',
-          body: JSON.stringify({ highlights }),
+          body: JSON.stringify({ highlights, expectedUpdatedAt: plan.updatedAt }),
         },
         accessToken ?? '',
       ),
@@ -66,6 +45,43 @@ export default function StaffPlansPage() {
       setValidationError(null);
     },
   });
+  mutationPendingRef.current = updateMutation.isPending;
+
+  useEffect(() => {
+    if (!editingPlan) return;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !mutationPendingRef.current) {
+        setEditingPlan(null);
+        return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [editingPlan]);
 
   if (isLoading) {
     return <PageStatus message="Restoring your session…" />;
@@ -87,9 +103,9 @@ export default function StaffPlansPage() {
       : requestError
         ? 'Unable to save the plan highlights.'
         : null);
-  const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
+  const isAdmin = hasRole(user, 'ADMIN', 'SUPER_ADMIN');
 
-  function startEditing(plan: Plan) {
+  function startEditing(plan: InternetPlan) {
     setEditingPlan(plan);
     setHighlightsText(plan.highlights.join('\n'));
     setValidationError(null);
@@ -99,7 +115,7 @@ export default function StaffPlansPage() {
   function saveHighlights() {
     if (!editingPlan) return;
 
-    const highlights = parseHighlights(highlightsText);
+    const highlights = parsePlanHighlights(highlightsText);
     if (highlights.length > 5) {
       setValidationError('Add no more than five highlights.');
       return;
@@ -110,7 +126,7 @@ export default function StaffPlansPage() {
     }
 
     setValidationError(null);
-    updateMutation.mutate({ id: editingPlan.id, highlights });
+    updateMutation.mutate({ plan: editingPlan, highlights });
   }
 
   return (
@@ -153,7 +169,7 @@ export default function StaffPlansPage() {
           <p className="p-6 text-muted-foreground">No plans have been created yet.</p>
         ) : null}
 
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-border/70">
           {plansQuery.data?.map((plan) => (
             <article
               className="grid gap-4 p-6 md:grid-cols-[minmax(0,1fr)_minmax(18rem,1.35fr)_auto] md:items-center"
@@ -162,7 +178,7 @@ export default function StaffPlansPage() {
               <div>
                 <h3 className="font-semibold text-foreground">{plan.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {plan.downloadMbps}/{plan.uploadMbps} Mbps · {formatMoney(plan.monthlyCents)}
+                  {plan.downloadMbps}/{plan.uploadMbps} Mbps · {formatPlanMoney(plan.monthlyCents)}
                   /month
                 </p>
                 {plan.description ? (
@@ -171,10 +187,10 @@ export default function StaffPlansPage() {
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {plan.highlights.length ? (
-                  plan.highlights.map((highlight) => (
+                  plan.highlights.map((highlight, index) => (
                     <span
                       className="rounded-full bg-primary-subtle px-2.5 py-1 text-xs font-medium text-primary"
-                      key={highlight}
+                      key={`${highlight}-${index}`}
                     >
                       {highlight}
                     </span>
@@ -192,11 +208,19 @@ export default function StaffPlansPage() {
       </section>
 
       {editingPlan ? (
-        <div className="fixed inset-0 z-20 grid place-items-center bg-overlay p-4">
+        <div
+          className="fixed inset-0 z-20 grid place-items-center bg-overlay p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !updateMutation.isPending) {
+              setEditingPlan(null);
+            }
+          }}
+        >
           <section
             aria-labelledby="highlight-editor-title"
             aria-modal="true"
-            className="w-full max-w-xl rounded-2xl bg-card p-6 shadow-2xl"
+            className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-card p-6 shadow-2xl"
+            ref={dialogRef}
             role="dialog"
           >
             <p className="text-sm font-semibold tracking-wide text-primary">BEST FOR</p>
@@ -221,7 +245,7 @@ export default function StaffPlansPage() {
               />
             </label>
             <p className="mt-2 text-xs text-muted-foreground">
-              {parseHighlights(highlightsText).length}/5 highlights
+              {parsePlanHighlights(highlightsText).length}/5 highlights
             </p>
             {errorMessage ? (
               <p className="mt-4 rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground">{errorMessage}</p>

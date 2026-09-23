@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 
+import { DataTablePagination, useTableQueryParams } from '../../components/data-table';
 import { apiRequest } from '../../lib/api/client';
 import { hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
@@ -14,14 +15,15 @@ type CustomerInvoiceApi = Omit<CustomerInvoice, 'paymentStatus' | 'payment'> & {
 
 interface InvoiceListResponse {
   data: CustomerInvoiceApi[];
-  meta: { page: number; total: number; totalPages: number };
+  meta: { page: number; limit: number; total: number; totalPages: number };
 }
 
 export function CustomerInvoiceHistory() {
   const { accessToken, isLoading, user } = useAuth();
+  const table = useTableQueryParams([]);
   const invoicesQuery = useQuery({
-    queryKey: ['customer-invoices'],
-    queryFn: () => apiRequest<InvoiceListResponse>('/invoices/me?limit=50', {}, accessToken),
+    queryKey: ['customer-invoices', table.query],
+    queryFn: () => apiRequest<InvoiceListResponse>(`/invoices/me?${table.query}`, {}, accessToken),
     enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
   });
 
@@ -47,7 +49,7 @@ export function CustomerInvoiceHistory() {
         <div>
           <p className="text-sm font-semibold tracking-wide text-primary">BILLING · INVOICES</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">Invoice history</h1>
-          <p className="mt-2 text-muted-foreground">All invoices issued to your customer account.</p>
+          <p className="mt-2 text-muted-foreground">Invoices issued to your customer account.</p>
         </div>
       </header>
       <section className="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -74,6 +76,12 @@ export function CustomerInvoiceHistory() {
         ) : (
           <p className="px-6 py-8 text-muted-foreground">You do not have any invoices yet.</p>
         )}
+        <DataTablePagination
+          state={table}
+          meta={invoicesQuery.data.meta}
+          busy={invoicesQuery.isFetching}
+          noun="invoices"
+        />
       </section>
     </main>
   );

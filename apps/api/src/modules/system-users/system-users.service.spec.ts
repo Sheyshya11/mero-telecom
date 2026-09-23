@@ -47,6 +47,7 @@ function transaction(overrides: Record<string, unknown> = {}) {
       ),
     },
     refreshSession: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    customer: { update: jest.fn().mockResolvedValue({}) },
     auditLog: { create: jest.fn().mockResolvedValue({}) },
     ...overrides,
   };
@@ -130,6 +131,30 @@ describe('SystemUsersService', () => {
     await expect(
       service.changeStatus(staffUser.id, { status: UserStatus.SUSPENDED }, admin, context),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('keeps a linked customer status aligned when a multi-role account is suspended', async () => {
+    const tx = transaction();
+    tx.user.findUnique.mockResolvedValue({
+      ...staffUser,
+      roles: [{ role: Role.CUSTOMER }, { role: Role.STAFF }],
+      customer: { id: 'customer-profile', firstName: 'A', lastName: 'Customer' },
+    });
+    tx.user.update.mockResolvedValue({
+      ...staffUser,
+      status: UserStatus.SUSPENDED,
+      isActive: false,
+      roles: [{ role: Role.CUSTOMER }, { role: Role.STAFF }],
+      customer: { id: 'customer-profile', firstName: 'A', lastName: 'Customer' },
+    });
+    const { service } = serviceFor(tx);
+
+    await service.changeStatus(staffUser.id, { status: UserStatus.SUSPENDED }, admin, context);
+
+    expect(tx.customer.update).toHaveBeenCalledWith({
+      where: { id: 'customer-profile' },
+      data: { status: 'SUSPENDED' },
+    });
   });
 
   it('prevents demotion or deactivation of the final active super administrator', async () => {

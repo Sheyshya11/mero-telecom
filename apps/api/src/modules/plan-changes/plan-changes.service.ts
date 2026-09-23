@@ -616,9 +616,7 @@ export class PlanChangesService {
       subscription.status === SubscriptionStatus.CANCELLATION_PENDING ||
       subscription.status === SubscriptionStatus.DISCONNECTION_PENDING
     ) {
-      throw new ConflictException(
-        'A cancellation is already in progress for this subscription.',
-      );
+      throw new ConflictException('A cancellation is already in progress for this subscription.');
     }
     if (subscription.status !== SubscriptionStatus.ACTIVE) {
       throw new BadRequestException('Only an active subscription can change plans.');
@@ -665,7 +663,7 @@ export class PlanChangesService {
       }
     }
     const proration = this.billing.calculatePlanChangeProration({
-      sourcePriceCents: subscription.plan.monthlyCents,
+      sourcePriceCents: subscription.monthlyCents,
       targetPriceCents: targetPlan.monthlyCents,
       currentPeriodStart: subscription.currentPeriodStart,
       currentPeriodEnd: subscription.currentPeriodEnd,
@@ -673,9 +671,9 @@ export class PlanChangesService {
     });
     return {
       type: proration.type as PlanChangeType,
-      currentPlan: this.planSummary(subscription.plan),
+      currentPlan: this.planSummary(subscription.plan, subscription.monthlyCents),
       targetPlan: this.planSummary(targetPlan),
-      currentPlanPriceCents: subscription.plan.monthlyCents,
+      currentPlanPriceCents: subscription.monthlyCents,
       targetPlanPriceCents: targetPlan.monthlyCents,
       currentPeriodStart: subscription.currentPeriodStart,
       currentPeriodEnd: subscription.currentPeriodEnd,
@@ -1225,7 +1223,7 @@ export class PlanChangesService {
       return 'TARGET_PLAN_UNAVAILABLE';
     }
     if (target.monthlyCents !== request.targetPlanPriceCents) return 'TARGET_PRICE_CHANGED';
-    if (request.sourcePlan.monthlyCents !== request.sourcePlanPriceCents) {
+    if (source.monthlyCents !== request.sourcePlanPriceCents) {
       return 'SOURCE_PRICE_CHANGED';
     }
     const blockers = await transaction.invoice.count({
@@ -1267,6 +1265,7 @@ export class PlanChangesService {
       data: {
         customerId: request.customerId,
         planId: request.targetPlanId,
+        monthlyCents: request.targetPlanPriceCents,
         status: SubscriptionStatus.ACTIVE,
         startDate: this.utcDate(effectiveAt),
         billingCycle: request.sourceSubscription.billingCycle,
@@ -1388,7 +1387,7 @@ export class PlanChangesService {
       },
       sourceSubscriptionId: request.sourceSubscriptionId,
       newSubscriptionId: request.newSubscriptionId,
-      currentPlan: this.planSummary(request.sourcePlan),
+      currentPlan: this.planSummary(request.sourcePlan, request.sourcePlanPriceCents),
       targetPlan: this.planSummary(request.targetPlan),
       type: request.type,
       status: request.status,
@@ -1412,19 +1411,22 @@ export class PlanChangesService {
     };
   }
 
-  private planSummary(plan: {
-    id: string;
-    name: string;
-    downloadMbps: number;
-    uploadMbps: number;
-    monthlyCents: number;
-  }): PlanSummary {
+  private planSummary(
+    plan: {
+      id: string;
+      name: string;
+      downloadMbps: number;
+      uploadMbps: number;
+      monthlyCents: number;
+    },
+    monthlyCents = plan.monthlyCents,
+  ): PlanSummary {
     return {
       id: plan.id,
       name: plan.name,
       downloadMbps: plan.downloadMbps,
       uploadMbps: plan.uploadMbps,
-      monthlyCents: plan.monthlyCents,
+      monthlyCents,
     };
   }
 

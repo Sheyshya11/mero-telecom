@@ -419,8 +419,10 @@ model Customer {
   cancellationRequests CancellationRequest[]
 
   @@index([lastName, firstName])
+  @@index([firstName, id])
   @@index([status])
   @@index([createdAt, id])
+  @@index([updatedAt, id])
   @@index([state, postcode])
 }
 
@@ -643,8 +645,9 @@ model InternetPlan {
   uploadMbps           Int
   monthlyCents         Int
   isActive             Boolean               @default(true)
-  isPublic             Boolean               @default(true)
-  isAvailable          Boolean               @default(true)
+  isPublic             Boolean               @default(false)
+  isAvailable          Boolean               @default(false)
+  isFeatured           Boolean               @default(false)
   tierRank             Int                   @default(0)
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
@@ -663,6 +666,7 @@ model Subscription {
   id                        String                       @id @default(uuid()) @db.Uuid
   customerId                String                       @db.Uuid
   planId                    String                       @db.Uuid
+  monthlyCents              Int
   status                    SubscriptionStatus           @default(PENDING)
   startDate                 DateTime                     @db.Date
   endDate                   DateTime?                    @db.Date
@@ -1194,7 +1198,7 @@ model PlanCoverageRule {
   isActive          Boolean          @default(true)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
-  plan              InternetPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  plan              InternetPlan     @relation(fields: [planId], references: [id], onDelete: Restrict)
   operatingRegion   OperatingRegion? @relation(fields: [operatingRegionId], references: [id], onDelete: Cascade)
 
   @@unique([planId, technology, scopeKey])

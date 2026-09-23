@@ -33,28 +33,28 @@ erDiagram
 
 ## Entity responsibilities
 
-| Entity                    | Purpose and important constraints                                              |
-| ------------------------- | ------------------------------------------------------------------------------ |
-| `User`                    | Login identity; nullable password until invitation activation; explicit state  |
-| `Customer`                | CRM and service address; unique number/email and optional unique user mapping  |
-| `CustomerAddress`         | Typed residential, service, and billing addresses                              |
-| `AccountInvitation`       | Hashed, expiring, single-use activation token and delivery lifecycle           |
-| `CheckoutApplication`     | Pre-payment applicant/consent snapshot and Stripe reconciliation state         |
-| `InternetPlan`            | Speed and GST-inclusive monthly cents; deactivation preserves history          |
-| `Subscription`            | Customer-to-plan history, explicit UTC billing period, and lifecycle           |
-| `PlanChangeRequest`       | Source/target snapshots, proration, Stripe state, scheduling, and traceability |
-| `Invoice`                 | Authoritative totals/status; subscription billing or an initial plan purchase  |
-| `InvoiceItem`             | Immutable billing description, quantity, unit cents, and amount cents          |
-| `InvoiceDocument`         | Private object key, MIME type, size, and one-record-per-invoice constraint     |
-| `Payment`                 | Provider/session identifiers, amount, state, and customer/invoice ownership    |
-| `PaymentWebhookEvent`     | Unique provider event ID for idempotent webhook processing                     |
-| `RefreshSession`          | Unique hash of a refresh token, expiry, and revocation timestamp               |
-| `AuditLog`                | Actor, action, entity reference, safe metadata, and creation timestamp         |
-| `OperatingRegion`         | Configurable AU state lifecycle; only SA starts active                         |
-| `PostcodeCoverage`        | One preliminary decision for an exact regional four-digit postcode             |
-| `AddressCoverageOverride` | Definitive provider-address exception that precedes postcode rules             |
-| `PlanCoverageRule`        | Technology/speed compatibility with optional region/postcode scope             |
-| `CoverageSearch`          | Privacy-safe outcome analytics without raw address or IP                       |
+| Entity                    | Purpose and important constraints                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `User`                    | Login identity; nullable password until invitation activation; explicit state      |
+| `Customer`                | CRM and service address; unique number/email and optional unique user mapping      |
+| `CustomerAddress`         | Typed residential, service, and billing addresses                                  |
+| `AccountInvitation`       | Hashed, expiring, single-use activation token and delivery lifecycle               |
+| `CheckoutApplication`     | Pre-payment applicant/consent snapshot and Stripe reconciliation state             |
+| `InternetPlan`            | Draft/publish lifecycle, featured state, speed, and GST-inclusive catalogue price  |
+| `Subscription`            | Customer-to-plan history, agreed monthly-price snapshot, UTC period, and lifecycle |
+| `PlanChangeRequest`       | Source/target snapshots, proration, Stripe state, scheduling, and traceability     |
+| `Invoice`                 | Authoritative totals/status; subscription billing or an initial plan purchase      |
+| `InvoiceItem`             | Immutable billing description, quantity, unit cents, and amount cents              |
+| `InvoiceDocument`         | Private object key, MIME type, size, and one-record-per-invoice constraint         |
+| `Payment`                 | Provider/session identifiers, amount, state, and customer/invoice ownership        |
+| `PaymentWebhookEvent`     | Unique provider event ID for idempotent webhook processing                         |
+| `RefreshSession`          | Unique hash of a refresh token, expiry, and revocation timestamp                   |
+| `AuditLog`                | Actor, action, entity reference, safe metadata, and creation timestamp             |
+| `OperatingRegion`         | Configurable AU state lifecycle; only SA starts active                             |
+| `PostcodeCoverage`        | One preliminary decision for an exact regional four-digit postcode                 |
+| `AddressCoverageOverride` | Definitive provider-address exception that precedes postcode rules                 |
+| `PlanCoverageRule`        | Technology/speed compatibility with optional region/postcode scope                 |
+| `CoverageSearch`          | Privacy-safe outcome analytics without raw address or IP                           |
 
 ## Relationship and deletion decisions
 
@@ -62,6 +62,10 @@ erDiagram
   provisioned, while one customer identity cannot represent multiple records.
 - Customer, plan, subscription, invoice, and payment relationships use restrictive deletes to
   preserve financial history.
+- A plan's catalogue price may change without repricing existing subscriptions; each subscription
+  stores the agreed `monthlyCents` used for recurring invoices, reporting, and plan-change previews.
+- Plan coverage rules restrict plan deletion. Published ordering is paused automatically when a
+  rule edit removes the plan's final active speed-compatible rule.
 - Deleting an invoice explicitly cascades only to its line items and private document metadata.
   The associated object must be managed by the storage lifecycle policy; normal application flows
   cancel invoices rather than deleting them.

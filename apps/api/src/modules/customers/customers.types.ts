@@ -15,6 +15,21 @@ interface CustomerWithSubscriptions extends Customer {
     status: UserStatus;
     invitations?: Array<{ status: AccountInvitationStatus; expiresAt: Date }>;
   } | null;
+  addresses?: Array<{
+    addressLine1: string;
+    addressLine2: string | null;
+    suburb: string;
+    state: string;
+    postcode: string;
+  }>;
+}
+
+export interface CustomerAddressResponse {
+  addressLine1: string;
+  addressLine2: string | null;
+  suburb: string;
+  state: string;
+  postcode: string;
 }
 
 export interface CustomerResponse {
@@ -32,12 +47,17 @@ export interface CustomerResponse {
   status: CustomerStatus;
   accountStatus: UserStatus | null;
   invitationStatus: AccountInvitationStatus | null;
+  serviceAddress: CustomerAddressResponse | null;
   currentSubscription: {
     status: SubscriptionStatus;
     plan: { id: string; name: string };
   } | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface CustomerCreationResponse extends CustomerResponse {
+  invitationQueued: boolean;
 }
 
 export interface PaginatedCustomersResponse {
@@ -70,6 +90,7 @@ export function toCustomerResponse(customer: CustomerWithSubscriptions): Custome
       invitation?.status === 'PENDING' && invitation.expiresAt <= new Date()
         ? 'EXPIRED'
         : (invitation?.status ?? null),
+    serviceAddress: customer.addresses?.[0] ?? null,
     currentSubscription: customer.subscriptions?.[0] ?? null,
     createdAt: customer.createdAt,
     updatedAt: customer.updatedAt,

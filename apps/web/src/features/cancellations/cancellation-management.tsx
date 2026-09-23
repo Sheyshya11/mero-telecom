@@ -43,7 +43,7 @@ interface CancellationRecord {
     lastName: string;
     email: string;
   };
-  subscription: { plan: { name: string; monthlyCents: number } };
+  subscription: { monthlyCents: number; plan: { name: string; monthlyCents: number } };
   requestedBy: { displayName: string | null; email: string };
   notes: Array<{
     id: string;
@@ -200,7 +200,10 @@ export function CancellationManagement() {
         </p>
       ) : null}
       {summary.isError ? (
-        <p className="mt-6 rounded-xl border border-destructive-border bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
+        <p
+          className="mt-6 rounded-xl border border-destructive-border bg-destructive-subtle p-4 text-sm text-destructive-foreground"
+          role="alert"
+        >
           Cancellation totals are temporarily unavailable.
         </p>
       ) : null}
@@ -266,7 +269,11 @@ export function CancellationManagement() {
         {list.isError ? (
           <div className="p-6 text-destructive-foreground" role="alert">
             <p>Unable to load cancellations.</p>
-            <button className="mt-2 font-semibold underline" onClick={() => list.refetch()} type="button">
+            <button
+              className="mt-2 font-semibold underline"
+              onClick={() => list.refetch()}
+              type="button"
+            >
               Try again
             </button>
           </div>
@@ -274,7 +281,7 @@ export function CancellationManagement() {
         {list.data?.data.length === 0 ? (
           <p className="p-6 text-muted-foreground">No cancellation requests match these filters.</p>
         ) : null}
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-border/70">
           {list.data?.data.map((request) => (
             <article
               className="grid gap-4 p-6 lg:grid-cols-[1.1fr_1.3fr_1fr_1fr_auto]"
@@ -297,7 +304,7 @@ export function CancellationManagement() {
               </div>
               <div className="text-sm text-muted-foreground">
                 <p>{request.subscription.plan.name}</p>
-                <p>{formatMoney(request.subscription.plan.monthlyCents)}/month</p>
+                <p>{formatMoney(request.subscription.monthlyCents)}/month</p>
                 <p className="font-mono text-xs">{request.subscriptionId.slice(0, 8)}</p>
               </div>
               <div className="text-sm text-muted-foreground">
@@ -348,7 +355,11 @@ export function CancellationManagement() {
           {detail.isError ? (
             <div className="mt-5 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
               <p>Unable to load this cancellation request.</p>
-              <button className="mt-2 font-semibold underline" onClick={() => detail.refetch()} type="button">
+              <button
+                className="mt-2 font-semibold underline"
+                onClick={() => detail.refetch()}
+                type="button"
+              >
                 Try again
               </button>
             </div>
@@ -501,7 +512,10 @@ export function CancellationManagement() {
           ) : null}
         </section>
       ) : null}
-      <AlertDialog open={Boolean(revokeTarget)} onOpenChange={(open) => !open && setRevokeTarget(null)}>
+      <AlertDialog
+        open={Boolean(revokeTarget)}
+        onOpenChange={(open) => !open && setRevokeTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke this scheduled cancellation?</AlertDialogTitle>

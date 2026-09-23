@@ -16,6 +16,13 @@ export interface Customer {
   status: CustomerStatus;
   accountStatus: AccountStatus | null;
   invitationStatus: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED' | null;
+  serviceAddress: {
+    addressLine1: string;
+    addressLine2: string | null;
+    suburb: string;
+    state: string;
+    postcode: string;
+  } | null;
   currentSubscription: {
     status:
       | 'PENDING'
@@ -30,6 +37,10 @@ export interface Customer {
   } | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CustomerCreationResult extends Customer {
+  invitationQueued: boolean;
 }
 
 export interface PaginatedCustomers {

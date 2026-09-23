@@ -1,4 +1,4 @@
-import { CustomerStatus, SubscriptionStatus } from '@prisma/client';
+import { CustomerStatus, SubscriptionStatus, UserStatus } from '@prisma/client';
 import {
   IsDateString,
   IsEnum,
@@ -15,6 +15,7 @@ export class PaginationQueryDto extends ListQueryDto {
   @IsIn(['createdAt', 'updatedAt', 'firstName', 'lastName', 'email', 'status'])
   sortBy = 'createdAt';
   @IsOptional() @IsEnum(CustomerStatus) status?: CustomerStatus;
+  @IsOptional() @IsEnum(UserStatus) accountStatus?: UserStatus;
   @IsOptional()
   @IsIn([...Object.values(SubscriptionStatus), 'NO_SUBSCRIPTION'])
   subscriptionStatus?: SubscriptionStatus | 'NO_SUBSCRIPTION';

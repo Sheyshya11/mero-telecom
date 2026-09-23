@@ -258,7 +258,7 @@ export default function AdminSubscriptionsPage() {
           ]}
         />
         {subscriptions.isPending ? <TableSkeleton /> : null}
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-border/70">
           {subscriptions.isError && (
             <p role="alert" className="p-6 text-destructive-foreground">
               Unable to load subscriptions. Check the filters and try again.
@@ -465,7 +465,7 @@ export default function AdminSubscriptionsPage() {
         {planChanges.data?.data.length === 0 ? (
           <p className="p-6 text-muted-foreground">No plan changes match these filters.</p>
         ) : null}
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-border/70">
           {planChanges.data?.data.map((change) => (
             <article className="grid gap-4 p-6 lg:grid-cols-[1.2fr_1.2fr_1fr_auto]" key={change.id}>
               <div>

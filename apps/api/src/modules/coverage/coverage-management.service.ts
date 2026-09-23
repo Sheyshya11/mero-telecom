@@ -14,6 +14,7 @@ import {
 
 import { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import { AddressSelectionService } from './address-selection.service';
 import { normalizeAustralianStateCode } from './australian-states';
 import type {
@@ -38,6 +39,7 @@ export class CoverageManagementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly selections: AddressSelectionService,
+    private readonly dashboardCache: AdminDashboardCacheService,
   ) {}
 
   listRegions(query: OperatingRegionQueryDto) {
@@ -348,7 +350,7 @@ export class CoverageManagementService {
     };
     await this.validatePlanRule(merged);
     const scopeKey = this.scopeKey(merged.operatingRegionId, merged.postcode);
-    return this.uniqueMutation(
+    const result = await this.uniqueMutation(
       'This plan already has a rule for the selected technology and scope.',
       () =>
         this.prisma.$transaction(async (transaction) => {
@@ -366,9 +368,37 @@ export class CoverageManagementService {
             rule.id,
             this.ruleAudit(rule),
           );
-          return rule;
+          const pausedPlanIds: string[] = [];
+          for (const planId of new Set([current.planId, rule.planId])) {
+            const plan = await transaction.internetPlan.findUnique({ where: { id: planId } });
+            if (!plan?.isActive || !plan.isPublic || !plan.isAvailable) continue;
+            const compatibleRules = await transaction.planCoverageRule.count({
+              where: {
+                planId,
+                isActive: true,
+                OR: [{ maximumSpeedMbps: null }, { maximumSpeedMbps: { gte: plan.downloadMbps } }],
+              },
+            });
+            if (compatibleRules) continue;
+            await transaction.internetPlan.update({
+              where: { id: planId },
+              data: { isAvailable: false, isFeatured: false },
+            });
+            await this.audit(
+              transaction,
+              actor,
+              'INTERNET_PLAN_ORDERING_PAUSED',
+              'InternetPlan',
+              planId,
+              { reason: 'NO_COMPATIBLE_ACTIVE_COVERAGE_RULES', coverageRuleId: rule.id },
+            );
+            pausedPlanIds.push(planId);
+          }
+          return { pausedPlanIds, rule };
         }),
     );
+    if (result.pausedPlanIds.length) await this.dashboardCache.invalidate();
+    return result.rule;
   }
 
   async analytics(query: CoverageAnalyticsQueryDto) {

@@ -1,23 +1,28 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEmail,
   IsEnum,
+  IsIn,
   IsOptional,
   IsPhoneNumber,
   IsString,
-  Length,
   MaxLength,
+  Matches,
+  MinLength,
 } from 'class-validator';
 import { CustomerStatus } from '@prisma/client';
+import { AUSTRALIAN_STATES } from '../../../common/dto/address.dto';
 
 export class UpdateCustomerDto {
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(100)
   firstName?: string;
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(100)
   lastName?: string;
 
@@ -32,6 +37,7 @@ export class UpdateCustomerDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(255)
   addressLine1?: string;
 
@@ -42,17 +48,21 @@ export class UpdateCustomerDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(100)
   suburb?: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
   @IsString()
-  @Length(2, 3)
+  @IsIn(AUSTRALIAN_STATES)
   state?: string;
 
   @IsOptional()
   @IsString()
-  @Length(4, 10)
+  @Matches(/^\d{4}$/, { message: 'Postcode must contain four digits.' })
   postcode?: string;
 
   @IsOptional()
@@ -68,6 +78,7 @@ export class UpdateOwnCustomerDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(255)
   addressLine1?: string;
 
@@ -78,16 +89,20 @@ export class UpdateOwnCustomerDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(100)
   suburb?: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
   @IsString()
-  @Length(2, 3)
+  @IsIn(AUSTRALIAN_STATES)
   state?: string;
 
   @IsOptional()
   @IsString()
-  @Length(4, 10)
+  @Matches(/^\d{4}$/, { message: 'Postcode must contain four digits.' })
   postcode?: string;
 }
