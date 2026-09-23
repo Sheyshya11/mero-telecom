@@ -14,10 +14,10 @@ function Brand() {
 }
 
 const navigation = [
-  ['Internet', '#internet'],
-  ['NBN Plans', '#plans'],
-  ['Check Coverage', '#coverage'],
-  ['Why Mero', '#why-mero'],
+  ['Internet', '/#internet'],
+  ['NBN Plans', '/#plans'],
+  ['Check Coverage', '/#coverage'],
+  ['Why Mero', '/#why-mero'],
   ['Help & Contact', '/help'],
 ] as const;
 
@@ -121,7 +121,7 @@ export function LandingHeader() {
               <Link className={styles.signInLink} href="/login">
                 Sign In
               </Link>
-              <a className={`${styles.button} ${styles.buttonSmall}`} href="#coverage">
+              <a className={`${styles.button} ${styles.buttonSmall}`} href="/#coverage">
                 Check Your Address
               </a>
             </>
@@ -165,7 +165,7 @@ export function LandingHeader() {
               <Link className={styles.mobileOutlineButton} href="/login">
                 Sign In
               </Link>
-              <a className={styles.button} href="#coverage" onClick={() => setMenuOpen(false)}>
+              <a className={styles.button} href="/#coverage" onClick={() => setMenuOpen(false)}>
                 Check Your Address
               </a>
             </>

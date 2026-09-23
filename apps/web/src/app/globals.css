@@ -203,13 +203,19 @@ body {
 .button-primary,
 .button-secondary,
 .button-destructive {
+  display: inline-flex;
   min-height: 2.625rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   border: 1px solid transparent;
   border-radius: var(--radius);
   padding: 0.625rem 0.875rem;
   font-size: 0.875rem;
   font-weight: 650;
   line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,

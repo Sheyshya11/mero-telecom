@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { LandingHeader } from '../../components/landing/landing-header';
+import { LandingIcon, type LandingIconName } from '../../components/landing/landing-icons';
 import { PublicEnquiryForm } from '../../features/support/public-enquiry-form';
 
 export const metadata: Metadata = {
@@ -11,10 +12,22 @@ export const metadata: Metadata = {
 };
 
 const helpOptions = [
-  ['Plans & Pricing', 'Questions about choosing a Mero Telecom internet plan.'],
-  ['Address / NBN', 'Ask about availability or checking a South Australian address.'],
-  ['Signup / Order Help', 'Get help joining Mero Telecom or completing an order.'],
-] as const;
+  {
+    icon: 'layers',
+    title: 'Plans & Pricing',
+    description: 'Questions about choosing a Mero Telecom internet plan.',
+  },
+  {
+    icon: 'pin',
+    title: 'Address / NBN',
+    description: 'Ask about availability or checking a South Australian address.',
+  },
+  {
+    icon: 'user',
+    title: 'Signup / Order Help',
+    description: 'Get help joining Mero Telecom or completing an order.',
+  },
+] satisfies ReadonlyArray<{ icon: LandingIconName; title: string; description: string }>;
 
 export default function HelpPage() {
   return (
@@ -36,25 +49,37 @@ export default function HelpPage() {
           className="mx-auto mt-10 grid max-w-5xl gap-4 md:grid-cols-3"
           aria-label="Help topics"
         >
-          {helpOptions.map(([title, description]) => (
+          {helpOptions.map(({ description, icon, title }) => (
             <article
               className="rounded-2xl border border-border bg-card p-5 shadow-sm"
               key={title}
             >
-              <h2 className="font-semibold">{title}</h2>
+              <span
+                aria-hidden="true"
+                className="grid size-10 place-items-center rounded-xl bg-primary-subtle text-primary"
+              >
+                <LandingIcon name={icon} size={20} />
+              </span>
+              <h2 className="mt-4 font-semibold">{title}</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
             </article>
           ))}
         </section>
 
-        <section className="mx-auto mt-10 grid max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+        <section className="mx-auto mt-10 grid max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
           <PublicEnquiryForm />
-          <aside className="rounded-2xl border border-primary/20 bg-primary-subtle p-6">
-            <p className="text-sm font-semibold uppercase tracking-wide text-primary">
+          <aside className="rounded-2xl border border-primary/20 bg-primary-subtle p-6 lg:sticky lg:top-24">
+            <span
+              aria-hidden="true"
+              className="grid size-11 place-items-center rounded-xl bg-card text-primary shadow-sm"
+            >
+              <LandingIcon name="headphones" size={22} />
+            </span>
+            <p className="mt-5 text-sm font-semibold uppercase tracking-wide text-primary">
               Existing customer?
             </p>
             <h2 className="mt-2 text-xl font-bold">Get account-specific support</h2>
-            <p className="mt-3 text-sm leading-6 text-foreground">
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Sign in before discussing invoices, payments, service faults or subscription changes.
               This protects your account information.
             </p>
