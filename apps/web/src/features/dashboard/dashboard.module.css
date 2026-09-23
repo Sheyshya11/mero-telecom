@@ -22,7 +22,7 @@
   border: 1px solid hsl(var(--border) / 0.75);
   border-radius: 1rem;
   background: hsl(var(--card) / 0.88);
-  box-shadow: 0 8px 30px hsl(215 35% 20% / 0.05);
+  box-shadow: 0 8px 30px hsl(var(--shadow-color) / 0.05);
   backdrop-filter: blur(16px);
 }
 
@@ -60,7 +60,7 @@
 }
 
 .navLink:hover {
-  background: hsl(var(--primary-lighter) / 0.45);
+  background: hsl(var(--primary-subtle) / 0.45);
   color: hsl(var(--primary));
 }
 
@@ -68,11 +68,11 @@
   margin-left: 0.25rem;
   border-color: hsl(var(--primary) / 0.16);
   background: hsl(var(--primary));
-  color: white;
+  color: hsl(var(--primary-foreground));
 }
 
 .signOut:hover {
-  background: hsl(187 85% 25%);
+  background: hsl(var(--primary-hover));
   transform: translateY(-1px);
 }
 
@@ -86,43 +86,24 @@
   overflow: hidden;
   padding: 2.25rem;
   border-radius: 1.4rem;
-  background: linear-gradient(135deg, hsl(187 86% 23%), hsl(var(--primary-light)));
-  box-shadow: 0 20px 50px hsl(var(--primary) / 0.18);
-  color: white;
+  background: hsl(var(--primary-hover));
+  box-shadow: 0 12px 32px hsl(var(--primary) / 0.14);
+  color: hsl(var(--primary-foreground));
 }
 
 .hero::before {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(hsl(0 0% 100% / 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, hsl(0 0% 100% / 0.08) 1px, transparent 1px);
-  background-size: 38px 38px;
-  content: '';
-  mask-image: linear-gradient(to right, black, transparent 82%);
-}
-
-.hero::after {
-  position: absolute;
-  top: -7rem;
-  right: -5rem;
-  width: 20rem;
-  height: 20rem;
-  border-radius: 999px;
-  background: hsl(0 0% 100% / 0.09);
+  background: radial-gradient(
+    circle at 96% -30%,
+    hsl(var(--brand-gold) / 0.17) 0 12rem,
+    transparent 12.1rem
+  );
   content: '';
 }
 
 .heroGlow {
-  position: absolute;
-  right: 18%;
-  bottom: -5rem;
-  width: 13rem;
-  height: 13rem;
-  border-radius: 999px;
-  background: hsl(var(--accent) / 0.24);
-  filter: blur(38px);
-  pointer-events: none;
+  display: none;
 }
 
 .heroContent,
@@ -136,7 +117,7 @@
   align-items: center;
   gap: 0.45rem;
   margin: 0 0 0.8rem;
-  color: hsl(0 0% 100% / 0.72);
+  color: hsl(var(--primary-foreground) / 0.72);
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -147,15 +128,15 @@
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 999px;
-  background: hsl(155 72% 62%);
-  box-shadow: 0 0 0 4px hsl(155 72% 62% / 0.16);
+  background: hsl(var(--success));
+  box-shadow: 0 0 0 4px hsl(var(--success) / 0.16);
   content: '';
 }
 
 .hero h1 {
   max-width: 48rem;
   margin: 0;
-  color: white;
+  color: hsl(var(--primary-foreground));
   font-size: clamp(1.8rem, 4vw, 2.6rem);
   font-weight: 800;
   line-height: 1.14;
@@ -165,7 +146,7 @@
 .heroDescription {
   max-width: 40rem;
   margin: 0.85rem 0 0;
-  color: hsl(0 0% 100% / 0.78);
+  color: hsl(var(--primary-foreground) / 0.78);
   font-size: 0.94rem;
   line-height: 1.65;
 }
@@ -173,15 +154,15 @@
 .heroAside {
   min-width: 14rem;
   padding: 1rem 1.1rem;
-  border: 1px solid hsl(0 0% 100% / 0.14);
+  border: 1px solid hsl(var(--primary-foreground) / 0.14);
   border-radius: 1rem;
-  background: hsl(0 0% 100% / 0.1);
+  background: hsl(var(--primary-foreground) / 0.1);
   backdrop-filter: blur(10px);
 }
 
 .heroAsideLabel {
   margin: 0;
-  color: hsl(0 0% 100% / 0.64);
+  color: hsl(var(--primary-foreground) / 0.64);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -190,7 +171,7 @@
 
 .heroAsideValue {
   margin: 0.35rem 0 0;
-  color: white;
+  color: hsl(var(--primary-foreground));
   font-size: 0.9rem;
   font-weight: 700;
   word-break: break-word;
@@ -234,8 +215,8 @@
   min-height: 10.75rem;
   align-items: center;
   padding: 1.75rem 2.1rem;
-  background: linear-gradient(135deg, hsl(205 54% 20%), hsl(187 79% 30%));
-  box-shadow: 0 16px 40px hsl(205 54% 20% / 0.18);
+  background: hsl(var(--primary-active));
+  box-shadow: 0 12px 32px hsl(var(--primary-active) / 0.15);
 }
 
 .superAdminHero .eyebrow {
@@ -261,7 +242,7 @@
   border: 1px solid hsl(var(--border) / 0.82);
   border-radius: 1rem;
   background: hsl(var(--card) / 0.94);
-  box-shadow: 0 10px 30px hsl(215 35% 20% / 0.055);
+  box-shadow: 0 10px 30px hsl(var(--shadow-color) / 0.055);
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease,
@@ -307,7 +288,7 @@
   height: 2rem;
   flex: 0 0 auto;
   border-radius: 0.6rem;
-  background: hsl(var(--primary-lighter) / 0.7);
+  background: hsl(var(--primary-subtle) / 0.7);
   color: hsl(var(--primary));
   place-items: center;
 }
@@ -333,11 +314,11 @@
 
 .metric[data-warning='true'] .metricIcon {
   background: hsl(var(--warning) / 0.14);
-  color: hsl(32 92% 38%);
+  color: hsl(var(--warning-foreground));
 }
 
 .metric[data-warning='true'] .metricValue {
-  color: hsl(32 92% 36%);
+  color: hsl(var(--warning-foreground));
 }
 
 .contentGrid,
@@ -381,7 +362,7 @@
   border: 1px solid hsl(var(--border) / 0.82);
   border-radius: 1.1rem;
   background: hsl(var(--card) / 0.96);
-  box-shadow: 0 12px 34px hsl(215 35% 20% / 0.055);
+  box-shadow: 0 12px 34px hsl(var(--shadow-color) / 0.055);
 }
 
 .panel {
@@ -475,7 +456,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  color: #475569;
+  color: hsl(var(--muted-foreground));
   font-size: 0.75rem;
 }
 
@@ -547,7 +528,7 @@
 }
 
 .table tbody tr:hover {
-  background: hsl(var(--primary-lighter) / 0.18);
+  background: hsl(var(--primary-subtle) / 0.18);
 }
 
 .invoiceRow {
@@ -590,38 +571,38 @@
 .badge[data-status='ACTIVE'],
 .badge[data-status='PAID'],
 .badge[data-status='SUCCEEDED'] {
-  background: hsl(var(--success) / 0.12);
-  color: hsl(142 71% 32%);
+  background: hsl(var(--success-subtle));
+  color: hsl(var(--success-foreground));
 }
 
 .badge[data-status='PENDING'],
 .badge[data-status='ISSUED'] {
-  background: hsl(var(--primary) / 0.1);
+  background: hsl(var(--primary-subtle));
   color: hsl(var(--primary));
 }
 
 .badge[data-status='SUSPENDED'],
 .badge[data-status='PAST_DUE'],
 .badge[data-status='OVERDUE'] {
-  background: hsl(var(--warning) / 0.14);
-  color: hsl(32 92% 36%);
+  background: hsl(var(--warning-subtle));
+  color: hsl(var(--warning-foreground));
 }
 
 .badge[data-status='TERMINATED'],
 .badge[data-status='CANCELLED'] {
-  background: hsl(var(--muted));
-  color: hsl(var(--muted-foreground));
+  background: hsl(var(--destructive-subtle));
+  color: hsl(var(--destructive-foreground));
 }
 
 .badge[data-status='FAILED'] {
-  background: hsl(var(--destructive) / 0.1);
-  color: hsl(0 72% 38%);
+  background: hsl(var(--destructive-subtle));
+  color: hsl(var(--destructive-foreground));
 }
 
 .badge[data-status='REFUNDED'],
 .badge[data-status='PARTIALLY_REFUNDED'] {
-  background: hsl(266 68% 95%);
-  color: hsl(266 58% 40%);
+  background: hsl(var(--info-subtle));
+  color: hsl(var(--info-foreground));
 }
 
 .notice {
@@ -629,16 +610,16 @@
   padding: 0.85rem 1rem;
   border: 1px solid hsl(var(--primary) / 0.16);
   border-radius: 0.85rem;
-  background: hsl(var(--primary-lighter) / 0.35);
-  color: hsl(187 70% 24%);
+  background: hsl(var(--primary-subtle) / 0.35);
+  color: hsl(var(--primary-hover));
   font-size: 0.8rem;
   line-height: 1.5;
 }
 
 .notice[data-error='true'] {
-  border-color: hsl(var(--destructive) / 0.18);
-  background: hsl(var(--destructive) / 0.07);
-  color: hsl(0 72% 38%);
+  border-color: hsl(var(--destructive-border));
+  background: hsl(var(--destructive-subtle));
+  color: hsl(var(--destructive-foreground));
 }
 
 .serviceCard {
@@ -701,8 +682,8 @@
   gap: 0.4rem;
   padding: 0.48rem 0.65rem;
   border-radius: 0.65rem;
-  background: hsl(var(--primary-lighter) / 0.5);
-  color: hsl(187 75% 25%);
+  background: hsl(var(--primary-subtle) / 0.5);
+  color: hsl(var(--primary-hover));
   font-size: 0.72rem;
   font-weight: 700;
 }
@@ -803,13 +784,13 @@
   height: 2.4rem;
   border-radius: 0.7rem;
   background: hsl(var(--warning) / 0.16);
-  color: hsl(32 92% 34%);
+  color: hsl(var(--warning-foreground));
   place-items: center;
 }
 
 .attentionCard[data-severity='critical'] .attentionIcon {
   background: hsl(var(--destructive) / 0.11);
-  color: hsl(0 72% 40%);
+  color: hsl(var(--destructive-foreground));
 }
 
 .attentionCopy h2,
@@ -847,7 +828,7 @@
 
 .adminAttentionItem[data-severity='critical'] .attentionIcon {
   background: hsl(var(--destructive) / 0.11);
-  color: hsl(0 72% 40%);
+  color: hsl(var(--destructive-foreground));
 }
 
 .attentionEmpty {
@@ -859,7 +840,7 @@
   border: 1px solid hsl(var(--success) / 0.2);
   border-radius: 0.9rem;
   background: hsl(var(--success) / 0.065);
-  color: hsl(142 55% 30%);
+  color: hsl(var(--success-foreground));
   font-size: 0.78rem;
   font-weight: 650;
 }
@@ -915,7 +896,7 @@
   border: 1px solid hsl(var(--border) / 0.82);
   border-radius: 0.95rem;
   background: hsl(var(--card) / 0.94);
-  box-shadow: 0 8px 24px hsl(215 35% 20% / 0.04);
+  box-shadow: 0 8px 24px hsl(var(--shadow-color) / 0.04);
 }
 
 .organisationMetric[data-warning='true'] {
@@ -925,7 +906,7 @@
 
 .organisationMetric[data-warning='true'] .metricIcon {
   background: hsl(var(--warning) / 0.14);
-  color: hsl(32 92% 36%);
+  color: hsl(var(--warning-foreground));
 }
 
 .organisationMetric p,
@@ -1014,7 +995,7 @@
   padding: 0.3rem 0.5rem;
   border-radius: 999px;
   background: hsl(var(--success) / 0.1);
-  color: hsl(142 55% 30%);
+  color: hsl(var(--success-foreground));
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.05em;
@@ -1023,7 +1004,7 @@
 
 .healthBadge[data-status='DEGRADED'] {
   background: hsl(var(--warning) / 0.13);
-  color: hsl(32 92% 34%);
+  color: hsl(var(--warning-foreground));
 }
 
 .governanceGrid {
@@ -1061,7 +1042,7 @@
 }
 
 .governanceFact[data-warning='true'] dd {
-  color: hsl(0 72% 40%);
+  color: hsl(var(--destructive-foreground));
 }
 
 .superQuickActionGrid {
@@ -1095,7 +1076,7 @@
   border: 1px solid hsl(var(--border) / 0.85);
   border-radius: 0.95rem;
   background: hsl(var(--card) / 0.96);
-  box-shadow: 0 8px 24px hsl(215 35% 20% / 0.04);
+  box-shadow: 0 8px 24px hsl(var(--shadow-color) / 0.04);
   color: hsl(var(--muted-foreground));
   text-decoration: none;
   transition:
@@ -1116,7 +1097,7 @@
   width: 2.35rem;
   height: 2.35rem;
   border-radius: 0.7rem;
-  background: hsl(var(--primary-lighter) / 0.55);
+  background: hsl(var(--primary-subtle) / 0.55);
   color: hsl(var(--primary));
   place-items: center;
 }
@@ -1162,7 +1143,7 @@
 
 .adminQuickAction:hover {
   border-color: hsl(var(--primary) / 0.22);
-  background: hsl(var(--primary-lighter) / 0.2);
+  background: hsl(var(--primary-subtle) / 0.2);
   color: hsl(var(--primary));
 }
 
@@ -1213,12 +1194,12 @@
 
 .activityMarker[data-tone='positive'] {
   background: hsl(var(--success) / 0.1);
-  color: hsl(142 71% 32%);
+  color: hsl(var(--success-foreground));
 }
 
 .activityMarker[data-tone='warning'] {
   background: hsl(var(--warning) / 0.13);
-  color: hsl(32 92% 36%);
+  color: hsl(var(--warning-foreground));
 }
 
 .activityCopy,
@@ -1298,7 +1279,7 @@
 
 .refundSummary {
   margin-top: -0.35rem;
-  color: hsl(266 58% 40%);
+  color: hsl(var(--info-foreground));
   font-weight: 700;
 }
 
@@ -1428,7 +1409,7 @@
   border: 1px solid hsl(var(--border));
   border-radius: 1rem;
   background: hsl(var(--card));
-  box-shadow: 0 18px 45px hsl(215 35% 20% / 0.08);
+  box-shadow: 0 18px 45px hsl(var(--shadow-color) / 0.08);
 }
 
 .statusMark {
@@ -1437,7 +1418,7 @@
   height: 2.5rem;
   margin: 0 auto 0.9rem;
   border-radius: 0.75rem;
-  background: hsl(var(--primary-lighter));
+  background: hsl(var(--primary-subtle));
   color: hsl(var(--primary));
   place-items: center;
 }
@@ -1481,7 +1462,7 @@
 .superSkeletonActivity > div::after {
   position: absolute;
   inset: 0;
-  background: linear-gradient(100deg, transparent 20%, hsl(0 0% 100% / 0.55) 50%, transparent 80%);
+  background: linear-gradient(100deg, transparent 20%, hsl(var(--primary-foreground) / 0.55) 50%, transparent 80%);
   content: '';
   animation: dashboard-shimmer 1.5s ease-in-out infinite;
   transform: translateX(-100%);

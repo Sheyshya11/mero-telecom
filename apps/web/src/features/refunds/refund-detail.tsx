@@ -123,14 +123,14 @@ export function RefundDetail({
   const canProcess = canApprove && data.status === 'APPROVED';
   const canRetry = canApprove && data.status === 'FAILED';
   return (
-    <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10 text-slate-950">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+    <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10 text-foreground">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">
+          <p className="text-sm font-semibold tracking-wide text-primary">
             REFUND {data.id.slice(0, 8).toUpperCase()}
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Refund details</h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-muted-foreground">
             {data.customer?.firstName} {data.customer?.lastName} ·{' '}
             {data.invoice?.invoiceNumber ?? 'Payment'}
           </p>
@@ -140,12 +140,12 @@ export function RefundDetail({
         </Link>
       </header>
       {notice ? (
-        <p className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800" role="status">
+        <p className="mt-6 rounded-lg bg-success-subtle p-4 text-sm text-success-foreground" role="status">
           {notice}
         </p>
       ) : null}
       {error ? (
-        <p className="mt-6 rounded-lg bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+        <p className="mt-6 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
           {error}
         </p>
       ) : null}
@@ -157,16 +157,16 @@ export function RefundDetail({
           ['Remaining available', formatRefundMoney(maximum, data.currency)],
         ].map(([label, value]) => (
           <article
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="rounded-xl border border-border bg-card p-5 shadow-sm"
             key={label}
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
             <p className="mt-2 text-xl font-bold">{value}</p>
           </article>
         ))}
       </section>
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Request and billing</h2>
           <dl className="mt-4 grid gap-3 text-sm">
             <Detail
@@ -188,7 +188,7 @@ export function RefundDetail({
             <Detail label="Stripe Refund" value={data.stripeRefundId ?? 'Not submitted'} />
           </dl>
         </section>
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Controlled actions</h2>
           <label className="mt-4 grid gap-1 text-sm font-medium">
             Internal note
@@ -212,7 +212,7 @@ export function RefundDetail({
             </button>
           ) : null}
           {canReview ? (
-            <div className="mt-4 grid gap-2 border-t border-slate-200 pt-4">
+            <div className="mt-4 grid gap-2 border-t border-border pt-4">
               <label className="grid gap-1 text-sm font-medium">
                 Request more information
                 <textarea
@@ -239,7 +239,7 @@ export function RefundDetail({
             </div>
           ) : null}
           {canDecide ? (
-            <div className="mt-5 grid gap-3 border-t border-slate-200 pt-5">
+            <div className="mt-5 grid gap-3 border-t border-border pt-5">
               <label className="grid gap-1 text-sm font-medium">
                 Refund type
                 <select
@@ -263,7 +263,7 @@ export function RefundDetail({
                     type="number"
                     value={amount}
                   />
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-muted-foreground">
                     Maximum {formatRefundMoney(maximum, data.currency)}
                   </span>
                 </label>
@@ -332,9 +332,9 @@ export function RefundDetail({
           ) : null}
         </section>
       </div>
-      <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Supporting Evidence</h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-muted-foreground">
           Private files are available through short-lived authorized links.
         </p>
         <AttachmentList
@@ -342,7 +342,7 @@ export function RefundDetail({
           refundId={data.id}
           accessToken={accessToken}
         />
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
+        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
           <input
             accept={ACCEPTED_TYPES.join(',')}
             multiple
@@ -359,13 +359,13 @@ export function RefundDetail({
           </button>
         </div>
       </section>
-      <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Audit timeline</h2>
         <ol className="mt-4 grid gap-3">
           {data.auditTimeline?.map((event) => (
-            <li className="border-l-2 border-sky-300 pl-4" key={event.id}>
+            <li className="border-l-2 border-primary/30 pl-4" key={event.id}>
               <p className="font-semibold">{humanizeRefundValue(event.action)}</p>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-muted-foreground">
                 {new Date(event.createdAt).toLocaleString('en-AU')} ·{' '}
                 {event.actor?.displayName || event.actor?.email || 'System'}
               </p>
@@ -403,17 +403,17 @@ function AttachmentList({
   accessToken,
 }: Readonly<{ attachments: RefundAttachment[]; refundId: string; accessToken: string | null }>) {
   if (!attachments.length)
-    return <p className="mt-4 text-sm text-slate-500">No supporting evidence has been uploaded.</p>;
+    return <p className="mt-4 text-sm text-muted-foreground">No supporting evidence has been uploaded.</p>;
   return (
     <ul className="mt-4 grid gap-2">
       {attachments.map((attachment) => (
         <li
-          className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm"
+          className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3 text-sm"
           key={attachment.id}
         >
           <span className="min-w-0 flex-1 truncate">
             <strong>{attachment.originalName}</strong>
-            <span className="ml-2 text-slate-500">
+            <span className="ml-2 text-muted-foreground">
               {attachment.mimeType} · {formatBytes(attachment.fileSize)} ·{' '}
               {attachment.uploadedBy?.displayName ??
                 attachment.uploadedBy?.email ??
@@ -448,7 +448,7 @@ function AttachmentLink({
   }
   return (
     <button
-      className="text-xs font-semibold text-sky-700 hover:underline"
+      className="text-xs font-semibold text-primary hover:underline"
       disabled={pending}
       onClick={() => void open()}
       type="button"
@@ -467,14 +467,14 @@ function formatBytes(bytes: number) {
 function Detail({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div>
-      <dt className="font-semibold text-slate-500">{label}</dt>
+      <dt className="font-semibold text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 break-all">{value}</dd>
     </div>
   );
 }
 function Status({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <p>{message}</p>
     </main>
   );

@@ -262,14 +262,14 @@ export default function CustomerSubscriptionPage() {
 
   if (isLoading) {
     return (
-      <main className="grid min-h-screen place-items-center text-slate-600">
+      <main className="grid min-h-screen place-items-center text-muted-foreground">
         Checking your session…
       </main>
     );
   }
   if (!user || !hasRole(user, 'CUSTOMER')) {
     return (
-      <main className="grid min-h-screen place-items-center text-slate-600">
+      <main className="grid min-h-screen place-items-center text-muted-foreground">
         Customer access is required.
       </main>
     );
@@ -283,15 +283,15 @@ export default function CustomerSubscriptionPage() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-4xl px-6 py-10">
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-6">
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">MY INTERNET</p>
+          <p className="text-sm font-semibold tracking-wide text-primary">MY INTERNET</p>
           <h1 className="mt-2 text-3xl font-bold">My subscription</h1>
         </div>
       </header>
 
       {subscriptions.isPending ? (
-        <p className="mt-6 text-slate-600">Loading your subscription…</p>
+        <p className="mt-6 text-muted-foreground">Loading your subscription…</p>
       ) : null}
       {subscriptions.isError ? (
         <ErrorPanel
@@ -303,13 +303,13 @@ export default function CustomerSubscriptionPage() {
       <div className="mt-6 space-y-4">
         {subscriptions.data?.map((subscription) => (
           <article
-            className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+            className="rounded-xl border border-border bg-card p-6 shadow-sm"
             key={subscription.id}
           >
             <div className="flex flex-wrap justify-between gap-4">
               <div>
-                <h2 className="font-semibold text-slate-950">{subscription.plan.name}</h2>
-                <p className="mt-2 text-slate-600">
+                <h2 className="font-semibold text-foreground">{subscription.plan.name}</h2>
+                <p className="mt-2 text-muted-foreground">
                   {subscription.plan.downloadMbps}/{subscription.plan.uploadMbps} Mbps ·{' '}
                   {formatMoney(subscription.plan.monthlyCents)}/month
                 </p>
@@ -320,7 +320,7 @@ export default function CustomerSubscriptionPage() {
                 {subscriptionStatusLabel(subscription.status)}
               </span>
             </div>
-            <p className="mt-3 text-sm text-slate-500">
+            <p className="mt-3 text-sm text-muted-foreground">
               Started {formatDate(subscription.startDate)}
               {subscription.status === 'ACTIVE'
                 ? ` · Current billing period ends ${formatDate(subscription.currentPeriodEnd)}`
@@ -372,7 +372,7 @@ export default function CustomerSubscriptionPage() {
       ) : null}
 
       {currentSubscription?.status === 'SUSPENDED' ? (
-        <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-950">
+        <div className="mt-6 rounded-xl border border-destructive-border bg-destructive-subtle p-4 text-destructive-foreground">
           <p className="font-semibold">Service suspended</p>
           <p className="mt-1 text-sm">
             {currentSubscription.suspensionReason === 'NON_PAYMENT'
@@ -395,7 +395,7 @@ export default function CustomerSubscriptionPage() {
       ) : null}
 
       {currentSubscription?.status === 'PAST_DUE' ? (
-        <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+        <div className="mt-6 rounded-xl border border-warning-border bg-warning-subtle p-4 text-warning-foreground">
           <p className="font-semibold">Payment overdue</p>
           <p className="mt-1 text-sm">
             Your internet service remains active
@@ -412,28 +412,28 @@ export default function CustomerSubscriptionPage() {
       ) : null}
 
       {currentSubscription?.status === 'ACTIVE' && !pendingChange ? (
-        <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold tracking-wide text-sky-700">CHANGE PLAN</p>
-          <h2 className="mt-2 text-2xl font-bold text-slate-950">Upgrade or downgrade</h2>
-          <p className="mt-2 text-slate-600">
+        <section className="mt-10 rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <p className="text-sm font-semibold tracking-wide text-primary">CHANGE PLAN</p>
+          <h2 className="mt-2 text-2xl font-bold text-foreground">Upgrade or downgrade</h2>
+          <p className="mt-2 text-muted-foreground">
             Choose an available plan. Pricing and any prorated charge are calculated securely by the
             server.
           </p>
 
           {requestedPlanId === currentSubscription.plan.id ? (
-            <p className="mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+            <p className="mt-5 rounded-xl border border-primary/20 bg-primary-subtle p-4 text-sm text-primary-hover">
               {currentSubscription.plan.name} is already your current plan. Choose another plan to
               upgrade or downgrade.
             </p>
           ) : null}
 
-          {plans.isPending ? <p className="mt-5 text-slate-600">Loading available plans…</p> : null}
+          {plans.isPending ? <p className="mt-5 text-muted-foreground">Loading available plans…</p> : null}
           {plans.isError ? (
             <ErrorPanel message="Unable to load available plans." retry={() => plans.refetch()} />
           ) : null}
           {availableTargets.length ? (
             <div className="mt-5">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="target-plan">
+              <label className="block text-sm font-medium text-foreground" htmlFor="target-plan">
                 New plan
               </label>
               <select
@@ -464,7 +464,7 @@ export default function CustomerSubscriptionPage() {
               </button>
             </div>
           ) : !plans.isPending && !plans.isError ? (
-            <p className="mt-5 text-slate-600">No other plans are currently available.</p>
+            <p className="mt-5 text-muted-foreground">No other plans are currently available.</p>
           ) : null}
 
           {preview.data ? (
@@ -475,7 +475,7 @@ export default function CustomerSubscriptionPage() {
             />
           ) : null}
           {mutationError ? (
-            <p className="mt-5 rounded-md bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+            <p className="mt-5 rounded-md bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
               {mutationError instanceof ApiError
                 ? mutationError.message
                 : 'The plan change could not be completed.'}
@@ -486,32 +486,32 @@ export default function CustomerSubscriptionPage() {
 
       {subscriptions.data && !currentSubscription ? (
         <section className="mt-10">
-          <p className="text-slate-600">
+          <p className="text-muted-foreground">
             Choose a plan below. Your service activates automatically after successful payment.
           </p>
           <div className="mt-6 grid gap-5 md:grid-cols-2">
             {displayedPlans.map((plan) => (
               <article
-                className={`rounded-xl border bg-white p-6 shadow-sm ${
+                className={`rounded-xl border bg-card p-6 shadow-sm ${
                   plan.id === requestedPlanId
-                    ? 'border-sky-400 ring-2 ring-sky-100'
-                    : 'border-slate-200'
+                    ? 'border-primary/40 ring-2 ring-primary/15'
+                    : 'border-border'
                 }`}
                 key={plan.id}
               >
                 {plan.id === requestedPlanId ? (
-                  <p className="mb-2 text-xs font-semibold tracking-wide text-sky-700">
+                  <p className="mb-2 text-xs font-semibold tracking-wide text-primary">
                     SELECTED PLAN
                   </p>
                 ) : null}
-                <h2 className="text-xl font-bold text-slate-950">{plan.name}</h2>
-                <p className="mt-3 min-h-12 text-slate-600">{plan.description}</p>
-                <p className="mt-4 text-sm text-slate-600">
+                <h2 className="text-xl font-bold text-foreground">{plan.name}</h2>
+                <p className="mt-3 min-h-12 text-muted-foreground">{plan.description}</p>
+                <p className="mt-4 text-sm text-muted-foreground">
                   {plan.downloadMbps}/{plan.uploadMbps} Mbps
                 </p>
-                <p className="mt-2 text-2xl font-bold text-slate-950">
+                <p className="mt-2 text-2xl font-bold text-foreground">
                   {formatMoney(plan.monthlyCents)}
-                  <span className="text-sm font-normal text-slate-500">/month, GST included</span>
+                  <span className="text-sm font-normal text-muted-foreground">/month, GST included</span>
                 </p>
                 <PlanCheckoutButton planId={plan.id} />
               </article>
@@ -546,7 +546,7 @@ function CheckoutReturnNotice({
             : 'Payment verification is still processing. Your existing plan remains active until it completes.';
   return (
     <p
-      className="mt-6 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900"
+      className="mt-6 rounded-xl border border-primary/20 bg-primary-subtle p-4 text-sm text-primary-hover"
       role="status"
     >
       {message}
@@ -577,7 +577,7 @@ function PaymentReturnNotice({
             : 'Payment verification is still processing.';
   return (
     <p
-      className={`mt-6 rounded-xl border p-4 text-sm ${error ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-sky-200 bg-sky-50 text-sky-900'}`}
+      className={`mt-6 rounded-xl border p-4 text-sm ${error ? 'border-destructive-border bg-destructive-subtle text-destructive-foreground' : 'border-primary/20 bg-primary-subtle text-primary-hover'}`}
       role={error ? 'alert' : 'status'}
     >
       {message}
@@ -589,7 +589,7 @@ function CompletedPlanChange({ change }: Readonly<{ change: PlanChange }>) {
   if (change.status === 'APPLIED') {
     return (
       <p
-        className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"
+        className="mt-6 rounded-xl border border-success-border bg-success-subtle p-4 text-sm text-success-foreground"
         role="status"
       >
         Your plan change from {change.currentPlan.name} to {change.targetPlan.name} is confirmed.
@@ -599,7 +599,7 @@ function CompletedPlanChange({ change }: Readonly<{ change: PlanChange }>) {
   if (change.status === 'FAILED' || change.status === 'EXPIRED') {
     return (
       <p
-        className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"
+        className="mt-6 rounded-xl border border-destructive-border bg-destructive-subtle p-4 text-sm text-destructive-foreground"
         role="alert"
       >
         This plan change was not applied
@@ -611,7 +611,7 @@ function CompletedPlanChange({ change }: Readonly<{ change: PlanChange }>) {
   if (change.status === 'CANCELLED') {
     return (
       <p
-        className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
+        className="mt-6 rounded-xl border border-border bg-muted p-4 text-sm text-foreground"
         role="status"
       >
         The scheduled downgrade was cancelled. Your existing plan remains active.
@@ -632,8 +632,8 @@ function PlanChangeConfirmation({
 }>) {
   const upgrade = preview.type === 'UPGRADE';
   return (
-    <div className="mt-6 rounded-xl border border-sky-200 bg-sky-50 p-5">
-      <h3 className="text-lg font-semibold text-slate-950">
+    <div className="mt-6 rounded-xl border border-primary/20 bg-primary-subtle p-5">
+      <h3 className="text-lg font-semibold text-foreground">
         {upgrade ? 'Upgrade preview' : 'Downgrade preview'}
       </h3>
       <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
@@ -641,12 +641,12 @@ function PlanChangeConfirmation({
         <PlanCard label="New plan" plan={preview.targetPlan} />
       </div>
       {upgrade ? (
-        <div className="mt-4 space-y-1 text-sm text-slate-700">
+        <div className="mt-4 space-y-1 text-sm text-foreground">
           <p>Unused current-plan credit: {formatMoney(preview.unusedCreditCents)}</p>
           <p>
             New-plan charge for the remaining period: {formatMoney(preview.proratedTargetCents)}
           </p>
-          <p className="text-base font-semibold text-slate-950">
+          <p className="text-base font-semibold text-foreground">
             Due today: {formatMoney(preview.amountPayableCents)} {preview.currency}
           </p>
           <p className="pt-2">Your new plan will start after payment is confirmed.</p>
@@ -654,8 +654,8 @@ function PlanChangeConfirmation({
           <p>The displayed charge covers the remaining billing period.</p>
         </div>
       ) : (
-        <div className="mt-4 space-y-1 text-sm text-slate-700">
-          <p className="font-semibold text-slate-950">
+        <div className="mt-4 space-y-1 text-sm text-foreground">
+          <p className="font-semibold text-foreground">
             Effective {formatDateTime(preview.effectiveAt)}
           </p>
           <p>Your current plan remains active until this billing date.</p>
@@ -691,14 +691,14 @@ function PendingPlanChange({
 }>) {
   const awaitingPayment = ['PENDING', 'CHECKOUT_CREATED', 'PROCESSING'].includes(change.status);
   return (
-    <section className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5" aria-live="polite">
-      <h2 className="font-semibold text-amber-950">
+    <section className="mt-6 rounded-xl border border-warning-border bg-warning-subtle p-5" aria-live="polite">
+      <h2 className="font-semibold text-warning-foreground">
         {change.type === 'DOWNGRADE' ? 'Downgrade scheduled' : 'Upgrade awaiting payment'}
       </h2>
-      <p className="mt-2 text-sm text-amber-900">
+      <p className="mt-2 text-sm text-warning-foreground">
         {change.currentPlan.name} → {change.targetPlan.name}
       </p>
-      <p className="mt-1 text-sm text-amber-900">
+      <p className="mt-1 text-sm text-warning-foreground">
         {change.type === 'DOWNGRADE'
           ? `Your current plan remains active until ${formatDateTime(change.effectiveAt)}.`
           : 'Your current plan remains active until Stripe confirms payment.'}
@@ -726,10 +726,10 @@ function PendingPlanChange({
 
 function PlanCard({ label, plan }: Readonly<{ label: string; plan: Plan }>) {
   return (
-    <div className="rounded-lg bg-white p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+    <div className="rounded-lg bg-card p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 font-semibold">{plan.name}</p>
-      <p className="text-slate-600">
+      <p className="text-muted-foreground">
         {plan.downloadMbps}/{plan.uploadMbps} Mbps · {formatMoney(plan.monthlyCents)}/month
       </p>
     </div>
@@ -738,7 +738,7 @@ function PlanCard({ label, plan }: Readonly<{ label: string; plan: Plan }>) {
 
 function ErrorPanel({ message, retry }: Readonly<{ message: string; retry: () => unknown }>) {
   return (
-    <div className="mt-6 flex flex-wrap items-center gap-3 rounded-md bg-rose-50 p-4 text-sm text-rose-800">
+    <div className="mt-6 flex flex-wrap items-center gap-3 rounded-md bg-destructive-subtle p-4 text-sm text-destructive-foreground">
       <p>{message}</p>
       <button className="button-secondary" onClick={() => void retry()} type="button">
         Retry
@@ -770,13 +770,12 @@ function subscriptionStatusLabel(status: Subscription['status']): string {
 }
 
 function subscriptionStatusTone(status: Subscription['status']): string {
-  if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-800';
-  if (status === 'PAST_DUE') return 'bg-amber-100 text-amber-900';
-  if (status === 'CANCELLATION_PENDING') return 'bg-amber-100 text-amber-900';
-  if (status === 'DISCONNECTION_PENDING') return 'bg-sky-100 text-sky-800';
-  if (status === 'SUSPENDED') return 'bg-rose-100 text-rose-800';
-  if (status === 'TERMINATED') return 'bg-slate-200 text-slate-900';
-  return 'bg-slate-100 text-slate-700';
+  if (status === 'ACTIVE') return 'bg-success-subtle text-success-foreground';
+  if (status === 'PAST_DUE') return 'bg-destructive-subtle text-destructive-foreground';
+  if (status === 'CANCELLATION_PENDING') return 'bg-warning-subtle text-warning-foreground';
+  if (status === 'PENDING') return 'bg-warning-subtle text-warning-foreground';
+  if (status === 'SUSPENDED') return 'bg-warning-subtle text-warning-foreground';
+  return 'bg-destructive-subtle text-destructive-foreground';
 }
 
 function formatDateTime(value: string): string {

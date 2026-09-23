@@ -63,12 +63,12 @@ export function PublicPlanGrid({
         </div>
       );
     }
-    return <p className="mt-8 text-slate-500">Loading plans…</p>;
+    return <p className="mt-8 text-muted-foreground">Loading plans…</p>;
   }
   if (query.isError) {
     return (
       <div
-        className={isLanding ? styles.plansErrorCard : 'mt-8 flex items-center gap-3 text-rose-700'}
+        className={isLanding ? styles.plansErrorCard : 'mt-8 flex items-center gap-3 text-destructive-foreground'}
       >
         {isLanding ? <LandingIcon name="activity" size={22} /> : null}
         <p>Plans could not be loaded.</p>
@@ -84,7 +84,7 @@ export function PublicPlanGrid({
   }
   if (query.data.length === 0) {
     return (
-      <p className={isLanding ? styles.plansEmptyCard : 'mt-8 text-slate-500'}>
+      <p className={isLanding ? styles.plansEmptyCard : 'mt-8 text-muted-foreground'}>
         No plans are currently available.
       </p>
     );
@@ -102,7 +102,7 @@ export function PublicPlanGrid({
             className={
               isLanding
                 ? `${styles.planCard} ${isPopular ? styles.planCardPopular : ''}`
-                : 'rounded-xl border border-slate-200 bg-white p-6 shadow-sm'
+                : 'rounded-xl border border-border bg-card p-6 shadow-sm'
             }
             key={plan.id}
           >
@@ -115,7 +115,7 @@ export function PublicPlanGrid({
             ) : null}
             {isLanding ? <p className={styles.planEyebrow}>NBN plan</p> : null}
             <h2 className={isLanding ? undefined : 'text-xl font-bold'}>{plan.name}</h2>
-            <p className={isLanding ? styles.planDescription : 'mt-3 min-h-12 text-slate-600'}>
+            <p className={isLanding ? styles.planDescription : 'mt-3 min-h-12 text-muted-foreground'}>
               {plan.description}
             </p>
             {isLanding ? (
@@ -179,12 +179,12 @@ export function PublicPlanGrid({
               </>
             ) : (
               <>
-                <p className="mt-5 text-sm text-slate-600">
+                <p className="mt-5 text-sm text-muted-foreground">
                   {plan.downloadMbps}/{plan.uploadMbps} Mbps
                 </p>
                 <p className="mt-2 text-2xl font-bold">
                   ${(plan.monthlyCents / 100).toFixed(2)}
-                  <span className="text-sm font-normal text-slate-500">/month, GST included</span>
+                  <span className="text-sm font-normal text-muted-foreground">/month, GST included</span>
                 </p>
               </>
             )}

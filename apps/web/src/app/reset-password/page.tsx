@@ -92,13 +92,13 @@ function ResetPasswordContent() {
   if (linkState === 'checking') return <ResetStatus message="Checking your reset link…" />;
   if (linkState === 'invalid') {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 px-6 py-12 text-center">
-        <section className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+      <main className="grid min-h-screen place-items-center bg-muted px-6 py-12 text-center">
+        <section className="w-full max-w-lg rounded-2xl border border-border bg-card p-8 shadow-sm">
           <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
             <MeroTelecomLogo alt="" preload size="auth" />
           </Link>
           <h1 className="mt-5 text-3xl font-bold">Reset link unavailable</h1>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 text-muted-foreground">
             This password reset link is invalid, expired, or has already been used.
           </p>
           <Link className="button-primary mt-7 inline-flex" href="/forgot-password">
@@ -110,13 +110,13 @@ function ResetPasswordContent() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 px-6 py-12">
-      <section className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-7 shadow-sm sm:p-9">
+    <main className="grid min-h-screen place-items-center bg-muted px-6 py-12">
+      <section className="w-full max-w-lg rounded-2xl border border-border bg-card p-7 shadow-sm sm:p-9">
         <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
           <MeroTelecomLogo alt="" preload size="auth" />
         </Link>
         <h1 className="mt-5 text-3xl font-bold">Create a new password</h1>
-        <p className="mt-3 text-sm text-slate-600">
+        <p className="mt-3 text-sm text-muted-foreground">
           Use at least 12 characters with uppercase, lowercase, a number and a symbol.
         </p>
         <form className="mt-7 grid gap-4" onSubmit={form.handleSubmit(submit)}>
@@ -131,7 +131,7 @@ function ResetPasswordContent() {
             registration={form.register('confirmPassword')}
           />
           {serverError ? (
-            <p aria-live="polite" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
+            <p aria-live="polite" className="rounded-lg bg-destructive-subtle p-3 text-sm text-destructive-foreground">
               {serverError}
             </p>
           ) : null}
@@ -156,7 +156,7 @@ function PasswordField({
   const [visible, setVisible] = useState(false);
   const inputId = registration.name;
   return (
-    <label className="grid gap-1.5 text-sm font-semibold text-slate-700" htmlFor={inputId}>
+    <label className="grid gap-1.5 text-sm font-semibold text-foreground" htmlFor={inputId}>
       {label}
       <span className="relative">
         <input
@@ -168,21 +168,21 @@ function PasswordField({
         />
         <button
           aria-label={`${visible ? 'Hide' : 'Show'} ${label.toLowerCase()}`}
-          className="absolute inset-y-0 right-3 text-xs font-bold text-sky-700"
+          className="absolute inset-y-0 right-3 text-xs font-bold text-primary"
           onClick={() => setVisible((current) => !current)}
           type="button"
         >
           {visible ? 'Hide' : 'Show'}
         </button>
       </span>
-      {error ? <span className="text-xs text-rose-700">{error}</span> : null}
+      {error ? <span className="text-xs text-destructive-foreground">{error}</span> : null}
     </label>
   );
 }
 
 function ResetStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 px-6 text-slate-600">
+    <main className="grid min-h-screen place-items-center bg-muted px-6 text-muted-foreground">
       <div className="grid justify-items-center gap-5 text-center">
         <MeroTelecomLogo preload size="auth" />
         <p role="status">{message}</p>

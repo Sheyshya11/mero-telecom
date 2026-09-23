@@ -42,10 +42,10 @@ export function ControlCentreDashboard() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
-      <header className="border-b border-slate-200 pb-6">
-        <p className="text-sm font-semibold tracking-wide text-sky-700">STAFF CONTROL CENTRE</p>
+      <header className="border-b border-border pb-6">
+        <p className="text-sm font-semibold tracking-wide text-primary">STAFF CONTROL CENTRE</p>
         <h1 className="mt-2 text-3xl font-bold">Operations overview</h1>
-        <p className="mt-2 text-slate-600">
+        <p className="mt-2 text-muted-foreground">
           Access the customer and service workflows assigned to staff.
         </p>
       </header>
@@ -57,11 +57,11 @@ export function ControlCentreDashboard() {
           ['Resolved today', supportSummary.data?.resolvedToday],
         ].map(([label, value]) => (
           <Link
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-300"
+            className="rounded-xl border border-border bg-card p-5 shadow-sm transition hover:border-primary/30"
             href="/control-centre/support"
             key={label}
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
             <p className="mt-2 text-2xl font-bold">
               {supportSummary.isPending ? '…' : (value ?? 0)}
             </p>
@@ -72,7 +72,7 @@ export function ControlCentreDashboard() {
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
             <h2 className="text-lg font-semibold">Admin action requests</h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-muted-foreground">
               Private requests you have raised for Administrator review.
             </p>
           </div>
@@ -88,11 +88,11 @@ export function ControlCentreDashboard() {
             ['Recently resolved', internalSummary.data?.recentlyResolved],
           ].map(([label, value]) => (
             <Link
-              className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-300"
+              className="rounded-xl border border-border bg-card p-5 shadow-sm transition hover:border-primary/30"
               href="/control-centre/internal-requests"
               key={label}
             >
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {label}
               </p>
               <p className="mt-2 text-2xl font-bold">
@@ -145,11 +145,11 @@ function WorkspaceLink({
 }: Readonly<{ href: string; title: string; description: string }>) {
   return (
     <Link
-      className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-sky-300"
+      className="rounded-xl border border-border bg-card p-6 shadow-sm transition hover:border-primary/30"
       href={href}
     >
-      <h2 className="font-semibold text-slate-950">{title}</h2>
-      <p className="mt-2 text-sm text-slate-600">{description}</p>
+      <h2 className="font-semibold text-foreground">{title}</h2>
+      <p className="mt-2 text-sm text-muted-foreground">{description}</p>
     </Link>
   );
 }

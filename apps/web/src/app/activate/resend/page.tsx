@@ -24,17 +24,17 @@ export default function ResendActivationPage() {
 
   return (
     <main className="grid min-h-screen place-items-center px-6 py-12">
-      <section className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-7 shadow-sm">
+      <section className="w-full max-w-lg rounded-xl border border-border bg-card p-7 shadow-sm">
         <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
           <MeroTelecomLogo alt="" preload size="auth" />
         </Link>
         <h1 className="mt-3 text-3xl font-bold">Resend activation email</h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-muted-foreground">
           If an account is waiting for activation, we will send a new 24-hour link and invalidate
           the previous one.
         </p>
         {resend.isSuccess ? (
-          <div className="mt-6 rounded-md bg-emerald-50 p-4 text-sm text-emerald-900">
+          <div className="mt-6 rounded-md bg-success-subtle p-4 text-sm text-success-foreground">
             If the account is eligible, a new activation email has been sent.
           </div>
         ) : (
@@ -42,7 +42,7 @@ export default function ResendActivationPage() {
             className="mt-6 grid gap-4"
             onSubmit={form.handleSubmit((values) => resend.mutate(values))}
           >
-            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            <label className="grid gap-1.5 text-sm font-medium text-foreground">
               Email
               <input
                 autoComplete="email"
@@ -51,7 +51,7 @@ export default function ResendActivationPage() {
                 {...form.register('email')}
               />
               {form.formState.errors.email?.message ? (
-                <span className="text-xs text-rose-700">{form.formState.errors.email.message}</span>
+                <span className="text-xs text-destructive-foreground">{form.formState.errors.email.message}</span>
               ) : null}
             </label>
             <button className="button-primary" disabled={resend.isPending} type="submit">

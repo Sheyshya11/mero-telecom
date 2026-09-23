@@ -141,11 +141,11 @@ export function DataTableControls({
   const activeCount = activeFields.length + (searchable && state.values.search ? 1 : 0);
 
   return (
-    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+    <div className="space-y-4 rounded-xl border border-border bg-muted/70 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Search and filters</p>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="text-sm font-semibold text-foreground">Search and filters</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Results update automatically as you refine them.
           </p>
         </div>
@@ -172,7 +172,7 @@ export function DataTableControls({
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:items-end">
         {searchable ? (
-          <label className="grid min-w-0 gap-1.5 text-sm font-medium text-slate-700 xl:col-span-2">
+          <label className="grid min-w-0 gap-1.5 text-sm font-medium text-foreground xl:col-span-2">
             Search
             <DebouncedSearch
               resetKey={state.query}
@@ -189,7 +189,7 @@ export function DataTableControls({
 
       {expanded && hasAdvancedControls ? (
         <div
-          className="grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2 lg:grid-cols-4"
+          className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4"
           id={advancedId}
         >
           {advancedFields.map((field) => (
@@ -228,12 +228,12 @@ export function DataTableControls({
       ) : null}
 
       {activeCount > 0 ? (
-        <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Active</span>
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Active</span>
           {searchable && state.values.search ? (
             <button
               type="button"
-              className="rounded-full border border-teal-200 bg-white px-3 py-1 text-xs font-medium text-teal-900"
+              className="rounded-full border border-primary/20 bg-card px-3 py-1 text-xs font-medium text-primary-hover transition-colors hover:border-primary/35 hover:bg-primary-subtle"
               onClick={() => state.update({ search: '' })}
               aria-label="Remove search"
             >
@@ -250,7 +250,7 @@ export function DataTableControls({
               <button
                 key={field.key}
                 type="button"
-                className="rounded-full border border-teal-200 bg-white px-3 py-1 text-xs font-medium text-teal-900"
+                className="rounded-full border border-primary/20 bg-card px-3 py-1 text-xs font-medium text-primary-hover transition-colors hover:border-primary/35 hover:bg-primary-subtle"
                 onClick={() => state.update({ [field.key]: '' })}
                 aria-label={`Remove ${field.label}`}
               >
@@ -267,7 +267,7 @@ export function DataTableControls({
 
 function FilterControl({ field, state }: { field: FilterField; state: TableState }) {
   return (
-    <label className="grid min-w-0 gap-1.5 text-sm font-medium text-slate-700">
+    <label className="grid min-w-0 gap-1.5 text-sm font-medium text-foreground">
       {field.label}
       {field.options ? (
         <select
@@ -332,7 +332,7 @@ export function DataTablePagination({
   noun?: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 p-4 text-sm text-slate-600">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 p-4 text-sm text-muted-foreground">
       <span aria-live="polite">
         {meta
           ? `Showing ${meta.total && meta.page <= meta.totalPages ? (meta.page - 1) * meta.limit + 1 : 0}–${meta.page > meta.totalPages ? 0 : Math.min(meta.page * meta.limit, meta.total)} of ${meta.total} ${noun}`
@@ -341,7 +341,7 @@ export function DataTablePagination({
       <label>
         Rows per page{' '}
         <select
-          className="rounded-lg border p-2"
+          className="field w-auto py-2"
           value={state.limit}
           onChange={(event) => state.update({ limit: event.target.value })}
         >
@@ -389,7 +389,7 @@ export function TableSkeleton() {
       {Array.from({ length: 5 }, (_, i) => (
         <div
           key={i}
-          className="h-12 animate-pulse rounded bg-slate-100 motion-reduce:animate-none"
+          className="h-12 animate-pulse rounded bg-secondary motion-reduce:animate-none"
         />
       ))}
     </div>

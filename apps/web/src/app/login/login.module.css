@@ -14,8 +14,8 @@
   min-height: 100vh;
   min-height: 100dvh;
   overflow: hidden;
-  background: linear-gradient(145deg, hsl(187 86% 23%), hsl(var(--primary-light)));
-  color: white;
+  background: hsl(var(--primary-hover));
+  color: hsl(var(--primary-foreground));
 }
 
 .brandGrid,
@@ -23,15 +23,14 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(hsl(0 0% 100% / 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, hsl(0 0% 100% / 0.08) 1px, transparent 1px);
+    linear-gradient(hsl(var(--primary-foreground) / 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--primary-foreground) / 0.08) 1px, transparent 1px);
   background-size: 42px 42px;
   pointer-events: none;
 }
 
 .brandGrid {
-  opacity: 0.55;
-  mask-image: linear-gradient(to bottom right, black, transparent 75%);
+  opacity: 0;
 }
 
 .orb,
@@ -46,7 +45,7 @@
   right: -6rem;
   width: 18rem;
   height: 18rem;
-  background: hsl(0 0% 100% / 0.1);
+  background: hsl(var(--brand-gold) / 0.12);
 }
 
 .orbBottom {
@@ -54,16 +53,11 @@
   left: -5rem;
   width: 20rem;
   height: 20rem;
-  background: hsl(0 0% 100% / 0.06);
+  background: hsl(var(--primary-foreground) / 0.05);
 }
 
 .accentGlow {
-  top: 33%;
-  right: 3rem;
-  width: 10rem;
-  height: 10rem;
-  background: hsl(var(--accent) / 0.22);
-  filter: blur(32px);
+  display: none;
 }
 
 .brandContent {
@@ -95,7 +89,7 @@
 .brandMessage h2 {
   max-width: 31rem;
   margin: 0;
-  color: white;
+  color: hsl(var(--primary-foreground));
   font-size: clamp(1.9rem, 3.2vw, 2.5rem);
   font-weight: 800;
   line-height: 1.18;
@@ -105,7 +99,7 @@
 .brandMessage > p {
   max-width: 28rem;
   margin: 1.35rem 0 0;
-  color: hsl(0 0% 100% / 0.8);
+  color: hsl(var(--primary-foreground) / 0.8);
   font-size: 1.06rem;
   line-height: 1.75;
 }
@@ -122,7 +116,7 @@
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  color: hsl(0 0% 100% / 0.92);
+  color: hsl(var(--primary-foreground) / 0.92);
   font-size: 0.875rem;
   font-weight: 600;
 }
@@ -134,12 +128,12 @@
   flex: 0 0 auto;
   place-items: center;
   border-radius: 0.6rem;
-  background: hsl(0 0% 100% / 0.15);
+  background: hsl(var(--primary-foreground) / 0.15);
 }
 
 .copyright {
   margin: 0;
-  color: hsl(0 0% 100% / 0.62);
+  color: hsl(var(--primary-foreground) / 0.62);
   font-size: 0.8rem;
 }
 
@@ -185,8 +179,8 @@
   border-radius: 1rem;
   background: hsl(var(--card) / 0.96);
   box-shadow:
-    0 24px 55px hsl(215 35% 20% / 0.1),
-    0 3px 10px hsl(215 35% 20% / 0.04);
+    0 24px 55px hsl(var(--shadow-color) / 0.1),
+    0 3px 10px hsl(var(--shadow-color) / 0.04);
   backdrop-filter: blur(12px);
 }
 
@@ -254,7 +248,7 @@
   padding: 0 0.875rem;
   border: 1px solid hsl(var(--border));
   border-radius: 0.7rem;
-  background: white;
+  background: hsl(var(--card));
   color: hsl(var(--foreground));
   font: inherit;
   font-size: 0.9rem;
@@ -271,6 +265,21 @@
   border-color: hsl(var(--primary));
   box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
   outline: none;
+}
+
+.input:hover:not(:disabled) {
+  border-color: hsl(var(--primary) / 0.45);
+}
+
+.input:disabled {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.input[aria-invalid='true'] {
+  border-color: hsl(var(--destructive));
 }
 
 .passwordWrap {
@@ -333,10 +342,10 @@
 .formError {
   margin: 0;
   padding: 0.75rem;
-  border: 1px solid hsl(var(--destructive) / 0.16);
+  border: 1px solid hsl(var(--destructive-border));
   border-radius: 0.65rem;
-  background: hsl(var(--destructive) / 0.07);
-  color: hsl(0 72% 38%);
+  background: hsl(var(--destructive-subtle));
+  color: hsl(var(--destructive-foreground));
   font-size: 0.82rem;
   line-height: 1.5;
 }
@@ -353,7 +362,7 @@
   border-radius: 0.7rem;
   background: hsl(var(--primary));
   box-shadow: 0 10px 24px hsl(var(--primary) / 0.18);
-  color: white;
+  color: hsl(var(--primary-foreground));
   cursor: pointer;
   font: inherit;
   font-size: 1rem;
@@ -365,7 +374,7 @@
 }
 
 .submitButton:hover:not(:disabled) {
-  background: hsl(187 85% 25%);
+  background: hsl(var(--primary-hover));
   box-shadow: 0 12px 28px hsl(var(--primary) / 0.25);
   transform: translateY(-1px);
 }
@@ -450,7 +459,7 @@
   border: 1px solid hsl(var(--border));
   border-radius: 0.8rem;
   background: hsl(var(--card));
-  box-shadow: 0 18px 42px hsl(215 35% 20% / 0.16);
+  box-shadow: 0 18px 42px hsl(var(--shadow-color) / 0.16);
   color: hsl(var(--foreground));
   font-size: 0.83rem;
   font-weight: 600;
@@ -463,14 +472,14 @@
   height: 1.65rem;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: hsl(var(--primary-lighter));
+  background: hsl(var(--primary-subtle));
   color: hsl(var(--primary));
   place-items: center;
 }
 
 .toast[data-tone='success'] .toastIcon {
-  background: hsl(var(--success) / 0.12);
-  color: hsl(142 71% 34%);
+  background: hsl(var(--success-subtle));
+  color: hsl(var(--success-foreground));
 }
 
 .loadingPage {

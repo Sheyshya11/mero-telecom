@@ -108,7 +108,7 @@ export function AddressAutocomplete({
   return (
     <div className={isLanding ? styles.addressAutocomplete : 'relative'}>
       <label
-        className={isLanding ? styles.addressLabel : 'block text-sm font-medium text-slate-700'}
+        className={isLanding ? styles.addressLabel : 'block text-sm font-medium text-foreground'}
         htmlFor={inputId}
       >
         {label}
@@ -145,7 +145,7 @@ export function AddressAutocomplete({
           className={
             isLanding
               ? styles.suggestionList
-              : 'absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg'
+              : 'absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-border bg-card py-1 shadow-lg'
           }
           id={listboxId}
           role="listbox"
@@ -156,7 +156,7 @@ export function AddressAutocomplete({
               className={
                 isLanding
                   ? `${styles.suggestionItem} ${index === activeIndex ? styles.suggestionItemActive : ''}`
-                  : `cursor-pointer px-4 py-3 text-sm ${index === activeIndex ? 'bg-sky-50 text-sky-950' : 'text-slate-700'}`
+                  : `cursor-pointer px-4 py-3 text-sm ${index === activeIndex ? 'bg-primary-subtle text-primary-hover' : 'text-foreground'}`
               }
               id={`${listboxId}-option-${index}`}
               key={suggestion.selectionToken}
@@ -173,7 +173,7 @@ export function AddressAutocomplete({
           {suggestionsQuery.isSuccess && suggestions.length === 0 ? (
             <li
               aria-selected={false}
-              className={isLanding ? styles.suggestionItem : 'px-4 py-3 text-sm text-slate-500'}
+              className={isLanding ? styles.suggestionItem : 'px-4 py-3 text-sm text-muted-foreground'}
               role="option"
             >
               No matching Australian addresses found.
@@ -186,15 +186,15 @@ export function AddressAutocomplete({
         aria-live="polite"
       >
         {showMinimumHint ? (
-          <p className="text-slate-500">Enter at least three characters.</p>
+          <p className="text-muted-foreground">Enter at least three characters.</p>
         ) : suggestionsQuery.isFetching ? (
-          <p className="text-slate-500">Searching addresses…</p>
+          <p className="text-muted-foreground">Searching addresses…</p>
         ) : suggestionsQuery.isError ? (
-          <p className="text-rose-700" role="alert">
+          <p className="text-destructive-foreground" role="alert">
             {errorMessage(suggestionsQuery.error)}
           </p>
         ) : selected ? (
-          <p className="font-medium text-emerald-700">{selectedMessage}</p>
+          <p className="font-medium text-success-foreground">{selectedMessage}</p>
         ) : null}
       </div>
     </div>

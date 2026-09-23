@@ -185,22 +185,22 @@ export function CancellationManagement() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
-      <header className="border-b border-slate-200 pb-6">
-        <p className="text-sm font-semibold tracking-wide text-sky-700">SERVICE OPERATIONS</p>
+      <header className="border-b border-border pb-6">
+        <p className="text-sm font-semibold tracking-wide text-primary">SERVICE OPERATIONS</p>
         <h1 className="mt-2 text-3xl font-bold">Service cancellations</h1>
-        <p className="mt-2 text-slate-600">
+        <p className="mt-2 text-muted-foreground">
           Track customer requests, provider processing, failures and service completion.
         </p>
       </header>
 
       {summary.data?.providerSimulated ? (
-        <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <p className="mt-6 rounded-xl border border-warning-border bg-warning-subtle p-4 text-sm text-warning-foreground">
           Mock wholesale provider is active. These provider results are internal simulations and do
           not represent real NBN disconnections.
         </p>
       ) : null}
       {summary.isError ? (
-        <p className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+        <p className="mt-6 rounded-xl border border-destructive-border bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
           Cancellation totals are temporarily unavailable.
         </p>
       ) : null}
@@ -215,15 +215,15 @@ export function CancellationManagement() {
       </section>
 
       {actionError ? (
-        <p className="mt-6 rounded-xl bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+        <p className="mt-6 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
           {actionError instanceof ApiError
             ? actionError.message
             : 'The cancellation action could not be completed.'}
         </p>
       ) : null}
 
-      <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-6 py-5">
+      <section className="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border px-6 py-5">
           <h2 className="font-semibold">Cancellation requests</h2>
         </div>
         <DataTableControls
@@ -264,7 +264,7 @@ export function CancellationManagement() {
         />
         {list.isPending ? <TableSkeleton /> : null}
         {list.isError ? (
-          <div className="p-6 text-rose-700" role="alert">
+          <div className="p-6 text-destructive-foreground" role="alert">
             <p>Unable to load cancellations.</p>
             <button className="mt-2 font-semibold underline" onClick={() => list.refetch()} type="button">
               Try again
@@ -272,7 +272,7 @@ export function CancellationManagement() {
           </div>
         ) : null}
         {list.data?.data.length === 0 ? (
-          <p className="p-6 text-slate-600">No cancellation requests match these filters.</p>
+          <p className="p-6 text-muted-foreground">No cancellation requests match these filters.</p>
         ) : null}
         <div className="divide-y divide-slate-100">
           {list.data?.data.map((request) => (
@@ -281,26 +281,26 @@ export function CancellationManagement() {
               key={request.id}
             >
               <div>
-                <p className="font-mono text-sm font-semibold text-sky-800">
+                <p className="font-mono text-sm font-semibold text-primary">
                   {request.requestNumber}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">{humanize(request.type)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{humanize(request.type)}</p>
               </div>
               <div>
                 <p className="font-semibold">
                   {request.customer.firstName} {request.customer.lastName}
                 </p>
-                <p className="text-sm text-slate-600">{request.customer.email}</p>
-                <p className="font-mono text-xs text-slate-500">
+                <p className="text-sm text-muted-foreground">{request.customer.email}</p>
+                <p className="font-mono text-xs text-muted-foreground">
                   {request.customer.customerNumber}
                 </p>
               </div>
-              <div className="text-sm text-slate-600">
+              <div className="text-sm text-muted-foreground">
                 <p>{request.subscription.plan.name}</p>
                 <p>{formatMoney(request.subscription.plan.monthlyCents)}/month</p>
                 <p className="font-mono text-xs">{request.subscriptionId.slice(0, 8)}</p>
               </div>
-              <div className="text-sm text-slate-600">
+              <div className="text-sm text-muted-foreground">
                 <p>Requested {formatDateTime(request.requestedAt)}</p>
                 <p>Effective {formatDateTime(request.effectiveAt)}</p>
                 <p>Provider: {humanize(request.provider.status)}</p>
@@ -308,7 +308,7 @@ export function CancellationManagement() {
               <div className="flex flex-col items-start gap-2 lg:items-end">
                 <Badge value={request.status} />
                 <button
-                  className="text-sm font-semibold text-sky-700 underline"
+                  className="text-sm font-semibold text-primary underline"
                   onClick={() => selectRequest(request.requestNumber)}
                   type="button"
                 >
@@ -328,12 +328,12 @@ export function CancellationManagement() {
 
       {selected ? (
         <section
-          className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+          className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm"
           aria-labelledby="cancellation-detail-title"
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="font-mono text-sm font-semibold text-sky-800">{selected}</p>
+              <p className="font-mono text-sm font-semibold text-primary">{selected}</p>
               <h2 className="mt-1 text-2xl font-bold" id="cancellation-detail-title">
                 Cancellation review
               </h2>
@@ -343,10 +343,10 @@ export function CancellationManagement() {
             </button>
           </div>
           {detail.isPending ? (
-            <p className="mt-5 text-slate-600">Loading cancellation details…</p>
+            <p className="mt-5 text-muted-foreground">Loading cancellation details…</p>
           ) : null}
           {detail.isError ? (
-            <div className="mt-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+            <div className="mt-5 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
               <p>Unable to load this cancellation request.</p>
               <button className="mt-2 font-semibold underline" onClick={() => detail.refetch()} type="button">
                 Try again
@@ -357,7 +357,7 @@ export function CancellationManagement() {
             <div className="mt-6 grid gap-8 lg:grid-cols-2">
               <div>
                 <h3 className="font-semibold">Cancellation summary</h3>
-                <dl className="mt-3 grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
+                <dl className="mt-3 grid gap-3 rounded-xl bg-muted p-4 sm:grid-cols-2">
                   <Fact
                     label="Customer"
                     value={`${detail.data.customer.firstName} ${detail.data.customer.lastName}`}
@@ -372,12 +372,12 @@ export function CancellationManagement() {
                   <Fact label="Operation" value={humanize(detail.data.providerOperation)} />
                 </dl>
                 {detail.data.reasonDetails ? (
-                  <p className="mt-3 rounded-xl border border-slate-200 p-4 text-sm text-slate-700">
+                  <p className="mt-3 rounded-xl border border-border p-4 text-sm text-foreground">
                     {detail.data.reasonDetails}
                   </p>
                 ) : null}
                 <h3 className="mt-6 font-semibold">Provider / network</h3>
-                <dl className="mt-3 grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
+                <dl className="mt-3 grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
                   <Fact
                     label="Provider"
                     value={`${detail.data.provider.name}${detail.data.provider.simulated ? ' · SIMULATION' : ''}`}
@@ -397,7 +397,7 @@ export function CancellationManagement() {
                   />
                 </dl>
                 {detail.data.provider.failureReason ? (
-                  <p className="mt-3 rounded-xl bg-rose-50 p-4 text-sm text-rose-800">
+                  <p className="mt-3 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground">
                     {detail.data.provider.failureReason}
                   </p>
                 ) : null}
@@ -405,7 +405,7 @@ export function CancellationManagement() {
                   {canManage &&
                   detail.data.capabilities.canRetry &&
                   detail.data.provider.simulated ? (
-                    <label className="text-sm font-medium text-slate-700">
+                    <label className="text-sm font-medium text-foreground">
                       Retry scenario
                       <select
                         className="field mt-1 block"
@@ -451,11 +451,11 @@ export function CancellationManagement() {
               </div>
               <div>
                 <h3 className="font-semibold">Timeline</h3>
-                <ol className="mt-3 space-y-3 border-l border-slate-200 pl-5">
+                <ol className="mt-3 space-y-3 border-l border-border pl-5">
                   {detail.data.timeline.map((event) => (
                     <li key={event.id}>
                       <p className="text-sm font-semibold">{humanize(event.action)}</p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted-foreground">
                         {formatDateTime(event.createdAt)} ·{' '}
                         {event.actor?.displayName ?? event.actor?.email ?? 'System'}
                       </p>
@@ -466,16 +466,16 @@ export function CancellationManagement() {
                 <div className="mt-3 space-y-3">
                   {detail.data.notes.length ? (
                     detail.data.notes.map((item) => (
-                      <article className="rounded-xl bg-slate-50 p-4" key={item.id}>
-                        <p className="whitespace-pre-wrap text-sm text-slate-800">{item.body}</p>
-                        <p className="mt-2 text-xs text-slate-500">
+                      <article className="rounded-xl bg-muted p-4" key={item.id}>
+                        <p className="whitespace-pre-wrap text-sm text-foreground">{item.body}</p>
+                        <p className="mt-2 text-xs text-muted-foreground">
                           {item.author.displayName ?? item.author.email} ·{' '}
                           {humanize(item.authorRole)} · {formatDateTime(item.createdAt)}
                         </p>
                       </article>
                     ))
                   ) : (
-                    <p className="text-sm text-slate-500">No internal notes.</p>
+                    <p className="text-sm text-muted-foreground">No internal notes.</p>
                   )}
                 </div>
                 <label className="mt-4 block text-sm font-medium" htmlFor="cancellation-note">
@@ -527,8 +527,8 @@ export function CancellationManagement() {
 
 function Metric({ label, value }: Readonly<{ label: string; value?: number }>) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-slate-500">{label}</p>
+    <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-3xl font-bold">{value ?? '—'}</p>
     </article>
   );
@@ -536,22 +536,22 @@ function Metric({ label, value }: Readonly<{ label: string; value?: number }>) {
 function Fact({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="mt-1 break-words text-sm font-medium text-slate-900">{value}</dd>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-medium text-foreground">{value}</dd>
     </div>
   );
 }
 function Badge({ value }: Readonly<{ value: string }>) {
   const tone =
     value === 'COMPLETED'
-      ? 'bg-emerald-100 text-emerald-800'
+      ? 'bg-success-subtle text-success-foreground'
       : value === 'FAILED'
-        ? 'bg-rose-100 text-rose-800'
+        ? 'bg-destructive-subtle text-destructive-foreground'
         : value === 'SCHEDULED'
-          ? 'bg-amber-100 text-amber-900'
+          ? 'bg-warning-subtle text-warning-foreground'
           : value === 'REVOKED'
-            ? 'bg-slate-100 text-slate-700'
-            : 'bg-sky-100 text-sky-800';
+            ? 'bg-secondary text-foreground'
+            : 'bg-primary-subtle-strong text-primary';
   return (
     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
       {humanize(value)}
@@ -559,7 +559,7 @@ function Badge({ value }: Readonly<{ value: string }>) {
   );
 }
 function Status({ text }: Readonly<{ text: string }>) {
-  return <main className="grid min-h-screen place-items-center text-slate-600">{text}</main>;
+  return <main className="grid min-h-screen place-items-center text-muted-foreground">{text}</main>;
 }
 function humanize(value: string): string {
   return value

@@ -9,8 +9,8 @@ export default function PlansPage() {
       <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
         <MeroTelecomLogo alt="" preload size="compact" />
       </Link>
-      <h1 className="mt-3 text-4xl font-bold text-slate-950">Internet plans</h1>
-      <p className="mt-3 text-slate-600">
+      <h1 className="mt-3 text-4xl font-bold text-foreground">Internet plans</h1>
+      <p className="mt-3 text-muted-foreground">
         Choose an available plan. You can sign in or create your account during checkout.
       </p>
       <PublicPlanGrid />

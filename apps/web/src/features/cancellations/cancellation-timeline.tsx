@@ -72,17 +72,17 @@ function TimelineItem({
         aria-hidden="true"
         className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
           failed
-            ? 'bg-rose-100 text-rose-700'
+            ? 'bg-destructive-subtle text-destructive-foreground'
             : complete
-              ? 'bg-emerald-100 text-emerald-700'
-              : 'bg-slate-100 text-slate-400'
+              ? 'bg-success-subtle text-success-foreground'
+              : 'bg-secondary text-muted-foreground/70'
         }`}
       >
         {failed ? '!' : complete ? '✓' : '○'}
       </span>
       <div>
-        <p className="text-sm font-semibold text-slate-900">{label}</p>
-        <p className="text-xs text-slate-500">{detail}</p>
+        <p className="text-sm font-semibold text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground">{detail}</p>
       </div>
     </li>
   );

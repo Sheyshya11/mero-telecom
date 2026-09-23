@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 
 import { ApiError, absoluteApiUrl, apiRequest } from '../../lib/api/client';
+import { chartColors, chartTooltipStyle } from '../../lib/chart-theme';
 import { useAuth } from '../auth/auth-provider';
 
 type Tab =
@@ -216,7 +217,7 @@ export function BillingReports() {
   if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN'))
     return (
       <main className="workspace-page mx-auto max-w-7xl px-6 py-10">
-        <p className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-rose-800">
+        <p className="rounded-xl border border-destructive-border bg-destructive-subtle p-5 text-destructive-foreground">
           Administrator access is required to view billing reports.
         </p>
       </main>
@@ -308,16 +309,16 @@ export function BillingReports() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="flex flex-col justify-between gap-5 border-b border-slate-200 pb-6 lg:flex-row lg:items-end">
+      <header className="flex flex-col justify-between gap-5 border-b border-border pb-6 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">BILLING · REPORTING</p>
+          <p className="text-sm font-semibold tracking-wide text-primary">BILLING · REPORTING</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Billing &amp; Revenue Reports</h1>
-          <p className="mt-2 max-w-2xl text-slate-600">
+          <p className="mt-2 max-w-2xl text-muted-foreground">
             Operational billing, collections, receivables and reconciliation—kept as separate
             financial concepts.
           </p>
           {summary ? (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-muted-foreground">
               Data current as of {dateTime(summary.period.generatedAt, summary.period.timezone)} ·{' '}
               {summary.period.timezone}
               {' · '}Stripe evidence last recorded{' '}
@@ -340,14 +341,14 @@ export function BillingReports() {
       </header>
 
       {exportError ? (
-        <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-4 text-sm text-rose-800">
+        <p role="alert" className="mt-4 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground">
           {exportError}
         </p>
       ) : null}
 
-      <section className="mt-6 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+      <section className="mt-6 rounded-xl border border-border bg-muted/70 p-4">
         <div className="grid gap-4 lg:grid-cols-[minmax(12rem,1fr)_2fr_auto] lg:items-end">
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+          <label className="grid gap-1.5 text-sm font-medium text-foreground">
             Reporting period
             <select
               className="field"
@@ -362,7 +363,7 @@ export function BillingReports() {
             </select>
           </label>
           <div className={`grid gap-3 sm:grid-cols-2 ${preset === 'custom' ? '' : 'opacity-50'}`}>
-            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            <label className="grid gap-1.5 text-sm font-medium text-foreground">
               From
               <input
                 className="field"
@@ -372,7 +373,7 @@ export function BillingReports() {
                 onChange={(event) => setFrom(event.target.value)}
               />
             </label>
-            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            <label className="grid gap-1.5 text-sm font-medium text-foreground">
               To
               <input
                 className="field"
@@ -389,7 +390,7 @@ export function BillingReports() {
         </div>
         {tab !== 'overview' ? (
           <form
-            className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row"
+            className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row"
             onSubmit={(event) => {
               event.preventDefault();
               navigate(tab);
@@ -411,12 +412,12 @@ export function BillingReports() {
 
       <nav
         aria-label="Billing report sections"
-        className="mt-6 flex gap-2 overflow-x-auto border-b border-slate-200 pb-2"
+        className="mt-6 flex gap-2 overflow-x-auto border-b border-border pb-2"
       >
         {tabs.map((item) => (
           <button
             key={item.id}
-            className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium ${tab === item.id ? 'bg-sky-700 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium ${tab === item.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}
             onClick={() => navigate(item.id)}
           >
             {item.label}
@@ -425,7 +426,7 @@ export function BillingReports() {
       </nav>
 
       {isError ? (
-        <p className="mt-6 rounded-lg bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="mt-6 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground">
           Unable to load all report data. Retry the request or narrow the reporting period.
         </p>
       ) : null}
@@ -476,7 +477,7 @@ function Overview({
   if (loading) return <ReportsSkeleton compact />;
   if (!summary)
     return (
-      <p className="mt-6 rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">
+      <p className="mt-6 rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
         No reporting summary is available.
       </p>
     );
@@ -555,16 +556,16 @@ function Overview({
         </section>
       ))}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="font-semibold">Revenue &amp; collection trend</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Billed amounts, settled cash and completed refunds are shown separately.
             </p>
           </div>
           <button
-            className="text-sm font-semibold text-sky-700"
+            className="text-sm font-semibold text-primary"
             onClick={() => onDrillDown('revenue')}
           >
             Open report
@@ -574,19 +575,30 @@ function Overview({
           {trend.length >= 2 ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="period" />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                <XAxis
+                  axisLine={false}
+                  dataKey="period"
+                  tick={{ fill: chartColors.tick, fontSize: 11 }}
+                  tickLine={false}
+                />
                 <YAxis
+                  axisLine={false}
+                  tick={{ fill: chartColors.tick, fontSize: 11 }}
                   tickFormatter={(value) => money(Number(value)).replace('.00', '')}
+                  tickLine={false}
                   width={85}
                 />
-                <Tooltip formatter={(value) => money(Number(value))} />
-                <Legend />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(value) => money(Number(value))}
+                />
+                <Legend wrapperStyle={{ color: chartColors.tick, fontSize: 12 }} />
                 <Line
                   type="monotone"
                   dataKey="grossBilledCents"
                   name="Gross billed"
-                  stroke="#087f8c"
+                  stroke={chartColors.primary}
                   strokeWidth={2.5}
                   dot={false}
                 />
@@ -594,7 +606,7 @@ function Overview({
                   type="monotone"
                   dataKey="paymentsReceivedCents"
                   name="Payments received"
-                  stroke="#2563eb"
+                  stroke={chartColors.success}
                   strokeWidth={2.5}
                   dot={false}
                 />
@@ -602,7 +614,7 @@ function Overview({
                   type="monotone"
                   dataKey="refundsPaidCents"
                   name="Refunds"
-                  stroke="#e11d48"
+                  stroke={chartColors.destructive}
                   strokeWidth={2}
                   dot={false}
                 />
@@ -610,7 +622,7 @@ function Overview({
                   type="monotone"
                   dataKey="netCashCollectedCents"
                   name="Net cash"
-                  stroke="#7c3aed"
+                  stroke={chartColors.info}
                   strokeWidth={2}
                   dot={false}
                 />
@@ -623,9 +635,9 @@ function Overview({
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <h2 className="font-semibold">Receivables ageing</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             A snapshot at the reporting-period end, aged from invoice due date.
           </p>
           {ageing.length ? (
@@ -633,14 +645,14 @@ function Overview({
               {ageing.map((bucket) => (
                 <button
                   key={bucket.key}
-                  className="rounded-lg border border-slate-200 p-3 text-left hover:border-sky-400 hover:bg-sky-50"
+                  className="rounded-lg border border-border p-3 text-left hover:border-primary/40 hover:bg-primary-subtle"
                   onClick={() => onDrillDown('receivables', { bucket: bucket.key })}
                 >
-                  <span className="block text-xs text-slate-500">{bucket.label}</span>
+                  <span className="block text-xs text-muted-foreground">{bucket.label}</span>
                   <strong className="mt-1 block text-lg">
                     {money(bucket.outstandingAmountCents)}
                   </strong>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-muted-foreground">
                     {bucket.invoiceCount} invoices · {bucket.customerCount} customers
                   </span>
                 </button>
@@ -650,7 +662,7 @@ function Overview({
             <EmptyState text="No outstanding receivables at the reporting-period end." />
           )}
         </article>
-        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <h2 className="font-semibold">Payment health</h2>
           <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
             <Stat
@@ -670,7 +682,7 @@ function Overview({
               value={String(summary.paymentHealth.failedPaymentCount)}
             />
           </div>
-          <div className="mt-5 border-t border-slate-100 pt-4 text-sm text-slate-600">
+          <div className="mt-5 border-t border-border/70 pt-4 text-sm text-muted-foreground">
             GST billed {money(summary.tax.gstBilledCents)} · GST associated with collected payments{' '}
             {money(summary.tax.gstAssociatedWithPaymentsCents)} · GST refunded/credited{' '}
             {money(summary.tax.gstRefundedOrCreditedCents)}
@@ -679,16 +691,16 @@ function Overview({
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
               <h2 className="font-semibold">Plan performance</h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-muted-foreground">
                 GST-exclusive MRR by active service plan.
               </p>
             </div>
             <button
-              className="text-sm font-semibold text-sky-700"
+              className="text-sm font-semibold text-primary"
               onClick={() => onDrillDown('subscriptions')}
             >
               View plans
@@ -698,24 +710,42 @@ function Overview({
             {plans.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={plans}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="planName" />
-                  <YAxis tickFormatter={(value) => money(Number(value)).replace('.00', '')} />
-                  <Tooltip formatter={(value) => money(Number(value))} />
-                  <Bar dataKey="mrrCents" name="MRR" fill="#087f8c" radius={[6, 6, 0, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                  <XAxis
+                    axisLine={false}
+                    dataKey="planName"
+                    tick={{ fill: chartColors.tick, fontSize: 11 }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tick={{ fill: chartColors.tick, fontSize: 11 }}
+                    tickFormatter={(value) => money(Number(value)).replace('.00', '')}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(value) => money(Number(value))}
+                  />
+                  <Bar
+                    dataKey="mrrCents"
+                    name="MRR"
+                    fill={chartColors.primary}
+                    radius={[6, 6, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <EmptyState text="No active plan data is available." />
             )}
           </div>
-          <p className="mt-3 text-xs text-amber-700">
+          <p className="mt-3 text-xs text-warning-foreground">
             Wholesale cost data not configured; contribution and margin are intentionally
             unavailable.
           </p>
         </article>
-        <article className="rounded-xl border border-amber-200 bg-amber-50/50 p-5">
-          <h2 className="font-semibold text-slate-900">Attention required</h2>
+        <article className="rounded-xl border border-warning-border bg-warning-subtle/50 p-5">
+          <h2 className="font-semibold text-foreground">Attention required</h2>
           <div className="mt-4 space-y-2">
             <Attention
               label="Invoices over 60 days overdue"
@@ -760,27 +790,27 @@ function KpiCard({
       : `${metric.percentageChange > 0 ? '↑' : metric.percentageChange < 0 ? '↓' : '→'} ${Math.abs(metric.percentageChange).toFixed(1)}% vs previous period`;
   const comparisonTone =
     metric.direction === 'flat' || metric.direction === 'not_comparable'
-      ? 'text-slate-500'
+      ? 'text-muted-foreground'
       : warning
         ? metric.direction === 'up'
-          ? 'text-amber-700'
-          : 'text-emerald-700'
+          ? 'text-warning-foreground'
+          : 'text-success-foreground'
         : metric.direction === 'up'
-          ? 'text-emerald-700'
-          : 'text-slate-600';
+          ? 'text-success-foreground'
+          : 'text-muted-foreground';
   return (
     <button
-      className="rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow"
+      className="rounded-xl border border-border bg-card p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow"
       onClick={onClick}
       title={definitions[label]}
     >
-      <span className="flex items-center gap-1 text-sm text-slate-500">
+      <span className="flex items-center gap-1 text-sm text-muted-foreground">
         {label}
-        <span aria-hidden="true" className="cursor-help text-slate-400">
+        <span aria-hidden="true" className="cursor-help text-muted-foreground/70">
           ⓘ
         </span>
       </span>
-      <strong className="mt-2 block text-2xl text-slate-900">{value}</strong>
+      <strong className="mt-2 block text-2xl text-foreground">{value}</strong>
       <span className={`mt-2 block text-xs ${comparisonTone}`}>{comparison}</span>
     </button>
   );
@@ -810,18 +840,18 @@ function ReportTable({
     ? Object.keys(rows[0]).filter((key) => !hiddenTableKeys.has(key))
     : [];
   return (
-    <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+    <section className="mt-6 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
         <div>
           <h2 className="font-semibold">{tabs.find((item) => item.id === tab)?.label}</h2>
           {tab === 'reconciliation' ? (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               Read-only comparison against recorded Stripe webhook evidence. No financial records
               are changed.
             </p>
           ) : null}
           {tab === 'subscriptions' && report?.wholesaleCostStatus === 'NOT_CONFIGURED' ? (
-            <p className="mt-1 text-xs text-amber-700">Wholesale cost data not configured.</p>
+            <p className="mt-1 text-xs text-warning-foreground">Wholesale cost data not configured.</p>
           ) : null}
         </div>
         {tab === 'receivables' && report?.buckets ? (
@@ -845,7 +875,7 @@ function ReportTable({
       {rows.length ? (
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-muted text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 {visibleKeys.map((key) => (
                   <th key={key} className="whitespace-nowrap px-4 py-3">
@@ -860,10 +890,10 @@ function ReportTable({
                   key={String(
                     row.invoiceNumber ?? row.paymentId ?? row.refundId ?? row.planId ?? index,
                   )}
-                  className="hover:bg-slate-50"
+                  className="hover:bg-muted"
                 >
                   {visibleKeys.map((key) => (
-                    <td key={key} className="max-w-sm whitespace-nowrap px-4 py-3 text-slate-700">
+                    <td key={key} className="max-w-sm whitespace-nowrap px-4 py-3 text-foreground">
                       {formatCell(key, row[key])}
                     </td>
                   ))}
@@ -882,7 +912,7 @@ function ReportTable({
         />
       )}
       {report?.meta && report.meta.totalPages > 1 ? (
-        <div className="flex items-center justify-between border-t border-slate-200 px-5 py-4 text-sm">
+        <div className="flex items-center justify-between border-t border-border px-5 py-4 text-sm">
           <span>
             Page {report.meta.page} of {report.meta.totalPages} · {report.meta.total} results
           </span>
@@ -914,10 +944,10 @@ function ReportsSkeleton({ compact = false }: { compact?: boolean }) {
       className={`${compact ? 'mt-6' : 'workspace-page mx-auto max-w-7xl px-6 py-10'} animate-pulse`}
       aria-label="Loading billing reports"
     >
-      <div className="h-8 w-72 rounded bg-slate-200" />
+      <div className="h-8 w-72 rounded bg-border" />
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: compact ? 4 : 8 }, (_, index) => (
-          <div key={index} className="h-28 rounded-xl bg-slate-100" />
+          <div key={index} className="h-28 rounded-xl bg-secondary" />
         ))}
       </div>
     </main>
@@ -925,15 +955,15 @@ function ReportsSkeleton({ compact = false }: { compact?: boolean }) {
 }
 function EmptyState({ text }: { text: string }) {
   return (
-    <p className="grid min-h-36 place-items-center p-8 text-center text-sm text-slate-500">
+    <p className="grid min-h-36 place-items-center p-8 text-center text-sm text-muted-foreground">
       {text}
     </p>
   );
 }
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-3">
-      <span className="block text-xs text-slate-500">{label}</span>
+    <div className="rounded-lg bg-muted p-3">
+      <span className="block text-xs text-muted-foreground">{label}</span>
       <strong className="mt-1 block text-lg">{value}</strong>
     </div>
   );
@@ -950,7 +980,7 @@ function Attention({
   if (value === 0) return null;
   return (
     <button
-      className="flex w-full items-center justify-between rounded-lg border border-amber-200 bg-white px-3 py-2 text-left text-sm hover:border-amber-400"
+      className="flex w-full items-center justify-between rounded-lg border border-warning-border bg-card px-3 py-2 text-left text-sm hover:border-warning"
       onClick={onClick}
     >
       <span>{label}</span>

@@ -211,7 +211,7 @@ export function CustomerDashboardView() {
                       <Link className="button-primary" href="/customer/invoices">
                         Pay overdue balance
                       </Link>
-                      <span className="text-sm text-slate-600">
+                      <span className="text-sm text-muted-foreground">
                         Plan changes are unavailable until the overdue balance is resolved.
                       </span>
                     </>

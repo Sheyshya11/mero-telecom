@@ -150,7 +150,7 @@ function CheckoutContent() {
     return (
       <main className="mx-auto min-h-screen max-w-2xl px-6 py-12">
         <h1 className="text-3xl font-bold">Plan unavailable</h1>
-        <p className="mt-3 text-slate-600">Choose an available plan before starting checkout.</p>
+        <p className="mt-3 text-muted-foreground">Choose an available plan before starting checkout.</p>
         <Link className="button-primary mt-6 inline-flex" href="/plans">
           View plans
         </Link>
@@ -163,9 +163,9 @@ function CheckoutContent() {
       <main className="mx-auto min-h-screen max-w-3xl px-6 py-12">
         <CheckoutHeader />
         <PlanSummary plan={plan} />
-        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
           <h2 className="text-xl font-bold">Signed in as {user.email}</h2>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-muted-foreground">
             Continue to My subscription to use this selection. If you already have a plan, you can
             review its prorated upgrade charge or schedule a downgrade. If you do not have a current
             plan, you can purchase this plan there.
@@ -195,8 +195,8 @@ function CheckoutContent() {
     <main className="mx-auto min-h-screen max-w-4xl px-6 py-12">
       <CheckoutHeader />
       <PlanSummary plan={plan} />
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4">
-        <p className="text-sm text-sky-950">Already a Mero Telecom customer?</p>
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary-subtle p-4">
+        <p className="text-sm text-primary-hover">Already a Mero Telecom customer?</p>
         <Link
           className="button-secondary"
           href={`/login?returnTo=${encodeURIComponent(loginReturnTo)}`}
@@ -302,7 +302,7 @@ function CheckoutContent() {
           </FormSection>
 
           <FormSection title="Review and consent">
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-muted-foreground">
               Amount due now: <strong>${(plan.monthlyCents / 100).toFixed(2)} AUD</strong>, GST
               included. The backend will reload the plan and price before creating Checkout.
             </p>
@@ -311,7 +311,7 @@ function CheckoutContent() {
               label={
                 <span>
                   I accept the{' '}
-                  <Link className="text-sky-700 underline" href="/terms">
+                  <Link className="text-primary underline" href="/terms">
                     terms of service
                   </Link>
                   .
@@ -324,7 +324,7 @@ function CheckoutContent() {
               label={
                 <span>
                   I accept the{' '}
-                  <Link className="text-sky-700 underline" href="/privacy">
+                  <Link className="text-primary underline" href="/privacy">
                     privacy policy
                   </Link>
                   .
@@ -333,7 +333,7 @@ function CheckoutContent() {
               registration={form.register('privacyAccepted')}
             />
             {existingAccount ? (
-              <div className="rounded-md bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="rounded-md bg-warning-subtle p-4 text-sm text-warning-foreground">
                 This email already has an account.{' '}
                 <Link
                   className="font-semibold underline"
@@ -343,7 +343,7 @@ function CheckoutContent() {
                 </Link>
               </div>
             ) : checkout.isError ? (
-              <p className="rounded-md bg-rose-50 p-4 text-sm text-rose-800">
+              <p className="rounded-md bg-destructive-subtle p-4 text-sm text-destructive-foreground">
                 {checkout.error instanceof ApiError
                   ? checkout.error.message
                   : 'Checkout could not be started.'}
@@ -361,12 +361,12 @@ function CheckoutContent() {
 
 function CheckoutHeader() {
   return (
-    <header className="border-b border-slate-200 pb-6">
+    <header className="border-b border-border pb-6">
       <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
         <MeroTelecomLogo alt="" preload size="compact" />
       </Link>
       <h1 className="mt-2 text-3xl font-bold">Internet plan checkout</h1>
-      <p className="mt-2 text-slate-600">
+      <p className="mt-2 text-muted-foreground">
         Your account is activated securely after verified payment.
       </p>
     </header>
@@ -375,18 +375,18 @@ function CheckoutHeader() {
 
 function PlanSummary({ plan }: Readonly<{ plan: PublicPlan }>) {
   return (
-    <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <p className="text-sm font-semibold tracking-wide text-sky-700">SELECTED PLAN</p>
+    <section className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
+      <p className="text-sm font-semibold tracking-wide text-primary">SELECTED PLAN</p>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">{plan.name}</h2>
-          <p className="mt-1 text-slate-600">
+          <p className="mt-1 text-muted-foreground">
             {plan.downloadMbps}/{plan.uploadMbps} Mbps
           </p>
         </div>
         <p className="text-2xl font-bold">
           ${(plan.monthlyCents / 100).toFixed(2)}
-          <span className="text-sm font-normal text-slate-500">/month</span>
+          <span className="text-sm font-normal text-muted-foreground">/month</span>
         </p>
       </div>
     </section>
@@ -395,7 +395,7 @@ function PlanSummary({ plan }: Readonly<{ plan: PublicPlan }>) {
 
 function FormSection({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
-    <section className="grid gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="grid gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
       <h2 className="text-xl font-bold">{title}</h2>
       {children}
     </section>
@@ -455,16 +455,16 @@ function ServiceAddressSection({
 
   if (context) {
     return (
-      <section className="mt-8 rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+      <section className="mt-8 rounded-xl border border-success-border bg-success-subtle p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold tracking-wide text-emerald-800">
+            <p className="text-sm font-semibold tracking-wide text-success-foreground">
               CONFIRMED SERVICE ADDRESS
             </p>
-            <h2 className="mt-2 text-xl font-bold text-emerald-950">
+            <h2 className="mt-2 text-xl font-bold text-success-foreground">
               {context.serviceAddress.formattedAddress}
             </h2>
-            <p className="mt-2 text-sm text-emerald-900">
+            <p className="mt-2 text-sm text-success-foreground">
               Estimated {context.qualification.technology} service up to{' '}
               {context.qualification.maximumSpeedMbps} Mbps. This is a database estimate, not
               official nbn confirmation.
@@ -480,7 +480,7 @@ function ServiceAddressSection({
           </button>
         </div>
         {clear.isError ? (
-          <p className="mt-4 text-sm text-rose-800" role="alert">
+          <p className="mt-4 text-sm text-destructive-foreground" role="alert">
             {clear.error instanceof ApiError
               ? clear.error.message
               : 'The service address could not be changed.'}
@@ -491,15 +491,15 @@ function ServiceAddressSection({
   }
 
   return (
-    <section className="mt-8 grid gap-4 rounded-xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+    <section className="mt-8 grid gap-4 rounded-xl border border-warning-border bg-warning-subtle p-6 shadow-sm">
       <div>
-        <p className="text-sm font-semibold tracking-wide text-amber-800">
+        <p className="text-sm font-semibold tracking-wide text-warning-foreground">
           SERVICE ADDRESS REQUIRED
         </p>
-        <h2 className="mt-2 text-xl font-bold text-amber-950">
+        <h2 className="mt-2 text-xl font-bold text-warning-foreground">
           Confirm where internet is required
         </h2>
-        <p className="mt-2 text-sm text-amber-900">
+        <p className="mt-2 text-sm text-warning-foreground">
           Select the installation address. It may be different from where the account holder lives.
         </p>
       </div>
@@ -522,14 +522,14 @@ function ServiceAddressSection({
         {prepare.isPending ? 'Checking service and plan…' : 'Confirm service availability'}
       </button>
       {coverageResult && !prepare.data?.context ? (
-        <p className="rounded-lg bg-white/80 p-4 text-sm text-amber-950" role="status">
+        <p className="rounded-lg bg-card/80 p-4 text-sm text-warning-foreground" role="status">
           {coverageResult.plans.some((candidate) => candidate.id === plan.id)
             ? coverageResult.message
             : `${coverageResult.message} The selected plan is not compatible with this address.`}
         </p>
       ) : null}
       {prepare.isError ? (
-        <p className="rounded-lg bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+        <p className="rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
           {prepare.error instanceof ApiError
             ? prepare.error.message
             : 'Service availability could not be confirmed.'}
@@ -555,7 +555,7 @@ function CheckoutAddressSelection({
         onSelectionChange={onSelectionChange}
         selectedMessage="Address selected."
       />
-      {error ? <p className="text-xs text-rose-700">{error}</p> : null}
+      {error ? <p className="text-xs text-destructive-foreground">{error}</p> : null}
     </div>
   );
 }
@@ -566,10 +566,10 @@ function Field({
   children,
 }: Readonly<{ label: string; error?: string; children: React.ReactNode }>) {
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+    <label className="grid gap-1.5 text-sm font-medium text-foreground">
       {label}
       {children}
-      {error ? <span className="text-xs font-normal text-rose-700">{error}</span> : null}
+      {error ? <span className="text-xs font-normal text-destructive-foreground">{error}</span> : null}
     </label>
   );
 }
@@ -587,7 +587,7 @@ function Checkbox({
 }>) {
   const { onChange, ...registeredInput } = registration;
   return (
-    <label className="flex items-start gap-3 text-sm text-slate-700">
+    <label className="flex items-start gap-3 text-sm text-foreground">
       <input
         className="mt-1 size-4"
         type="checkbox"
@@ -599,7 +599,7 @@ function Checkbox({
       />
       <span>
         {label}
-        {error ? <span className="mt-1 block text-xs text-rose-700">{error}</span> : null}
+        {error ? <span className="mt-1 block text-xs text-destructive-foreground">{error}</span> : null}
       </span>
     </label>
   );
@@ -607,7 +607,7 @@ function Checkbox({
 
 function Status({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <div className="grid justify-items-center gap-5">
         <MeroTelecomLogo preload size="auth" />
         <p>{message}</p>

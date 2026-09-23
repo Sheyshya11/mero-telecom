@@ -1,15 +1,10 @@
 .portal {
   min-height: 100dvh;
-  background:
-    radial-gradient(ellipse at 95% 0, hsl(var(--primary) / 0.09), transparent 35rem),
-    linear-gradient(hsl(var(--primary) / 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, hsl(var(--primary) / 0.022) 1px, transparent 1px),
-    hsl(var(--secondary) / 0.45);
-  background-size:
-    auto,
-    42px 42px,
-    42px 42px,
-    auto;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary-subtle) / 0.55),
+    hsl(var(--background)) 18rem
+  );
 }
 
 .container {
@@ -27,7 +22,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  box-shadow: 0 8px 30px hsl(215 35% 20% / 0.04);
+  box-shadow: 0 8px 30px hsl(var(--shadow-color) / 0.04);
 }
 .identity,
 .account,
@@ -41,7 +36,7 @@
   white-space: nowrap;
 }
 .role {
-  background: hsl(var(--primary-lighter) / 0.6);
+  background: hsl(var(--primary-subtle) / 0.6);
   color: hsl(var(--primary));
   border-radius: 999px;
   padding: 0.3rem 0.65rem;
@@ -82,11 +77,12 @@
 }
 .navigation a:hover {
   color: hsl(var(--primary));
-  background: hsl(var(--primary-lighter) / 0.4);
+  background: hsl(var(--primary-subtle) / 0.4);
 }
 .navigation a[aria-current='page'] {
   background: hsl(var(--primary));
-  color: white;
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 3px 10px hsl(var(--primary) / 0.16);
 }
 .header a:focus-visible,
 .header button:focus-visible {
@@ -96,6 +92,15 @@
 .content {
   margin-top: 1.25rem;
   min-width: 0;
+}
+.shellError {
+  margin: 1rem 0 0;
+  border: 1px solid hsl(var(--destructive-border));
+  border-radius: 0.75rem;
+  background: hsl(var(--destructive-subtle));
+  padding: 0.8rem 1rem;
+  color: hsl(var(--destructive-foreground));
+  font-size: 0.875rem;
 }
 .content:focus {
   outline: none;
@@ -114,7 +119,7 @@
   left: 0.5rem;
   transform: translateY(-150%);
   padding: 0.75rem;
-  background: white;
+  background: hsl(var(--card));
   color: hsl(var(--primary));
   border-radius: 0.5rem;
 }
@@ -142,9 +147,9 @@
   margin-bottom: 1.25rem;
   border: 0;
   border-radius: 1.2rem;
-  background: linear-gradient(130deg, hsl(187 86% 23%), hsl(187 80% 34%));
-  color: white;
-  box-shadow: 0 12px 32px hsl(var(--primary) / 0.12);
+  background: hsl(var(--primary-hover));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 10px 28px hsl(var(--primary) / 0.12);
 }
 .content :global(.workspace-page) > header::before {
   position: absolute;
@@ -153,56 +158,53 @@
   content: '';
   pointer-events: none;
   border-radius: inherit;
-  background:
-    radial-gradient(circle at 95% -30%, hsl(0 0% 100% / 0.09) 0 10rem, transparent 10.1rem),
-    linear-gradient(hsl(0 0% 100% / 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, hsl(0 0% 100% / 0.04) 1px, transparent 1px);
-  background-size:
-    auto,
-    36px 36px,
-    36px 36px;
+  background: radial-gradient(
+    circle at 96% -40%,
+    hsl(var(--brand-gold) / 0.16) 0 11rem,
+    transparent 11.1rem
+  );
 }
 .content :global(.workspace-page) > header h1 {
-  color: white;
+  color: hsl(var(--primary-foreground));
   font-size: clamp(1.6rem, 3vw, 2.15rem);
   letter-spacing: -0.04em;
   line-height: 1.2;
 }
 .content :global(.workspace-page) > header p {
-  color: hsl(0 0% 100% / 0.83);
+  color: hsl(var(--primary-foreground) / 0.83);
   max-width: 44rem;
   font-size: 0.875rem;
   line-height: 1.6;
 }
 .content :global(.workspace-page) > header > div > p:first-child {
-  color: hsl(0 0% 100% / 0.73);
+  color: hsl(var(--primary-foreground) / 0.73);
   font-size: 0.7rem;
   font-weight: 750;
   letter-spacing: 0.1em;
 }
 .content :global(.workspace-page) > header :global(.button-primary) {
-  background: white;
+  background: hsl(var(--card));
   color: hsl(var(--primary));
 }
 .content :global(.workspace-page) > header :global(.button-secondary) {
-  background: hsl(0 0% 100% / 0.12);
-  border-color: hsl(0 0% 100% / 0.25);
-  color: white;
+  background: hsl(var(--primary-foreground) / 0.12);
+  border-color: hsl(var(--primary-foreground) / 0.25);
+  color: hsl(var(--primary-foreground));
 }
 .content :global(.workspace-page) > header > :is(div, nav) {
   min-width: 0;
   flex-wrap: wrap;
 }
-.content :global(.workspace-page) :global(.bg-white) {
+.content :global(.workspace-page) :global(.bg-card) {
   border-radius: 1rem;
   border-color: hsl(var(--border));
-  box-shadow: 0 8px 28px hsl(215 35% 20% / 0.04);
+  box-shadow: 0 8px 28px hsl(var(--shadow-color) / 0.04);
 }
-.content :global(.workspace-page) :global(.text-sky-700) {
+.content :global(.workspace-page) :global(.text-primary) {
   color: hsl(var(--primary));
 }
-.content :global(.workspace-page) > header :global(.text-sky-700) {
-  color: hsl(0 0% 100% / 0.78);
+.content :global(.workspace-page) > header :global(.text-primary) {
+  color: hsl(var(--primary-foreground) / 0.78);
 }
 .content :global(.workspace-page) table {
   font-size: 0.8rem;
@@ -217,7 +219,7 @@
   padding-bottom: 0.9rem;
 }
 .content :global(.workspace-page) tbody tr:hover {
-  background: hsl(var(--primary-lighter) / 0.18);
+  background: hsl(var(--primary-subtle) / 0.18);
 }
 .content :global(.workspace-page) [role='dialog'] {
   max-height: calc(100dvh - 2rem);

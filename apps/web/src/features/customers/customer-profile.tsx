@@ -78,15 +78,15 @@ export function CustomerProfile() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-3xl px-6 py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">MY ACCOUNT</p>
+          <p className="text-sm font-semibold tracking-wide text-primary">MY ACCOUNT</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">My profile</h1>
-          <p className="mt-2 text-slate-600">Keep your contact and service address current.</p>
+          <p className="mt-2 text-muted-foreground">Keep your contact and service address current.</p>
         </div>
       </header>
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="grid gap-4 border-b border-slate-100 pb-5 sm:grid-cols-3">
+      <section className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="grid gap-4 border-b border-border/70 pb-5 sm:grid-cols-3">
           <Summary label="Account" value={profile.data.customerNumber} />
           <Summary label="Name" value={`${profile.data.firstName} ${profile.data.lastName}`} />
           <Summary label="Email" value={profile.data.email} />
@@ -116,12 +116,12 @@ export function CustomerProfile() {
             </Field>
           </div>
           {update.isSuccess ? (
-            <p className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-800" role="status">
+            <p className="rounded-md bg-success-subtle p-3 text-sm text-success-foreground" role="status">
               Profile updated successfully.
             </p>
           ) : null}
           {update.error ? (
-            <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-800" role="alert">
+            <p className="rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground" role="alert">
               {update.error instanceof ApiError
                 ? update.error.message
                 : 'Unable to update your profile.'}
@@ -148,24 +148,24 @@ function Field({
   children,
 }: Readonly<{ label: string; error?: string; children: React.ReactNode }>) {
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+    <label className="grid gap-1.5 text-sm font-medium text-foreground">
       {label}
       {children}
-      {error ? <span className="text-xs font-normal text-rose-700">{error}</span> : null}
+      {error ? <span className="text-xs font-normal text-destructive-foreground">{error}</span> : null}
     </label>
   );
 }
 function Summary({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 break-words font-medium">{value}</p>
     </div>
   );
 }
 function Status({ message, onRetry }: Readonly<{ message: string; onRetry?: () => void }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <div>
         <p>{message}</p>
         {onRetry ? (

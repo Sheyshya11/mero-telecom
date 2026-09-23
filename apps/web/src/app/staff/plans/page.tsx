@@ -115,30 +115,30 @@ export default function StaffPlansPage() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">
+          <p className="text-sm font-semibold tracking-wide text-primary">
             {isAdmin ? 'ADMIN' : 'STAFF'} · PLAN HIGHLIGHTS
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Plan highlights</h1>
-          <p className="mt-2 max-w-2xl text-slate-600">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">Plan highlights</h1>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
             Manage the customer-facing “Best for” points. Pricing, speeds and availability remain
             administrator-controlled.
           </p>
         </div>
       </header>
 
-      <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-6 py-5">
-          <h2 className="text-lg font-semibold text-slate-950">Internet plans</h2>
-          <p className="mt-1 text-sm text-slate-500">
+      <section className="mt-8 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border px-6 py-5">
+          <h2 className="text-lg font-semibold text-foreground">Internet plans</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Use short, specific phrases. Up to five highlights are shown on each landing-page card.
           </p>
         </div>
 
-        {plansQuery.isPending ? <p className="p-6 text-slate-600">Loading plans…</p> : null}
+        {plansQuery.isPending ? <p className="p-6 text-muted-foreground">Loading plans…</p> : null}
         {plansQuery.isError ? (
-          <div className="flex items-center gap-3 p-6 text-rose-700">
+          <div className="flex items-center gap-3 p-6 text-destructive-foreground">
             <p>Unable to load plans.</p>
             <button
               className="button-secondary"
@@ -150,7 +150,7 @@ export default function StaffPlansPage() {
           </div>
         ) : null}
         {plansQuery.data?.length === 0 ? (
-          <p className="p-6 text-slate-600">No plans have been created yet.</p>
+          <p className="p-6 text-muted-foreground">No plans have been created yet.</p>
         ) : null}
 
         <div className="divide-y divide-slate-100">
@@ -160,27 +160,27 @@ export default function StaffPlansPage() {
               key={plan.id}
             >
               <div>
-                <h3 className="font-semibold text-slate-950">{plan.name}</h3>
-                <p className="mt-1 text-sm text-slate-600">
+                <h3 className="font-semibold text-foreground">{plan.name}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
                   {plan.downloadMbps}/{plan.uploadMbps} Mbps · {formatMoney(plan.monthlyCents)}
                   /month
                 </p>
                 {plan.description ? (
-                  <p className="mt-2 line-clamp-2 text-sm text-slate-500">{plan.description}</p>
+                  <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{plan.description}</p>
                 ) : null}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {plan.highlights.length ? (
                   plan.highlights.map((highlight) => (
                     <span
-                      className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-800"
+                      className="rounded-full bg-primary-subtle px-2.5 py-1 text-xs font-medium text-primary"
                       key={highlight}
                     >
                       {highlight}
                     </span>
                   ))
                 ) : (
-                  <span className="text-sm text-slate-500">No custom highlights yet.</span>
+                  <span className="text-sm text-muted-foreground">No custom highlights yet.</span>
                 )}
               </div>
               <button className="button-secondary" onClick={() => startEditing(plan)} type="button">
@@ -192,22 +192,22 @@ export default function StaffPlansPage() {
       </section>
 
       {editingPlan ? (
-        <div className="fixed inset-0 z-20 grid place-items-center bg-slate-950/45 p-4">
+        <div className="fixed inset-0 z-20 grid place-items-center bg-overlay p-4">
           <section
             aria-labelledby="highlight-editor-title"
             aria-modal="true"
-            className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"
+            className="w-full max-w-xl rounded-2xl bg-card p-6 shadow-2xl"
             role="dialog"
           >
-            <p className="text-sm font-semibold tracking-wide text-sky-700">BEST FOR</p>
-            <h2 className="mt-1 text-xl font-bold text-slate-950" id="highlight-editor-title">
+            <p className="text-sm font-semibold tracking-wide text-primary">BEST FOR</p>
+            <h2 className="mt-1 text-xl font-bold text-foreground" id="highlight-editor-title">
               Edit {editingPlan.name}
             </h2>
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 text-sm text-muted-foreground">
               Add one feature per line. These appear in the lower section of the public plan card.
             </p>
-            <label className="mt-5 block text-sm font-medium text-slate-700">
-              Plan highlights <span className="text-slate-400">(up to five)</span>
+            <label className="mt-5 block text-sm font-medium text-foreground">
+              Plan highlights <span className="text-muted-foreground/70">(up to five)</span>
               <textarea
                 autoFocus
                 className="field mt-1 min-h-36"
@@ -220,11 +220,11 @@ export default function StaffPlansPage() {
                 value={highlightsText}
               />
             </label>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-muted-foreground">
               {parseHighlights(highlightsText).length}/5 highlights
             </p>
             {errorMessage ? (
-              <p className="mt-4 rounded-md bg-rose-50 p-3 text-sm text-rose-800">{errorMessage}</p>
+              <p className="mt-4 rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground">{errorMessage}</p>
             ) : null}
             <div className="mt-6 flex justify-end gap-3">
               <button
@@ -258,7 +258,7 @@ export default function StaffPlansPage() {
 
 function PageStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       {message}
     </main>
   );

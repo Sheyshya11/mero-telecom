@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../../../features/auth/auth-provider';
 import { usePlanOptions } from '../../../features/plans/use-plan-options';
 import { ApiError, apiRequest } from '../../../lib/api/client';
+import { statusToneClass } from '../../../lib/status-theme';
 
 type Customer = { id: string; customerNumber?: string; firstName: string; lastName: string };
 type Subscription = {
@@ -168,14 +169,14 @@ export default function AdminSubscriptionsPage() {
 
   if (isLoading) {
     return (
-      <main className="grid min-h-screen place-items-center text-slate-600">
+      <main className="grid min-h-screen place-items-center text-muted-foreground">
         Checking your session…
       </main>
     );
   }
   if (!user || (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN' && user.role !== 'STAFF')) {
     return (
-      <main className="grid min-h-screen place-items-center text-slate-600">
+      <main className="grid min-h-screen place-items-center text-muted-foreground">
         Staff or administrator access is required.
       </main>
     );
@@ -184,18 +185,18 @@ export default function AdminSubscriptionsPage() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
-      <header className="border-b border-slate-200 pb-6">
+      <header className="border-b border-border pb-6">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">ADMIN · OPERATIONS</p>
+          <p className="text-sm font-semibold tracking-wide text-primary">ADMIN · OPERATIONS</p>
           <h1 className="mt-2 text-3xl font-bold">Subscriptions</h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-muted-foreground">
             Review service history, lifecycle status, and customer-requested plan changes.
           </p>
         </div>
       </header>
 
       {subscriptions.isError || planChanges.isError ? (
-        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-md bg-rose-50 p-4 text-sm text-rose-800">
+        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-md bg-destructive-subtle p-4 text-sm text-destructive-foreground">
           <p>Some subscription or plan-change data could not be loaded.</p>
           <button
             className="button-secondary"
@@ -210,13 +211,13 @@ export default function AdminSubscriptionsPage() {
         </div>
       ) : null}
       {error ? (
-        <p className="mt-6 rounded-md bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="mt-6 rounded-md bg-destructive-subtle p-4 text-sm text-destructive-foreground">
           {error instanceof ApiError ? error.message : 'Unable to update subscription.'}
         </p>
       ) : null}
 
-      <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-6 py-5">
+      <section className="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border px-6 py-5">
           <h2 className="font-semibold">Subscription history</h2>
         </div>
         <DataTableControls
@@ -259,12 +260,12 @@ export default function AdminSubscriptionsPage() {
         {subscriptions.isPending ? <TableSkeleton /> : null}
         <div className="divide-y divide-slate-100">
           {subscriptions.isError && (
-            <p role="alert" className="p-6 text-rose-700">
+            <p role="alert" className="p-6 text-destructive-foreground">
               Unable to load subscriptions. Check the filters and try again.
             </p>
           )}
           {subscriptions.data?.data.length === 0 && (
-            <p className="p-6 text-slate-600">
+            <p className="p-6 text-muted-foreground">
               {table.values.search
                 ? 'No subscriptions match your search.'
                 : 'No subscriptions match the selected filters.'}
@@ -281,12 +282,12 @@ export default function AdminSubscriptionsPage() {
                   {subscription.customer.firstName} {subscription.customer.lastName}{' '}
                   <StatusBadge status={subscription.status} />
                 </p>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {subscription.plan.name} · {subscription.plan.downloadMbps}/
                   {subscription.plan.uploadMbps} Mbps · starts {formatDate(subscription.startDate)}
                 </p>
                 {subscription.status === 'ACTIVE' && user.role !== 'STAFF' ? (
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Current period ends {formatDateTime(subscription.currentPeriodEnd)}
                   </p>
                 ) : null}
@@ -343,7 +344,7 @@ export default function AdminSubscriptionsPage() {
                 new Date(subscription.eligibleForTerminationAt) <= new Date() &&
                 user.role === 'SUPER_ADMIN' ? (
                   <button
-                    className="button-secondary text-rose-700"
+                    className="button-secondary text-destructive-foreground"
                     disabled={transition.isPending}
                     onClick={() => transition.mutate({ id: subscription.id, action: 'terminate' })}
                     type="button"
@@ -358,23 +359,23 @@ export default function AdminSubscriptionsPage() {
                 ) : null}
               </div>
               {subscription.invoices[0] ? (
-                <dl className="grid w-full gap-2 rounded-lg bg-slate-50 p-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
+                <dl className="grid w-full gap-2 rounded-lg bg-muted p-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
                   <div>
-                    <dt className="text-xs text-slate-500">Invoice</dt>
+                    <dt className="text-xs text-muted-foreground">Invoice</dt>
                     <dd className="font-medium">{subscription.invoices[0].invoiceNumber}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-500">Amount due</dt>
+                    <dt className="text-xs text-muted-foreground">Amount due</dt>
                     <dd className="font-medium">
                       {formatMoney(subscription.invoices[0].totalCents)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-500">Due date</dt>
+                    <dt className="text-xs text-muted-foreground">Due date</dt>
                     <dd>{formatDate(subscription.invoices[0].dueDate)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-500">Days overdue</dt>
+                    <dt className="text-xs text-muted-foreground">Days overdue</dt>
                     <dd>
                       {Math.max(
                         0,
@@ -386,7 +387,7 @@ export default function AdminSubscriptionsPage() {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-500">Grace ends</dt>
+                    <dt className="text-xs text-muted-foreground">Grace ends</dt>
                     <dd>
                       {subscription.gracePeriodEndsAt
                         ? formatDateTime(subscription.gracePeriodEndsAt)
@@ -394,14 +395,14 @@ export default function AdminSubscriptionsPage() {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-500">Provisioning</dt>
+                    <dt className="text-xs text-muted-foreground">Provisioning</dt>
                     <dd>
                       {subscription.provisioningStatus ?? 'Not requested'}
                       {subscription.provisioningFailure ? ' · needs review' : ''}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-500">Payment attempts</dt>
+                    <dt className="text-xs text-muted-foreground">Payment attempts</dt>
                     <dd>
                       {subscription.invoices.reduce(
                         (total, invoice) => total + invoice.payments.length,
@@ -410,11 +411,11 @@ export default function AdminSubscriptionsPage() {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-500">Reminders sent</dt>
+                    <dt className="text-xs text-muted-foreground">Reminders sent</dt>
                     <dd>{subscription.remindersSent}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-500">Support cases</dt>
+                    <dt className="text-xs text-muted-foreground">Support cases</dt>
                     <dd>{subscription.customer.supportCases.length || 'None'}</dd>
                   </div>
                 </dl>
@@ -430,11 +431,11 @@ export default function AdminSubscriptionsPage() {
         />
       </section>
 
-      <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-6 py-5">
+      <section className="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border px-6 py-5">
           <div>
             <h2 className="font-semibold">Plan-change requests</h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-muted-foreground">
               Payment, scheduling, application, and failure visibility for operations.
             </p>
           </div>
@@ -460,9 +461,9 @@ export default function AdminSubscriptionsPage() {
             { key: 'type', label: 'Type', options: ['UPGRADE', 'DOWNGRADE'] },
           ]}
         />
-        {planChanges.isPending ? <p className="p-6 text-slate-600">Loading plan changes…</p> : null}
+        {planChanges.isPending ? <p className="p-6 text-muted-foreground">Loading plan changes…</p> : null}
         {planChanges.data?.data.length === 0 ? (
-          <p className="p-6 text-slate-600">No plan changes match these filters.</p>
+          <p className="p-6 text-muted-foreground">No plan changes match these filters.</p>
         ) : null}
         <div className="divide-y divide-slate-100">
           {planChanges.data?.data.map((change) => (
@@ -471,13 +472,13 @@ export default function AdminSubscriptionsPage() {
                 <p className="font-semibold">
                   {change.customer.firstName} {change.customer.lastName}
                 </p>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {change.currentPlan.name} → {change.targetPlan.name}
                 </p>
-                <p className="mt-1 font-mono text-xs text-slate-500">
+                <p className="mt-1 font-mono text-xs text-muted-foreground">
                   Request {change.id.slice(0, 8)} ·{' '}
                   <Link
-                    className="font-semibold text-sky-700 underline"
+                    className="font-semibold text-primary underline"
                     href={`#subscription-${change.sourceSubscriptionId}`}
                   >
                     Source subscription {change.sourceSubscriptionId.slice(0, 8)}
@@ -485,14 +486,14 @@ export default function AdminSubscriptionsPage() {
                 </p>
                 {change.newSubscriptionId ? (
                   <Link
-                    className="mt-1 block font-mono text-xs font-semibold text-sky-700 underline"
+                    className="mt-1 block font-mono text-xs font-semibold text-primary underline"
                     href={`#subscription-${change.newSubscriptionId}`}
                   >
                     Result subscription {change.newSubscriptionId.slice(0, 8)}
                   </Link>
                 ) : null}
               </div>
-              <div className="text-sm text-slate-600">
+              <div className="text-sm text-muted-foreground">
                 <p>
                   Requested {formatDateTime(change.requestedAt)} · effective{' '}
                   {formatDateTime(change.effectiveAt)}
@@ -503,12 +504,12 @@ export default function AdminSubscriptionsPage() {
                     : 'No immediate charge'}
                 </p>
                 {change.failureReason ? (
-                  <p className="mt-1 text-rose-700">
+                  <p className="mt-1 text-destructive-foreground">
                     Reason: {change.failureReason.replaceAll('_', ' ')}
                   </p>
                 ) : null}
               </div>
-              <div className="text-sm text-slate-600">
+              <div className="text-sm text-muted-foreground">
                 <p>Invoice: {change.invoice?.invoiceNumber ?? '—'}</p>
                 <p>Invoice status: {change.invoice?.status ?? '—'}</p>
                 <p>
@@ -520,7 +521,7 @@ export default function AdminSubscriptionsPage() {
                   <p className="font-mono text-xs">Payment ID: {change.payment.id.slice(0, 8)}</p>
                 ) : null}
                 <details className="mt-2">
-                  <summary className="cursor-pointer font-semibold text-sky-700">
+                  <summary className="cursor-pointer font-semibold text-primary">
                     Audit history ({change.auditHistory.length})
                   </summary>
                   {change.auditHistory.length ? (
@@ -537,13 +538,13 @@ export default function AdminSubscriptionsPage() {
                 </details>
               </div>
               <div className="flex items-start gap-2 lg:flex-col lg:items-end">
-                <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800">
+                <span className="rounded-full bg-primary-subtle px-2.5 py-1 text-xs font-semibold text-primary">
                   {change.type}
                 </span>
                 <StatusBadge status={change.status} />
                 {change.invoice ? (
                   <Link
-                    className="text-xs font-semibold text-sky-700 underline"
+                    className="text-xs font-semibold text-primary underline"
                     href="/admin/invoices"
                   >
                     Invoice history
@@ -566,7 +567,7 @@ export default function AdminSubscriptionsPage() {
 
 function StatusBadge({ status }: Readonly<{ status: string }>) {
   return (
-    <span className="ml-2 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+    <span className={`ml-2 rounded-full px-2 py-1 text-xs font-semibold ${statusToneClass(status)}`}>
       {status.replaceAll('_', ' ')}
     </span>
   );

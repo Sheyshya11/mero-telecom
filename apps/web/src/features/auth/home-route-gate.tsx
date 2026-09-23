@@ -19,7 +19,7 @@ export function HomeRouteGate({ children }: Readonly<{ children: React.ReactNode
 
   if (!isWebsiteRoute && (isLoading || user)) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 px-6 text-sm text-slate-600">
+      <main className="grid min-h-screen place-items-center bg-muted px-6 text-sm text-muted-foreground">
         <div className="grid justify-items-center gap-5 text-center">
           <MeroTelecomLogo preload size="auth" />
           <p>Loading your workspace…</p>

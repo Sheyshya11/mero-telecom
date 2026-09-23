@@ -83,12 +83,12 @@ export function CustomerSupport() {
   if (!permitted) return <PageStatus message="Customer access is required." />;
 
   return (
-    <main className="workspace-page mx-auto min-h-screen max-w-7xl px-4 py-8 text-slate-950 sm:px-6 sm:py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+    <main className="workspace-page mx-auto min-h-screen max-w-7xl px-4 py-8 text-foreground sm:px-6 sm:py-10">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">HELP &amp; SUPPORT</p>
+          <p className="text-sm font-semibold tracking-wide text-primary">HELP &amp; SUPPORT</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Support</h1>
-          <p className="mt-2 text-slate-600">Ask for help and follow every reply in one place.</p>
+          <p className="mt-2 text-muted-foreground">Ask for help and follow every reply in one place.</p>
         </div>
         <button
           className={showForm ? 'button-secondary' : 'button-primary'}
@@ -100,13 +100,13 @@ export function CustomerSupport() {
       </header>
 
       {showForm ? (
-        <section className="mt-6 rounded-xl border border-sky-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="mt-6 rounded-xl border border-primary/20 bg-card p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold">Create a support request</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted-foreground">
             Describe the issue once. Future replies will stay in the same conversation.
           </p>
           {actionError ? (
-            <p className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-800" role="alert">
+            <p className="mt-4 rounded-lg bg-destructive-subtle p-3 text-sm text-destructive-foreground" role="alert">
               {actionError}
             </p>
           ) : null}
@@ -132,7 +132,7 @@ export function CustomerSupport() {
               Subject
               <input className="field" maxLength={200} {...form.register('subject')} />
               {form.formState.errors.subject ? (
-                <span className="text-xs text-rose-700">
+                <span className="text-xs text-destructive-foreground">
                   {form.formState.errors.subject.message}
                 </span>
               ) : null}
@@ -145,7 +145,7 @@ export function CustomerSupport() {
                 {...form.register('message')}
               />
               {form.formState.errors.message ? (
-                <span className="text-xs text-rose-700">
+                <span className="text-xs text-destructive-foreground">
                   {form.formState.errors.message.message}
                 </span>
               ) : null}
@@ -163,10 +163,10 @@ export function CustomerSupport() {
                 }}
                 type="file"
               />
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-muted-foreground">
                 Up to 3 files, 10 MB each (20 MB total).
               </span>
-              {fileError ? <span className="text-xs text-rose-700">{fileError}</span> : null}
+              {fileError ? <span className="text-xs text-destructive-foreground">{fileError}</span> : null}
             </label>
             <div>
               <button className="button-primary" disabled={create.isPending} type="submit">
@@ -182,7 +182,7 @@ export function CustomerSupport() {
           <h2 className="text-xl font-semibold" id="requests-heading">
             Your support requests
           </h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted-foreground">
             Search or filter your existing conversations.
           </p>
         </div>
@@ -195,16 +195,16 @@ export function CustomerSupport() {
           sorts={['updatedAt', 'createdAt', 'status']}
           state={table}
         />
-        <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           {cases.isPending ? <TableSkeleton /> : null}
           {cases.isError ? (
-            <p className="p-6 text-rose-700">We couldn&apos;t load your support requests.</p>
+            <p className="p-6 text-destructive-foreground">We couldn&apos;t load your support requests.</p>
           ) : null}
           {cases.data?.data.length ? (
             <>
               <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-190 text-left text-sm">
-                  <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                  <thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="px-5 py-3">Reference</th>
                       <th>Subject</th>
@@ -253,7 +253,7 @@ export function CustomerSupport() {
 
 function CustomerRow({ supportCase }: Readonly<{ supportCase: SupportCase }>) {
   return (
-    <tr className="border-b border-slate-100">
+    <tr className="border-b border-border/70">
       <td className="px-5 py-4 font-mono text-xs font-semibold">{supportCase.caseNumber}</td>
       <td className="font-medium">{supportCase.subject}</td>
       <td>{categoryLabel(supportCase.category)}</td>
@@ -272,15 +272,15 @@ function CustomerRow({ supportCase }: Readonly<{ supportCase: SupportCase }>) {
 
 function CustomerCard({ supportCase }: Readonly<{ supportCase: SupportCase }>) {
   return (
-    <article className="rounded-lg border border-slate-200 p-4">
+    <article className="rounded-lg border border-border p-4">
       <div className="flex items-start justify-between gap-3">
-        <span className="font-mono text-xs font-semibold text-sky-800">
+        <span className="font-mono text-xs font-semibold text-primary">
           {supportCase.caseNumber}
         </span>
         <StatusBadge status={supportCase.status} customer />
       </div>
       <h3 className="mt-3 font-semibold">{supportCase.subject}</h3>
-      <p className="mt-1 text-sm text-slate-600">
+      <p className="mt-1 text-sm text-muted-foreground">
         {categoryLabel(supportCase.category)} · Updated {formatSupportDate(supportCase.updatedAt)}
       </p>
       <Link className="button-secondary mt-4" href={`/customer/support/${supportCase.caseNumber}`}>
@@ -296,12 +296,12 @@ export function StatusBadge({
 }: Readonly<{ status: SupportCase['status']; customer?: boolean }>) {
   const tone =
     status === 'RESOLVED'
-      ? 'bg-emerald-100 text-emerald-800'
+      ? 'bg-success-subtle text-success-foreground'
       : status === 'WAITING_FOR_CUSTOMER'
-        ? 'bg-amber-100 text-amber-900'
+        ? 'bg-warning-subtle text-warning-foreground'
         : status === 'CLOSED'
-          ? 'bg-slate-200 text-slate-700'
-          : 'bg-sky-100 text-sky-800';
+          ? 'bg-border text-foreground'
+          : 'bg-primary-subtle-strong text-primary';
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
       {statusLabel(status, customer)}
@@ -311,7 +311,7 @@ export function StatusBadge({
 
 function PageStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <p>{message}</p>
     </main>
   );

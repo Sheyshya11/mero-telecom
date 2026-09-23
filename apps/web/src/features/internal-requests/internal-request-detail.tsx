@@ -202,14 +202,14 @@ export function InternalRequestDetail({ requestNumber }: Readonly<{ requestNumbe
     (superAdminMode && data.currentLevel !== 'SUPER_ADMIN');
 
   return (
-    <main className="workspace-page mx-auto min-h-screen max-w-6xl px-4 py-8 text-slate-950 sm:px-6 sm:py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+    <main className="workspace-page mx-auto min-h-screen max-w-6xl px-4 py-8 text-foreground sm:px-6 sm:py-10">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="font-mono text-sm font-semibold tracking-wide text-sky-700">
+          <p className="font-mono text-sm font-semibold tracking-wide text-primary">
             {data.requestNumber}
           </p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">{data.title}</h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-muted-foreground">
             {internalRequestTypeLabel(data.type)} · Created{' '}
             {formatInternalRequestDate(data.createdAt)}
           </p>
@@ -220,12 +220,12 @@ export function InternalRequestDetail({ requestNumber }: Readonly<{ requestNumbe
       </header>
 
       {notice ? (
-        <p className="mt-5 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800" role="status">
+        <p className="mt-5 rounded-lg bg-success-subtle p-4 text-sm text-success-foreground" role="status">
           {notice}
         </p>
       ) : null}
       {error ? (
-        <p className="mt-5 rounded-lg bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+        <p className="mt-5 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
           {error}
         </p>
       ) : null}
@@ -265,14 +265,14 @@ export function InternalRequestDetail({ requestNumber }: Readonly<{ requestNumbe
 
       {data.capabilities?.unavailableReason &&
       (data.currentLevel === 'SUPER_ADMIN' || data.status === 'MORE_INFO_REQUIRED') ? (
-        <p className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+        <p className="mt-6 rounded-xl border border-warning-border bg-warning-subtle p-4 text-sm text-warning-foreground">
           <strong>Workflow action required.</strong> {data.capabilities.unavailableReason}
         </p>
       ) : null}
 
-      <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <section className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
         <h2 className="text-lg font-semibold">Request</h2>
-        <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-slate-800">
+        <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
           {data.description}
         </p>
       </section>
@@ -314,7 +314,7 @@ export function InternalRequestDetail({ requestNumber }: Readonly<{ requestNumbe
       ) : null}
 
       <section
-        className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-6"
+        className="mt-6 rounded-xl border border-border bg-muted p-4 shadow-sm sm:p-6"
         aria-labelledby="internal-conversation-heading"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -322,11 +322,11 @@ export function InternalRequestDetail({ requestNumber }: Readonly<{ requestNumbe
             <h2 className="text-lg font-semibold" id="internal-conversation-heading">
               Internal conversation
             </h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-muted-foreground">
               Private between Staff and Administrators. Customers cannot access these messages.
             </p>
           </div>
-          <span className="text-xs text-slate-500">{data.messages?.length ?? 0} messages</span>
+          <span className="text-xs text-muted-foreground">{data.messages?.length ?? 0} messages</span>
         </div>
         {data.messages?.length ? (
           <ol className="mt-6 grid gap-4">
@@ -335,7 +335,7 @@ export function InternalRequestDetail({ requestNumber }: Readonly<{ requestNumbe
               return (
                 <li className={`flex ${mine ? 'justify-end' : 'justify-start'}`} key={message.id}>
                   <article
-                    className={`max-w-3xl rounded-2xl border p-4 sm:p-5 ${mine ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-white'}`}
+                    className={`max-w-3xl rounded-2xl border p-4 sm:p-5 ${mine ? 'border-primary/20 bg-primary-subtle' : 'border-border bg-card'}`}
                   >
                     <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1 text-sm">
                       <strong>
@@ -346,15 +346,15 @@ export function InternalRequestDetail({ requestNumber }: Readonly<{ requestNumbe
                             ? 'Staff'
                             : 'Admin'}
                       </strong>
-                      <time className="text-xs text-slate-500" dateTime={message.createdAt}>
+                      <time className="text-xs text-muted-foreground" dateTime={message.createdAt}>
                         {formatInternalRequestDate(message.createdAt)}
                       </time>
                     </div>
-                    <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-800">
+                    <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
                       {message.body}
                     </p>
                     {message.attachments?.length ? (
-                      <ul className="mt-4 grid gap-2 border-t border-slate-200 pt-3">
+                      <ul className="mt-4 grid gap-2 border-t border-border pt-3">
                         {message.attachments.map((attachment) => (
                           <li key={attachment.id}>
                             <AttachmentButton
@@ -373,28 +373,28 @@ export function InternalRequestDetail({ requestNumber }: Readonly<{ requestNumbe
             })}
           </ol>
         ) : (
-          <p className="mt-6 rounded-lg bg-white p-4 text-sm text-slate-600">
+          <p className="mt-6 rounded-lg bg-card p-4 text-sm text-muted-foreground">
             No internal messages yet.
           </p>
         )}
 
         {readOnly ? (
-          <p className="mt-6 rounded-lg bg-slate-200 p-4 text-sm text-slate-700">
+          <p className="mt-6 rounded-lg bg-border p-4 text-sm text-foreground">
             This request is read-only.
           </p>
         ) : adminMode && !data.capabilities?.canComment ? (
-          <p className="mt-6 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="mt-6 rounded-lg bg-warning-subtle p-4 text-sm text-warning-foreground">
             {data.currentLevel === 'SUPER_ADMIN'
               ? 'This request is with Super Admin. Review actions remain locked until it is returned.'
               : 'Take this request before sending an Admin reply.'}
           </p>
         ) : superAdminMode && !data.capabilities?.canComment ? (
-          <p className="mt-6 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="mt-6 rounded-lg bg-warning-subtle p-4 text-sm text-warning-foreground">
             Take this escalation before sending a Super Admin reply.
           </p>
         ) : (
           <form
-            className="mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
+            className="mt-6 rounded-xl border border-border bg-card p-4 sm:p-5"
             onSubmit={(event) => {
               event.preventDefault();
               if (reply.trim()) sendReply.mutate();
@@ -476,13 +476,13 @@ function AdminControls({
   const actionDefinition = action ? reviewActions[action] : null;
   return (
     <section
-      className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+      className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm"
       aria-label="Administrator actions"
     >
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
           <h2 className="font-semibold">Administrator actions</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted-foreground">
             Decisions are audited and never execute the linked business action automatically.
           </p>
         </div>
@@ -526,25 +526,25 @@ function AdminControls({
         </div>
       </div>
       {data.assignedTo && !assignedMine ? (
-        <p className="mt-4 rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
+        <p className="mt-4 rounded-lg bg-secondary p-3 text-sm text-foreground">
           Owned by {personLabel(data.assignedTo)}. Only the assigned Administrator can act.
         </p>
       ) : null}
       {data.currentLevel === 'SUPER_ADMIN' ? (
-        <p className="mt-4 rounded-lg bg-violet-50 p-3 text-sm text-violet-900">
+        <p className="mt-4 rounded-lg bg-info-subtle p-3 text-sm text-info-foreground">
           Escalated to Super Admin. Admin controls are locked until the request is returned.
         </p>
       ) : null}
       {action && actionDefinition ? (
         <form
-          className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4"
+          className="mt-5 rounded-lg border border-border bg-muted p-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (!actionDefinition.required || comment.trim()) run(action, comment);
           }}
         >
           <h3 className="font-semibold">{actionDefinition.title}</h3>
-          <p className="mt-1 text-sm text-slate-600">{actionDefinition.description}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{actionDefinition.description}</p>
           <label className="mt-4 grid gap-1.5 text-sm font-medium">
             {action === 'escalate'
               ? 'Reason for escalation (required)'
@@ -634,13 +634,13 @@ function SuperAdminControls({
   const definition = action ? reviewActions[action] : null;
   return (
     <section
-      className="mt-6 rounded-xl border border-violet-200 bg-white p-5 shadow-sm"
+      className="mt-6 rounded-xl border border-info-border bg-card p-5 shadow-sm"
       aria-label="Super Administrator actions"
     >
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
           <h2 className="font-semibold">Super Administrator actions</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted-foreground">
             Decisions authorise work only. Linked billing, account, and service records remain
             unchanged.
           </p>
@@ -685,24 +685,24 @@ function SuperAdminControls({
         </div>
       </div>
       {data.currentLevel === 'ADMIN' ? (
-        <p className="mt-4 rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
+        <p className="mt-4 rounded-lg bg-secondary p-3 text-sm text-foreground">
           This escalation was returned to Admin. Its context and timeline remain available here.
         </p>
       ) : data.superAdminAssignedTo && !assignedMine ? (
-        <p className="mt-4 rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
+        <p className="mt-4 rounded-lg bg-secondary p-3 text-sm text-foreground">
           Owned by {personLabel(data.superAdminAssignedTo)}. Only that Super Administrator can act.
         </p>
       ) : null}
       {action && definition ? (
         <form
-          className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4"
+          className="mt-5 rounded-lg border border-border bg-muted p-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (!definition.required || comment.trim()) run(action, comment);
           }}
         >
           <h3 className="font-semibold">{definition.title}</h3>
-          <p className="mt-1 text-sm text-slate-600">{definition.description}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{definition.description}</p>
           <label className="mt-4 grid gap-1.5 text-sm font-medium">
             {definition.required ? 'Comment (required)' : 'Comment (optional)'}
             <textarea
@@ -747,23 +747,23 @@ function ActivityTimeline({ data }: Readonly<{ data: InternalRequest }>) {
   };
   return (
     <section
-      className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+      className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6"
       aria-labelledby="activity-heading"
     >
       <h2 className="text-lg font-semibold" id="activity-heading">
         Internal activity
       </h2>
-      <ol className="mt-5 border-l-2 border-slate-200 pl-5">
+      <ol className="mt-5 border-l-2 border-border pl-5">
         {data.events.map((event) => (
           <li className="relative pb-5 last:pb-0" key={event.id}>
-            <span className="absolute -left-[1.7rem] top-1 h-3 w-3 rounded-full border-2 border-white bg-sky-600" />
-            <p className="text-sm font-medium text-slate-900">
+            <span className="absolute -left-[1.7rem] top-1 h-3 w-3 rounded-full border-2 border-card bg-primary-light" />
+            <p className="text-sm font-medium text-foreground">
               {personLabel(event.actor)} {labels[event.eventType]}
             </p>
             {event.comment ? (
-              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{event.comment}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{event.comment}</p>
             ) : null}
-            <time className="mt-1 block text-xs text-slate-500" dateTime={event.createdAt}>
+            <time className="mt-1 block text-xs text-muted-foreground" dateTime={event.createdAt}>
               {formatInternalRequestDate(event.createdAt)}
             </time>
           </li>
@@ -805,7 +805,7 @@ function AttachmentButton({
   const [opening, setOpening] = useState(false);
   return (
     <button
-      className="text-left text-sm font-medium text-sky-700 hover:underline disabled:opacity-60"
+      className="text-left text-sm font-medium text-primary hover:underline disabled:opacity-60"
       disabled={opening}
       onClick={async () => {
         setOpening(true);
@@ -880,17 +880,17 @@ function RelatedRecords({ data }: Readonly<{ data: InternalRequest }>) {
   ].filter((item): item is { label: string; value: string; href?: string } => Boolean(item));
   if (!related.length) return null;
   return (
-    <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
       <h2 className="text-lg font-semibold">Related records</h2>
       <dl className="mt-4 grid gap-3 sm:grid-cols-2">
         {related.map((item) => (
-          <div className="rounded-lg bg-slate-50 p-3" key={item.label}>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="rounded-lg bg-muted p-3" key={item.label}>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {item.label}
             </dt>
             <dd className="mt-1 text-sm font-medium">
               {item.href ? (
-                <Link className="text-sky-700 hover:underline" href={item.href}>
+                <Link className="text-primary hover:underline" href={item.href}>
                   {item.value}
                 </Link>
               ) : (
@@ -906,8 +906,8 @@ function RelatedRecords({ data }: Readonly<{ data: InternalRequest }>) {
 
 function Summary({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+    <article className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="mt-2 text-sm">{children}</div>
     </article>
   );
@@ -919,20 +919,20 @@ function DetailSkeleton() {
       className="mx-auto min-h-screen max-w-6xl animate-pulse space-y-5 px-6 py-10 motion-reduce:animate-none"
       aria-label="Loading internal request"
     >
-      <div className="h-24 rounded-xl bg-slate-100" />
+      <div className="h-24 rounded-xl bg-secondary" />
       <div className="grid gap-3 sm:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
-          <div className="h-24 rounded-xl bg-slate-100" key={index} />
+          <div className="h-24 rounded-xl bg-secondary" key={index} />
         ))}
       </div>
-      <div className="h-96 rounded-xl bg-slate-100" />
+      <div className="h-96 rounded-xl bg-secondary" />
     </main>
   );
 }
 
 function PageStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <p>{message}</p>
     </main>
   );

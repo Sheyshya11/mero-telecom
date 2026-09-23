@@ -66,7 +66,7 @@ function ActivationContent() {
       <main className="mx-auto min-h-screen max-w-xl px-6 py-16 text-center">
         <ActivationBrand />
         <h1 className="text-3xl font-bold">Activation link unavailable</h1>
-        <p className="mt-3 text-slate-600">
+        <p className="mt-3 text-muted-foreground">
           This link is invalid, expired, or has already been used.
         </p>
         <Link className="button-primary mt-6 inline-flex" href="/activate/resend">
@@ -81,7 +81,7 @@ function ActivationContent() {
       <main className="mx-auto min-h-screen max-w-xl px-6 py-16 text-center">
         <ActivationBrand />
         <h1 className="text-3xl font-bold">Account activated</h1>
-        <p className="mt-3 text-slate-600">
+        <p className="mt-3 text-muted-foreground">
           Your email is verified and your password is ready. You can now sign in.
         </p>
         <Link className="button-primary mt-6 inline-flex" href="/login">
@@ -93,10 +93,10 @@ function ActivationContent() {
 
   return (
     <main className="grid min-h-screen place-items-center px-6 py-12">
-      <section className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-7 shadow-sm">
+      <section className="w-full max-w-lg rounded-xl border border-border bg-card p-7 shadow-sm">
         <ActivationBrand />
         <h1 className="mt-3 text-3xl font-bold">Create your password</h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-muted-foreground">
           Your password is created here securely. Mero Telecom staff cannot view it.
         </p>
         <form
@@ -114,7 +114,7 @@ function ActivationContent() {
             registration={form.register('confirmPassword')}
           />
           {activation.isError ? (
-            <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-800">
+            <p className="rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground">
               {activation.error instanceof ApiError
                 ? activation.error.message
                 : 'The account could not be activated.'}
@@ -139,17 +139,17 @@ function PasswordField({
   registration: UseFormRegisterReturn;
 }>) {
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+    <label className="grid gap-1.5 text-sm font-medium text-foreground">
       {label}
       <input autoComplete="new-password" className="field" type="password" {...registration} />
-      {error ? <span className="text-xs text-rose-700">{error}</span> : null}
+      {error ? <span className="text-xs text-destructive-foreground">{error}</span> : null}
     </label>
   );
 }
 
 function Status({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-muted-foreground">
       <div className="grid justify-items-center gap-5 text-center">
         <MeroTelecomLogo preload size="auth" />
         <p>{message}</p>

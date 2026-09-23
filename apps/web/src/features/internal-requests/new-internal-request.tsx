@@ -149,12 +149,12 @@ export function NewInternalRequest({
   const relationshipLoading = context.isFetching;
 
   return (
-    <main className="workspace-page mx-auto min-h-screen max-w-4xl px-4 py-8 text-slate-950 sm:px-6 sm:py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+    <main className="workspace-page mx-auto min-h-screen max-w-4xl px-4 py-8 text-foreground sm:px-6 sm:py-10">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">STAFF · ADMIN ACTION</p>
+          <p className="text-sm font-semibold tracking-wide text-primary">STAFF · ADMIN ACTION</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">New Internal Request</h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-muted-foreground">
             Ask Admin to review or authorise work you cannot complete directly.
           </p>
         </div>
@@ -167,9 +167,9 @@ export function NewInternalRequest({
         className="mt-8 grid gap-6"
         onSubmit={form.handleSubmit((values) => create.mutate(values))}
       >
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold">Request details</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted-foreground">
             Approval records an Admin decision only. It will not execute a refund or service change.
           </p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -212,16 +212,16 @@ export function NewInternalRequest({
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold">
-            Related records <span className="font-normal text-slate-500">(optional)</span>
+            Related records <span className="font-normal text-muted-foreground">(optional)</span>
           </h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted-foreground">
             Select records instead of entering database IDs. All selected records must belong to the
             same customer.
           </p>
           {!selectedCustomerId ? (
-            <label className="mt-5 grid gap-1.5 text-sm font-medium text-slate-700">
+            <label className="mt-5 grid gap-1.5 text-sm font-medium text-foreground">
               Find customer
               <input
                 className="field"
@@ -321,15 +321,15 @@ export function NewInternalRequest({
             />
           </div>
           {relationshipLoading ? (
-            <p className="mt-3 text-sm text-slate-500">Loading related records…</p>
+            <p className="mt-3 text-sm text-muted-foreground">Loading related records…</p>
           ) : null}
           {context.isError || discovery.isError ? (
-            <p className="mt-3 text-sm text-rose-700">We couldn&apos;t load related records.</p>
+            <p className="mt-3 text-sm text-destructive-foreground">We couldn&apos;t load related records.</p>
           ) : null}
         </section>
 
         {create.error ? (
-          <p className="rounded-lg bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+          <p className="rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
             {create.error instanceof ApiError
               ? create.error.message
               : "We couldn't submit this request. Please try again."}
@@ -387,17 +387,17 @@ function Field({
   children,
 }: Readonly<{ label: string; error?: string; children: React.ReactNode }>) {
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+    <label className="grid gap-1.5 text-sm font-medium text-foreground">
       {label}
       {children}
-      {error ? <span className="text-xs font-normal text-rose-700">{error}</span> : null}
+      {error ? <span className="text-xs font-normal text-destructive-foreground">{error}</span> : null}
     </label>
   );
 }
 
 function PageStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <p>{message}</p>
     </main>
   );

@@ -185,7 +185,11 @@ export function PortalShell({ children }: Readonly<{ children: React.ReactNode }
             ) : null}
           </nav>
         </header>
-        {signOutError ? <p role="alert">Unable to sign out. Please try again.</p> : null}
+        {signOutError ? (
+          <p className={styles.shellError} role="alert">
+            Unable to sign out. Please try again.
+          </p>
+        ) : null}
         <div className={styles.content} id="portal-content" tabIndex={-1}>
           {children}
         </div>

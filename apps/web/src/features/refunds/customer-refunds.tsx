@@ -121,36 +121,36 @@ export function CustomerRefunds() {
   );
 
   return (
-    <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10 text-slate-950">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+    <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10 text-foreground">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">BILLING · REFUNDS</p>
+          <p className="text-sm font-semibold tracking-wide text-primary">BILLING · REFUNDS</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Refunds</h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-muted-foreground">
             Request a review and track refunds for your payments.
           </p>
         </div>
       </header>
 
       {notice ? (
-        <p className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800" role="status">
+        <p className="mt-6 rounded-lg bg-success-subtle p-4 text-sm text-success-foreground" role="status">
           {notice}
         </p>
       ) : null}
       {error ? (
-        <p className="mt-6 rounded-lg bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+        <p className="mt-6 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
           {error}
         </p>
       ) : null}
 
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Payment history</h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-muted-foreground">
           A request is reviewed by our team and does not automatically issue money.
         </p>
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-180 text-left text-sm">
-            <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="py-3">Invoice</th>
                 <th>Paid</th>
@@ -167,7 +167,7 @@ export function CustomerRefunds() {
                   payment.refundedCents < payment.amountCents &&
                   !activePaymentIds.has(payment.id);
                 return (
-                  <tr className="border-b border-slate-100" key={payment.id}>
+                  <tr className="border-b border-border/70" key={payment.id}>
                     <td className="py-4 font-semibold">{payment.invoiceNumber}</td>
                     <td>
                       {payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-AU') : '—'}
@@ -195,14 +195,14 @@ export function CustomerRefunds() {
             </tbody>
           </table>
           {!payments.length ? (
-            <p className="py-6 text-slate-600">No completed payments are available.</p>
+            <p className="py-6 text-muted-foreground">No completed payments are available.</p>
           ) : null}
         </div>
       </section>
 
       {paymentId ? (
         <section
-          className="mt-6 rounded-xl border border-sky-200 bg-sky-50 p-6"
+          className="mt-6 rounded-xl border border-primary/20 bg-primary-subtle p-6"
           aria-label="Refund request form"
         >
           <h2 className="text-lg font-semibold">Request refund review</h2>
@@ -235,13 +235,13 @@ export function CustomerRefunds() {
             <div className="grid gap-2 text-sm">
               <div>
                 <p className="font-medium">Supporting documents</p>
-                <p className="mt-1 text-slate-600">
+                <p className="mt-1 text-muted-foreground">
                   Optional: Attach supporting evidence such as receipts, invoices, payment
                   screenshots or other documents.
                 </p>
               </div>
               <label
-                className={`grid cursor-pointer place-items-center rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${dragging ? 'border-sky-500 bg-sky-100' : 'border-sky-200 bg-white hover:border-sky-400'}`}
+                className={`grid cursor-pointer place-items-center rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${dragging ? 'border-primary/50 bg-primary-subtle-strong' : 'border-primary/20 bg-card hover:border-primary/40'}`}
                 onDragEnter={(event) => {
                   event.preventDefault();
                   setDragging(true);
@@ -257,8 +257,8 @@ export function CustomerRefunds() {
                   addFiles(event.dataTransfer.files, files, setFiles, setFileError);
                 }}
               >
-                <span className="font-semibold text-sky-700">Drop files here or Browse files</span>
-                <span className="mt-1 text-xs text-slate-500">
+                <span className="font-semibold text-primary">Drop files here or Browse files</span>
+                <span className="mt-1 text-xs text-muted-foreground">
                   JPG, PNG, WEBP, PDF, DOC, DOCX · 10 MB each · 5 files
                 </span>
                 <input
@@ -273,7 +273,7 @@ export function CustomerRefunds() {
                 />
               </label>
               {fileError ? (
-                <p className="text-sm text-rose-700" role="alert">
+                <p className="text-sm text-destructive-foreground" role="alert">
                   {fileError}
                 </p>
               ) : null}
@@ -290,7 +290,7 @@ export function CustomerRefunds() {
                   ))}
                 </ul>
               ) : null}
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 {files.length} of {MAX_FILES} files attached
               </p>
             </div>
@@ -311,22 +311,22 @@ export function CustomerRefunds() {
         </section>
       ) : null}
 
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Your refund requests</h2>
         <div className="mt-5 grid gap-3">
           {refunds.data.data.map((refund) => (
-            <article className="rounded-lg border border-slate-200 p-4" key={refund.id}>
+            <article className="rounded-lg border border-border p-4" key={refund.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold">
                     {refund.invoice?.invoiceNumber ?? 'Payment refund'}
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {humanizeRefundValue(refund.reason)} · Requested{' '}
                     {new Date(refund.requestedAt).toLocaleDateString('en-AU')}
                   </p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">
+                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold">
                   {humanizeRefundValue(refund.status)}
                 </span>
               </div>
@@ -350,7 +350,7 @@ export function CustomerRefunds() {
                 </p>
               </div>
               {refund.customerMessage ? (
-                <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="mt-3 rounded-lg bg-warning-subtle p-3 text-sm text-warning-foreground">
                   <strong>More information required:</strong> {refund.customerMessage}
                 </p>
               ) : null}
@@ -373,7 +373,7 @@ export function CustomerRefunds() {
             </article>
           ))}
           {!refunds.data.data.length ? (
-            <p className="text-slate-600">You have not requested a refund.</p>
+            <p className="text-muted-foreground">You have not requested a refund.</p>
           ) : null}
         </div>
       </section>
@@ -421,22 +421,22 @@ function SelectedFile({ file, onRemove }: Readonly<{ file: File; onRemove: () =>
     return () => URL.revokeObjectURL(url);
   }, [file]);
   return (
-    <li className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-2">
+    <li className="flex items-center gap-3 rounded-lg border border-border bg-card p-2">
       {preview ? (
         <img alt="" className="h-10 w-10 rounded object-cover" src={preview} />
       ) : (
         <span
           aria-hidden="true"
-          className="grid h-10 w-10 place-items-center rounded bg-slate-100 text-xs font-bold text-slate-500"
+          className="grid h-10 w-10 place-items-center rounded bg-secondary text-xs font-bold text-muted-foreground"
         >
           {file.type === 'application/pdf' ? 'PDF' : 'DOC'}
         </span>
       )}
       <span className="min-w-0 flex-1 truncate">
-        {file.name} <small className="text-slate-500">({formatBytes(file.size)})</small>
+        {file.name} <small className="text-muted-foreground">({formatBytes(file.size)})</small>
       </span>
       <button
-        className="text-xs font-semibold text-rose-700 hover:underline"
+        className="text-xs font-semibold text-destructive-foreground hover:underline"
         onClick={onRemove}
         type="button"
       >
@@ -459,14 +459,14 @@ function AttachmentList({
 }>) {
   if (!attachments.length) return null;
   return (
-    <div className="mt-4 border-t border-slate-200 pt-4">
+    <div className="mt-4 border-t border-border pt-4">
       <h3 className="text-sm font-semibold">Supporting evidence</h3>
       <ul className="mt-2 grid gap-2">
         {attachments.map((attachment) => (
           <li className="flex items-center gap-2 text-sm" key={attachment.id}>
             <span className="min-w-0 flex-1 truncate">
               {attachment.originalName}{' '}
-              <small className="text-slate-500">· {formatBytes(attachment.fileSize)}</small>
+              <small className="text-muted-foreground">· {formatBytes(attachment.fileSize)}</small>
             </span>
             <AttachmentView
               attachment={attachment}
@@ -508,7 +508,7 @@ function AttachmentView({
   }
   return (
     <button
-      className="text-xs font-semibold text-sky-700 hover:underline"
+      className="text-xs font-semibold text-primary hover:underline"
       disabled={loading}
       onClick={() => void view()}
       type="button"
@@ -554,8 +554,8 @@ function AdditionalEvidence({
     }
   }
   return (
-    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
-      <p className="text-sm font-semibold text-amber-900">Upload additional evidence</p>
+    <div className="mt-4 rounded-lg border border-warning-border bg-warning-subtle p-3">
+      <p className="text-sm font-semibold text-warning-foreground">Upload additional evidence</p>
       <input
         ref={inputRef}
         accept={ACCEPTED_TYPES.join(',')}
@@ -575,7 +575,7 @@ function AdditionalEvidence({
         {pending ? 'Uploading…' : 'Upload evidence'}
       </button>
       {error ? (
-        <p className="mt-2 text-xs text-rose-700" role="alert">
+        <p className="mt-2 text-xs text-destructive-foreground" role="alert">
           {error}
         </p>
       ) : null}
@@ -590,7 +590,7 @@ function formatBytes(bytes: number) {
 
 function Status({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <p>{message}</p>
     </main>
   );

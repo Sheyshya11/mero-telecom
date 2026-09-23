@@ -158,13 +158,13 @@ export function CustomerCancellation({
   });
 
   if (cancellation.isPending) {
-    return <p className="mt-6 text-sm text-slate-600">Checking cancellation status…</p>;
+    return <p className="mt-6 text-sm text-muted-foreground">Checking cancellation status…</p>;
   }
   if (cancellation.isError) {
     return (
-      <section className="mt-8 rounded-2xl border border-rose-200 bg-rose-50 p-6" role="alert">
-        <h2 className="text-lg font-bold text-slate-950">Cancellation options unavailable</h2>
-        <p className="mt-2 text-sm text-slate-700">
+      <section className="mt-8 rounded-2xl border border-destructive-border bg-destructive-subtle p-6" role="alert">
+        <h2 className="text-lg font-bold text-foreground">Cancellation options unavailable</h2>
+        <p className="mt-2 text-sm text-foreground">
           We couldn&apos;t verify whether this service already has a cancellation in progress.
         </p>
         <button
@@ -180,15 +180,15 @@ export function CustomerCancellation({
   if (cancellation.data?.status === 'COMPLETED') {
     return (
       <section
-        className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6"
+        className="mt-8 rounded-2xl border border-border bg-muted p-6"
         aria-labelledby="completed-cancellation-title"
       >
-        <p className="text-sm font-semibold tracking-wide text-slate-600">SERVICE HISTORY</p>
-        <h2 className="mt-2 text-2xl font-bold text-slate-950" id="completed-cancellation-title">
+        <p className="text-sm font-semibold tracking-wide text-muted-foreground">SERVICE HISTORY</p>
+        <h2 className="mt-2 text-2xl font-bold text-foreground" id="completed-cancellation-title">
           Service ended
         </h2>
-        <p className="mt-2 max-w-2xl text-slate-700">{cancellation.data.statusMessage}</p>
-        <p className="mt-2 font-mono text-xs text-slate-500">{cancellation.data.requestNumber}</p>
+        <p className="mt-2 max-w-2xl text-foreground">{cancellation.data.statusMessage}</p>
+        <p className="mt-2 font-mono text-xs text-muted-foreground">{cancellation.data.requestNumber}</p>
         <CancellationTimeline
           status={cancellation.data.status}
           requestedAt={cancellation.data.requestedAt}
@@ -205,21 +205,21 @@ export function CustomerCancellation({
   if (activeCancellation) {
     return (
       <section
-        className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6"
+        className="mt-8 rounded-2xl border border-warning-border bg-warning-subtle p-6"
         aria-labelledby="cancellation-status-title"
       >
-        <p className="text-sm font-semibold tracking-wide text-amber-800">MANAGE SERVICE</p>
+        <p className="text-sm font-semibold tracking-wide text-warning-foreground">MANAGE SERVICE</p>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-950" id="cancellation-status-title">
+            <h2 className="text-2xl font-bold text-foreground" id="cancellation-status-title">
               {activeCancellation.status === 'SCHEDULED'
                 ? 'Cancellation scheduled'
                 : activeCancellation.status === 'FAILED'
                   ? 'Cancellation needs review'
                   : 'Cancellation in progress'}
             </h2>
-            <p className="mt-2 max-w-2xl text-slate-700">{activeCancellation.statusMessage}</p>
-            <p className="mt-2 font-mono text-xs text-slate-500">
+            <p className="mt-2 max-w-2xl text-foreground">{activeCancellation.statusMessage}</p>
+            <p className="mt-2 font-mono text-xs text-muted-foreground">
               {activeCancellation.requestNumber}
             </p>
           </div>
@@ -267,16 +267,16 @@ export function CustomerCancellation({
 
   return (
     <section
-      className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+      className="mt-8 rounded-2xl border border-border bg-card p-6 shadow-sm"
       aria-labelledby="cancel-service-title"
     >
-      <p className="text-sm font-semibold tracking-wide text-sky-700">MANAGE SERVICE</p>
-      <h2 className="mt-2 text-2xl font-bold text-slate-950" id="cancel-service-title">
+      <p className="text-sm font-semibold tracking-wide text-primary">MANAGE SERVICE</p>
+      <h2 className="mt-2 text-2xl font-bold text-foreground" id="cancel-service-title">
         {step ? 'Cancel your internet service' : 'Service options'}
       </h2>
       {step === 0 ? (
         <div>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-muted-foreground">
             Need to leave? Review the effective date and billing implications before submitting a
             cancellation.
           </p>
@@ -287,7 +287,7 @@ export function CustomerCancellation({
       ) : null}
       {step === 1 ? (
         <div className="mt-5">
-          <dl className="grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
+          <dl className="grid gap-3 rounded-xl bg-muted p-4 sm:grid-cols-2">
             <Fact label="Current plan" value={subscription.plan.name} />
             <Fact
               label="Monthly price"
@@ -312,10 +312,10 @@ export function CustomerCancellation({
       {step === 2 ? (
         <div className="mt-5 space-y-5">
           <fieldset>
-            <legend className="font-semibold text-slate-900">
+            <legend className="font-semibold text-foreground">
               When would you like your service to end?
             </legend>
-            <label className="mt-3 flex gap-3 rounded-xl border border-slate-200 p-4">
+            <label className="mt-3 flex gap-3 rounded-xl border border-border p-4">
               <input
                 checked={type === 'END_OF_PERIOD'}
                 name="cancellation-type"
@@ -327,12 +327,12 @@ export function CustomerCancellation({
               />
               <span>
                 <strong>At the end of my current billing period</strong>
-                <span className="mt-1 block text-sm text-slate-600">
+                <span className="mt-1 block text-sm text-muted-foreground">
                   Service continues until {formatDate(subscription.currentPeriodEnd)}.
                 </span>
               </span>
             </label>
-            <label className="mt-3 flex gap-3 rounded-xl border border-slate-200 p-4">
+            <label className="mt-3 flex gap-3 rounded-xl border border-border p-4">
               <input
                 checked={type === 'IMMEDIATE'}
                 name="cancellation-type"
@@ -344,7 +344,7 @@ export function CustomerCancellation({
               />
               <span>
                 <strong>As soon as possible</strong>
-                <span className="mt-1 block text-sm text-slate-600">
+                <span className="mt-1 block text-sm text-muted-foreground">
                   Processing starts now. Refunds or credits are not automatic.
                 </span>
               </span>
@@ -352,7 +352,7 @@ export function CustomerCancellation({
           </fieldset>
           <div>
             <label
-              className="block text-sm font-medium text-slate-700"
+              className="block text-sm font-medium text-foreground"
               htmlFor="cancellation-reason"
             >
               Why are you cancelling?
@@ -376,7 +376,7 @@ export function CustomerCancellation({
           {reason === 'OTHER' ? (
             <div>
               <label
-                className="block text-sm font-medium text-slate-700"
+                className="block text-sm font-medium text-foreground"
                 htmlFor="cancellation-details"
               >
                 Please tell us more
@@ -412,14 +412,14 @@ export function CustomerCancellation({
       {step === 3 ? (
         <div className="mt-5">
           {preview.isPending ? (
-            <p className="text-slate-600">Preparing your cancellation summary…</p>
+            <p className="text-muted-foreground">Preparing your cancellation summary…</p>
           ) : null}
           {preview.error ? (
             <ErrorMessage error={preview.error} fallback="We couldn't prepare this cancellation." />
           ) : null}
           {preview.data ? (
             <>
-              <dl className="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
+              <dl className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
                 <Fact
                   label="Cancellation type"
                   value={type === 'END_OF_PERIOD' ? 'End of billing period' : 'As soon as possible'}
@@ -431,10 +431,10 @@ export function CustomerCancellation({
                 />
                 <Fact label="Automatic refund" value="Not calculated or issued automatically" />
               </dl>
-              <p className="mt-4 rounded-xl bg-sky-50 p-4 text-sm text-sky-950">
+              <p className="mt-4 rounded-xl bg-primary-subtle p-4 text-sm text-primary-hover">
                 {preview.data.billingMessage}
               </p>
-              <label className="mt-5 flex gap-3 text-sm text-slate-700">
+              <label className="mt-5 flex gap-3 text-sm text-foreground">
                 <input
                   checked={confirmed}
                   onChange={(event) => setConfirmed(event.target.checked)}
@@ -479,15 +479,15 @@ export function CustomerCancellation({
 function Fact({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="mt-1 text-sm font-medium text-slate-900">{value}</dd>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
     </div>
   );
 }
 
 function ErrorMessage({ error, fallback }: Readonly<{ error: Error; fallback: string }>) {
   return (
-    <p className="mt-4 rounded-xl bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+    <p className="mt-4 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
       {error instanceof ApiError ? error.message : fallback}
     </p>
   );

@@ -171,16 +171,16 @@ export function InternalRequestListPage() {
         ];
 
   return (
-    <main className="workspace-page mx-auto min-h-screen max-w-7xl px-4 py-8 text-slate-950 sm:px-6 sm:py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+    <main className="workspace-page mx-auto min-h-screen max-w-7xl px-4 py-8 text-foreground sm:px-6 sm:py-10">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">
+          <p className="text-sm font-semibold tracking-wide text-primary">
             CONTROL CENTRE · INTERNAL
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">
             {superAdminMode ? 'Escalations' : adminMode ? 'Staff requests' : 'Internal requests'}
           </h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-muted-foreground">
             {superAdminMode
               ? 'Review Staff requests escalated by Administrators while preserving the full internal history.'
               : adminMode
@@ -201,12 +201,12 @@ export function InternalRequestListPage() {
       >
         {summaryCards.map(({ label, value, filters }) => (
           <button
-            className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
+            className="rounded-xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-primary/30"
             key={label}
             onClick={() => table.update(filters)}
             type="button"
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
             <p className="mt-2 text-2xl font-bold">{summary.isPending ? '…' : (value ?? 0)}</p>
           </button>
         ))}
@@ -287,16 +287,16 @@ export function InternalRequestListPage() {
           sorts={['updatedAt', 'createdAt', 'status', 'priority']}
           state={table}
         />
-        <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           {requests.isPending ? <TableSkeleton /> : null}
           {requests.isError ? (
-            <p className="p-6 text-rose-700">We couldn&apos;t load internal requests.</p>
+            <p className="p-6 text-destructive-foreground">We couldn&apos;t load internal requests.</p>
           ) : null}
           {requests.data?.data.length ? (
             <>
               <div className="hidden overflow-x-auto lg:block">
                 <table className="w-full min-w-260 text-left text-sm">
-                  <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                  <thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="px-5 py-3">Request</th>
                       {adminMode || superAdminMode ? <th>Requested by</th> : null}
@@ -332,7 +332,7 @@ export function InternalRequestListPage() {
               </div>
             </>
           ) : !requests.isPending && !requests.isError ? (
-            <p className="p-8 text-center text-slate-600">
+            <p className="p-8 text-center text-muted-foreground">
               {staffMode && !table.values.status && !table.values.search
                 ? "You haven't submitted any internal requests."
                 : (adminMode || superAdminMode) && table.values.status === 'PENDING'
@@ -359,7 +359,7 @@ function RequestRow({
   privilegedMode,
 }: Readonly<{ item: InternalRequest; privilegedMode: boolean }>) {
   return (
-    <tr className="border-b border-slate-100">
+    <tr className="border-b border-border/70">
       <td className="px-5 py-4 font-mono text-xs font-semibold">{item.requestNumber}</td>
       {privilegedMode ? <td>{personLabel(item.requestedBy)}</td> : null}
       <td>{internalRequestTypeLabel(item.type)}</td>
@@ -390,25 +390,25 @@ function RequestCard({
   privilegedMode,
 }: Readonly<{ item: InternalRequest; privilegedMode: boolean }>) {
   return (
-    <article className="rounded-lg border border-slate-200 p-4">
+    <article className="rounded-lg border border-border p-4">
       <div className="flex items-start justify-between gap-3">
-        <span className="font-mono text-xs font-semibold text-sky-800">{item.requestNumber}</span>
+        <span className="font-mono text-xs font-semibold text-primary">{item.requestNumber}</span>
         <InternalStatusBadge status={item.status} />
       </div>
       <h2 className="mt-3 font-semibold">{item.title}</h2>
-      <p className="mt-1 text-sm text-slate-600">
+      <p className="mt-1 text-sm text-muted-foreground">
         {internalRequestTypeLabel(item.type)} ·{' '}
         {item.customer
           ? `${item.customer.firstName} ${item.customer.lastName}`
           : 'No customer linked'}
       </p>
       {privilegedMode ? (
-        <p className="mt-2 text-xs text-slate-500">Requested by {personLabel(item.requestedBy)}</p>
+        <p className="mt-2 text-xs text-muted-foreground">Requested by {personLabel(item.requestedBy)}</p>
       ) : null}
       <div className="mt-3 flex items-center justify-between gap-3">
         <div>
           <PriorityBadge priority={item.priority} />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             With {internalRequestLevelLabel(item.currentLevel)}
           </p>
         </div>
@@ -426,14 +426,14 @@ function RequestCard({
 export function InternalStatusBadge({ status }: Readonly<{ status: InternalRequestStatus }>) {
   const tone =
     status === 'APPROVED' || status === 'RESOLVED'
-      ? 'bg-emerald-100 text-emerald-800'
+      ? 'bg-success-subtle text-success-foreground'
       : status === 'REJECTED'
-        ? 'bg-rose-100 text-rose-800'
+        ? 'bg-destructive-subtle text-destructive-foreground'
         : status === 'MORE_INFO_REQUIRED'
-          ? 'bg-amber-100 text-amber-900'
+          ? 'bg-warning-subtle text-warning-foreground'
           : status === 'CLOSED'
-            ? 'bg-slate-200 text-slate-700'
-            : 'bg-sky-100 text-sky-800';
+            ? 'bg-border text-foreground'
+            : 'bg-primary-subtle-strong text-primary';
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
       {internalRequestStatusLabel(status)}
@@ -444,10 +444,10 @@ export function InternalStatusBadge({ status }: Readonly<{ status: InternalReque
 export function PriorityBadge({ priority }: Readonly<{ priority: 'LOW' | 'NORMAL' | 'HIGH' }>) {
   const tone =
     priority === 'HIGH'
-      ? 'text-rose-700'
+      ? 'text-destructive-foreground'
       : priority === 'LOW'
-        ? 'text-slate-500'
-        : 'text-slate-800';
+        ? 'text-muted-foreground'
+        : 'text-foreground';
   return (
     <span className={`text-xs font-semibold capitalize ${tone}`}>{priority.toLowerCase()}</span>
   );
@@ -455,7 +455,7 @@ export function PriorityBadge({ priority }: Readonly<{ priority: 'LOW' | 'NORMAL
 
 function PageStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <p>{message}</p>
     </main>
   );

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ApiError, apiRequest } from '../../lib/api/client';
+import { statusToneClass } from '../../lib/status-theme';
 import { useAuth } from '../auth/auth-provider';
 import { CoverageChecker } from './coverage-checker';
 import type { AddressSuggestion, AddressSuggestionsResponse } from './coverage.types';
@@ -211,15 +212,15 @@ export function CoverageManagement() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-end">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">
+          <p className="text-sm font-semibold tracking-wide text-primary">
             {isAdmin ? 'ADMIN' : 'STAFF'} · COVERAGE
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
             Coverage operations
           </h1>
-          <p className="mt-2 max-w-2xl text-slate-600">
+          <p className="mt-2 max-w-2xl text-muted-foreground">
             {isAdmin
               ? 'Control operating regions, exact qualification records, and compatible plans.'
               : 'View coverage configuration and qualify selected customer addresses.'}
@@ -244,12 +245,12 @@ export function CoverageManagement() {
       </nav>
 
       {mutation.isError ? (
-        <p className="mt-5 rounded-lg bg-rose-50 p-4 text-rose-800" role="alert">
+        <p className="mt-5 rounded-lg bg-destructive-subtle p-4 text-destructive-foreground" role="alert">
           {messageFor(mutation.error)}
         </p>
       ) : null}
       {success ? (
-        <p className="mt-5 rounded-lg bg-emerald-50 p-4 text-emerald-800" role="status">
+        <p className="mt-5 rounded-lg bg-success-subtle p-4 text-success-foreground" role="status">
           {success}
         </p>
       ) : null}
@@ -261,11 +262,11 @@ export function CoverageManagement() {
       ) : null}
 
       {tab !== 'lookup' && tab !== 'analytics' ? (
-        <section className="mt-7 space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+        <section className="mt-7 space-y-4 rounded-xl border border-border bg-muted/70 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">Search and filters</h2>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <h2 className="text-sm font-semibold text-foreground">Search and filters</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 Results update automatically as you refine them.
               </p>
             </div>
@@ -286,7 +287,7 @@ export function CoverageManagement() {
             ) : null}
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:items-end">
-            <label className="grid min-w-0 gap-1.5 text-sm font-medium text-slate-700 xl:col-span-2">
+            <label className="grid min-w-0 gap-1.5 text-sm font-medium text-foreground xl:col-span-2">
               Search
               <input
                 className="field"
@@ -381,13 +382,13 @@ export function CoverageManagement() {
           <RecordPanel title="Configured states">
             <QueryState query={regions} empty="No operating regions match this filter." />
             {regions.data?.map((region) => (
-              <article className="border-b border-slate-100 p-5 last:border-0" key={region.id}>
+              <article className="border-b border-border/70 p-5 last:border-0" key={region.id}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold text-slate-950">
+                    <h3 className="font-semibold text-foreground">
                       {region.name} ({region.stateCode})
                     </h3>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {region._count.postcodeCoverage} exact postcodes ·{' '}
                       {region._count.addressOverrides} overrides
                     </p>
@@ -531,13 +532,13 @@ export function CoverageManagement() {
           <RecordPanel title="Exact postcode records">
             <QueryState query={postcodes} empty="No exact postcode records match this filter." />
             {postcodes.data?.map((record) => (
-              <article className="border-b border-slate-100 p-5 last:border-0" key={record.id}>
+              <article className="border-b border-border/70 p-5 last:border-0" key={record.id}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold text-slate-950">
+                    <h3 className="font-semibold text-foreground">
                       {record.postcode} · {record.operatingRegion.stateCode}
                     </h3>
-                    <p className="mt-1 text-sm text-slate-600">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {record.technology ?? 'No technology'} ·{' '}
                       {record.maximumSpeedMbps
                         ? `${record.maximumSpeedMbps} Mbps max`
@@ -623,7 +624,7 @@ export function CoverageManagement() {
                   selected={overrideSelection}
                 />
               ) : (
-                <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
                   Edit the decision for this existing exact address.
                 </p>
               )}
@@ -685,11 +686,11 @@ export function CoverageManagement() {
           <RecordPanel title="Exact-address overrides">
             <QueryState query={overrides} empty="No exact-address overrides match this filter." />
             {overrides.data?.map((record) => (
-              <article className="border-b border-slate-100 p-5 last:border-0" key={record.id}>
+              <article className="border-b border-border/70 p-5 last:border-0" key={record.id}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold text-slate-950">{record.formattedAddress}</h3>
-                    <p className="mt-1 text-sm text-slate-600">
+                    <h3 className="font-semibold text-foreground">{record.formattedAddress}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {record.technology ?? 'No technology'} ·{' '}
                       {record.maximumSpeedMbps
                         ? `${record.maximumSpeedMbps} Mbps max`
@@ -760,7 +761,7 @@ export function CoverageManagement() {
                 );
               }}
             >
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-foreground">
                 Internet plan
                 <select
                   className="field mt-1"
@@ -827,13 +828,13 @@ export function CoverageManagement() {
           <RecordPanel title="Plan compatibility rules">
             <QueryState query={rules} empty="No plan rules match this filter." />
             {rules.data?.map((rule) => (
-              <article className="border-b border-slate-100 p-5 last:border-0" key={rule.id}>
+              <article className="border-b border-border/70 p-5 last:border-0" key={rule.id}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold text-slate-950">
+                    <h3 className="font-semibold text-foreground">
                       {rule.plan.name} · {rule.technology}
                     </h3>
-                    <p className="mt-1 text-sm text-slate-600">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {rule.operatingRegion?.stateCode ?? 'All configured regions'}
                       {rule.postcode ? ` · ${rule.postcode}` : ''} ·{' '}
                       {rule.minimumSpeedMbps ?? 'Any'}–{rule.maximumSpeedMbps ?? 'Any'} Mbps
@@ -890,13 +891,13 @@ export function CoverageManagement() {
               </div>
               <RecordPanel title="Recent privacy-safe coverage checks">
                 {analytics.data.recent.map((record) => (
-                  <article className="border-b border-slate-100 p-5 last:border-0" key={record.id}>
+                  <article className="border-b border-border/70 p-5 last:border-0" key={record.id}>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-950">
+                        <p className="font-medium text-foreground">
                           {record.stateCode ?? 'Unknown state'} {record.postcode ?? ''}
                         </p>
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           {record.technology ?? 'No technology'} ·{' '}
                           {new Date(record.createdAt).toLocaleString('en-AU')}
                         </p>
@@ -943,7 +944,7 @@ function TrustedAddressSelector({
   });
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700">
+      <label className="block text-sm font-medium text-foreground">
         Exact Australian address
         <input
           className="field mt-1"
@@ -956,21 +957,21 @@ function TrustedAddressSelector({
           value={selected?.formattedAddress ?? query}
         />
       </label>
-      {suggestions.isFetching ? <p className="mt-2 text-sm text-slate-500">Searching…</p> : null}
+      {suggestions.isFetching ? <p className="mt-2 text-sm text-muted-foreground">Searching…</p> : null}
       {suggestions.isError ? (
-        <p className="mt-2 text-sm text-rose-700" role="alert">
+        <p className="mt-2 text-sm text-destructive-foreground" role="alert">
           Address suggestions are unavailable.
         </p>
       ) : null}
       {!selected && suggestions.data?.suggestions.length ? (
         <ul
-          className="mt-2 rounded-lg border border-slate-200 bg-white py-1"
+          className="mt-2 rounded-lg border border-border bg-card py-1"
           aria-label="Override address suggestions"
         >
           {suggestions.data.suggestions.map((suggestion) => (
             <li key={suggestion.selectionToken}>
               <button
-                className="w-full px-3 py-2 text-left text-sm hover:bg-sky-50"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-primary-subtle"
                 onClick={() => onSelect(suggestion)}
                 type="button"
               >
@@ -981,7 +982,7 @@ function TrustedAddressSelector({
         </ul>
       ) : null}
       {selected ? (
-        <p className="mt-2 text-sm font-medium text-emerald-700">Trusted address selected.</p>
+        <p className="mt-2 text-sm font-medium text-success-foreground">Trusted address selected.</p>
       ) : null}
     </div>
   );
@@ -989,8 +990,8 @@ function TrustedAddressSelector({
 
 function Editor({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       <div className="mt-5">{children}</div>
     </section>
   );
@@ -998,8 +999,8 @@ function Editor({ title, children }: Readonly<{ title: string; children: React.R
 
 function RecordPanel({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <h2 className="border-b border-slate-200 px-5 py-4 text-lg font-semibold text-slate-950">
+    <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <h2 className="border-b border-border px-5 py-4 text-lg font-semibold text-foreground">
         {title}
       </h2>
       {children}
@@ -1014,17 +1015,17 @@ function QueryState({
   query: { isPending: boolean; isError: boolean; data?: unknown[] | CoverageAnalytics };
   empty: string;
 }>) {
-  if (query.isPending) return <p className="p-5 text-slate-500">Loading records…</p>;
-  if (query.isError) return <p className="p-5 text-rose-700">Unable to load these records.</p>;
+  if (query.isPending) return <p className="p-5 text-muted-foreground">Loading records…</p>;
+  if (query.isError) return <p className="p-5 text-destructive-foreground">Unable to load these records.</p>;
   if (Array.isArray(query.data) && query.data.length === 0) {
-    return <p className="p-5 text-slate-500">{empty}</p>;
+    return <p className="p-5 text-muted-foreground">{empty}</p>;
   }
   return null;
 }
 
 function PageStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-slate-600">{message}</main>
+    <main className="grid min-h-screen place-items-center px-6 text-muted-foreground">{message}</main>
   );
 }
 
@@ -1046,7 +1047,7 @@ function TextField({
   min?: string;
 }>) {
   return (
-    <label className="block text-sm font-medium text-slate-700">
+    <label className="block text-sm font-medium text-foreground">
       {label}
       <input
         className="field mt-1"
@@ -1067,7 +1068,7 @@ function TextAreaField({
   onChange,
 }: Readonly<{ label: string; value: string; onChange: (value: string) => void }>) {
   return (
-    <label className="block text-sm font-medium text-slate-700">
+    <label className="block text-sm font-medium text-foreground">
       {label}
       <textarea
         className="field mt-1 min-h-20"
@@ -1091,7 +1092,7 @@ function SelectField({
   onChange: (value: string) => void;
 }>) {
   return (
-    <label className="block text-sm font-medium text-slate-700">
+    <label className="block text-sm font-medium text-foreground">
       {label}
       <select
         className="field mt-1"
@@ -1120,7 +1121,7 @@ function RegionSelect({
   allowAll?: boolean;
 }>) {
   return (
-    <label className="block text-sm font-medium text-slate-700">
+    <label className="block text-sm font-medium text-foreground">
       Operating region
       <select
         className="field mt-1"
@@ -1152,7 +1153,7 @@ function QualificationFields({
 }>) {
   return (
     <div className="grid grid-cols-2 gap-3">
-      <label className="block text-sm font-medium text-slate-700">
+      <label className="block text-sm font-medium text-foreground">
         Technology
         <select
           className="field mt-1"
@@ -1184,7 +1185,7 @@ function CheckboxField({
   onChange,
 }: Readonly<{ label: string; checked: boolean; onChange: (checked: boolean) => void }>) {
   return (
-    <label className="flex items-center gap-2 text-sm text-slate-700">
+    <label className="flex items-center gap-2 text-sm text-foreground">
       <input
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
@@ -1249,7 +1250,7 @@ function StatusFilter({
   onChange: (value: string) => void;
 }>) {
   return (
-    <label className="grid min-w-0 gap-1.5 text-sm font-medium text-slate-700">
+    <label className="grid min-w-0 gap-1.5 text-sm font-medium text-foreground">
       {label}
       <select className="field" onChange={(event) => onChange(event.target.value)} value={value}>
         <option value="">All statuses</option>
@@ -1265,7 +1266,7 @@ function StatusFilter({
 
 function StatusBadge({ value }: Readonly<{ value: string }>) {
   return (
-    <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800">
+    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusToneClass(value)}`}>
       {value.replaceAll('_', ' ')}
     </span>
   );
@@ -1273,9 +1274,9 @@ function StatusBadge({ value }: Readonly<{ value: string }>) {
 
 function Metric({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-slate-950">{value}</p>
+    <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      <p className="mt-2 text-3xl font-bold text-foreground">{value}</p>
     </article>
   );
 }

@@ -16,20 +16,15 @@ import {
 
 import { LandingIcon, type LandingIconName } from '../../components/landing/landing-icons';
 import { apiRequest } from '../../lib/api/client';
+import {
+  chartColors,
+  chartCursorStyle,
+  chartTooltipStyle,
+  subscriptionStatusColors,
+} from '../../lib/chart-theme';
 import { useAuth } from '../auth/auth-provider';
 import styles from './dashboard.module.css';
 import type { SuperAdminDashboard } from './dashboard.types';
-
-const statusColors = {
-  ACTIVE: '#0b8791',
-  PAST_DUE: '#d97706',
-  CANCELLATION_PENDING: '#d97706',
-  DISCONNECTION_PENDING: '#ea580c',
-  PENDING: '#55bcc3',
-  SUSPENDED: '#e49a26',
-  CANCELLED: '#94a3b8',
-  TERMINATED: '#475569',
-};
 
 const quickActions: Array<{
   href: string;
@@ -332,22 +327,22 @@ export function SuperAdminDashboardView() {
                     <XAxis
                       axisLine={false}
                       dataKey="label"
-                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      tick={{ fill: chartColors.tick, fontSize: 11 }}
                       tickLine={false}
                     />
                     <YAxis
                       axisLine={false}
-                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      tick={{ fill: chartColors.tick, fontSize: 11 }}
                       tickFormatter={(value: number) => `$${value}`}
                       tickLine={false}
                       width={52}
                     />
                     <Tooltip
-                      contentStyle={tooltipStyle}
-                      cursor={{ fill: 'rgba(11, 135, 145, 0.06)' }}
+                      contentStyle={chartTooltipStyle}
+                      cursor={chartCursorStyle}
                       formatter={(value) => [formatMoney(Number(value ?? 0) * 100), 'Billed']}
                     />
-                    <Bar dataKey="totalDollars" fill="#0b8791" radius={[7, 7, 0, 0]} />
+                    <Bar dataKey="totalDollars" fill={chartColors.primary} radius={[7, 7, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -381,17 +376,20 @@ export function SuperAdminDashboardView() {
                         paddingAngle={3}
                       >
                         {dashboard.subscriptionsByStatus.map((entry) => (
-                          <Cell fill={statusColors[entry.status]} key={entry.status} />
+                          <Cell fill={subscriptionStatusColors[entry.status]} key={entry.status} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={tooltipStyle} />
+                      <Tooltip contentStyle={chartTooltipStyle} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
                 <ul aria-label="Subscription status totals" className={styles.chartLegend}>
                   {dashboard.subscriptionsByStatus.map((entry) => (
                     <li key={entry.status}>
-                      <span aria-hidden="true" style={{ background: statusColors[entry.status] }} />
+                      <span
+                        aria-hidden="true"
+                        style={{ background: subscriptionStatusColors[entry.status] }}
+                      />
                       {friendlyStatus(entry.status)}: <strong>{entry.count}</strong>
                     </li>
                   ))}
@@ -729,10 +727,3 @@ function activityIcon(kind?: string): LandingIconName {
   if (kind === 'PLAN_CHANGE') return 'gauge';
   return 'activity';
 }
-
-const tooltipStyle = {
-  border: '1px solid #dbe4e7',
-  borderRadius: 12,
-  boxShadow: '0 12px 28px rgba(15, 23, 42, 0.1)',
-  fontSize: 12,
-};

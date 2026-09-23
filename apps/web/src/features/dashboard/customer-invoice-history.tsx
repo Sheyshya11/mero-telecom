@@ -43,18 +43,18 @@ export function CustomerInvoiceHistory() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">BILLING · INVOICES</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Invoice history</h1>
-          <p className="mt-2 text-slate-600">All invoices issued to your customer account.</p>
+          <p className="text-sm font-semibold tracking-wide text-primary">BILLING · INVOICES</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">Invoice history</h1>
+          <p className="mt-2 text-muted-foreground">All invoices issued to your customer account.</p>
         </div>
       </header>
-      <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section className="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         {invoices.length ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-150 text-left text-sm">
-              <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
+              <thead className="border-b border-border/70 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-6 py-3">Invoice</th>
                   <th className="px-6 py-3">Issue date</th>
@@ -72,7 +72,7 @@ export function CustomerInvoiceHistory() {
             </table>
           </div>
         ) : (
-          <p className="px-6 py-8 text-slate-600">You do not have any invoices yet.</p>
+          <p className="px-6 py-8 text-muted-foreground">You do not have any invoices yet.</p>
         )}
       </section>
     </main>
@@ -81,7 +81,7 @@ export function CustomerInvoiceHistory() {
 
 function Status({ message, onRetry }: Readonly<{ message: string; onRetry?: () => void }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <div>
         <p>{message}</p>
         {onRetry ? (

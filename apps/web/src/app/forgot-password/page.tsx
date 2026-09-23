@@ -45,26 +45,26 @@ export default function ForgotPasswordPage() {
 
   if (isLoading || user) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 text-sm text-slate-600">
+      <main className="grid min-h-screen place-items-center bg-muted text-sm text-muted-foreground">
         Loading your account…
       </main>
     );
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 px-6 py-12">
+    <main className="grid min-h-screen place-items-center bg-muted px-6 py-12">
       <section
         aria-labelledby="forgot-password-heading"
-        className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-7 shadow-sm sm:p-9"
+        className="w-full max-w-lg rounded-2xl border border-border bg-card p-7 shadow-sm sm:p-9"
       >
         <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
           <MeroTelecomLogo alt="" preload size="auth" />
         </Link>
         {submitted ? (
           <div className="mt-6" role="status">
-            <h1 className="text-3xl font-bold text-slate-950">Check your email</h1>
-            <p className="mt-3 text-slate-600">{acknowledgement}</p>
-            <p className="mt-3 text-sm text-slate-500">
+            <h1 className="text-3xl font-bold text-foreground">Check your email</h1>
+            <p className="mt-3 text-muted-foreground">{acknowledgement}</p>
+            <p className="mt-3 text-sm text-muted-foreground">
               The secure link expires in 30 minutes. Check your spam folder if it does not arrive.
             </p>
             <Link className="button-primary mt-7 inline-flex" href="/login">
@@ -73,15 +73,15 @@ export default function ForgotPasswordPage() {
           </div>
         ) : (
           <>
-            <h1 className="mt-6 text-3xl font-bold text-slate-950" id="forgot-password-heading">
+            <h1 className="mt-6 text-3xl font-bold text-foreground" id="forgot-password-heading">
               Forgot your password?
             </h1>
-            <p className="mt-3 text-slate-600">
+            <p className="mt-3 text-muted-foreground">
               Enter the email address for your Mero Telecom account and we will send reset
               instructions if it is eligible.
             </p>
             <form className="mt-7 grid gap-4" onSubmit={form.handleSubmit(submit)}>
-              <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+              <label className="grid gap-1.5 text-sm font-semibold text-foreground">
                 Email address
                 <input
                   autoComplete="email"
@@ -91,13 +91,13 @@ export default function ForgotPasswordPage() {
                   {...form.register('email')}
                 />
                 {form.formState.errors.email?.message ? (
-                  <span className="text-xs text-rose-700">
+                  <span className="text-xs text-destructive-foreground">
                     {form.formState.errors.email.message}
                   </span>
                 ) : null}
               </label>
               {form.formState.errors.root?.message ? (
-                <p aria-live="polite" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
+                <p aria-live="polite" className="rounded-lg bg-destructive-subtle p-3 text-sm text-destructive-foreground">
                   {form.formState.errors.root.message}
                 </p>
               ) : null}
@@ -109,7 +109,7 @@ export default function ForgotPasswordPage() {
                 {form.formState.isSubmitting ? 'Sending…' : 'Send reset link'}
               </button>
             </form>
-            <Link className="mt-6 inline-flex text-sm font-semibold text-sky-700" href="/login">
+            <Link className="mt-6 inline-flex text-sm font-semibold text-primary" href="/login">
               Back to sign in
             </Link>
           </>

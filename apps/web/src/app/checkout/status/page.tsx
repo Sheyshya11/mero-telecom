@@ -123,12 +123,12 @@ function StatusCard({
 }: Readonly<{ title: string; message: string; children?: React.ReactNode }>) {
   return (
     <main className="grid min-h-screen place-items-center px-6 py-12">
-      <section className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+      <section className="w-full max-w-xl rounded-xl border border-border bg-card p-8 text-center shadow-sm">
         <Link aria-label="Mero Telecom home" className="inline-flex" href="/">
           <MeroTelecomLogo alt="" preload size="auth" />
         </Link>
         <h1 className="mt-3 text-3xl font-bold">{title}</h1>
-        <p className="mt-3 text-slate-600">{message}</p>
+        <p className="mt-3 text-muted-foreground">{message}</p>
         {children ? <div className="mt-6">{children}</div> : null}
       </section>
     </main>

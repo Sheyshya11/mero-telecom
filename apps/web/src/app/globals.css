@@ -1,45 +1,132 @@
 @import 'tailwindcss';
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
+  /* Core surfaces and typography — derived from the public landing page. */
+  --background: 210 33% 99%;
+  --foreground: 209 61% 16%;
   --card: 0 0% 100%;
-  --primary: 187 85% 30%;
+  --card-foreground: 209 61% 16%;
+  --secondary: 210 33% 97%;
+  --secondary-foreground: 209 42% 24%;
+  --muted: 210 33% 97%;
+  --muted-foreground: 210 21% 42%;
+  --border: 210 30% 89%;
+  --input: 210 30% 86%;
+  --overlay: 209 61% 12%;
+
+  /* Mero brand colours. Blue carries interaction; logo red and gold stay restrained. */
+  --primary: 207 65% 35%;
+  --primary-hover: 207 66% 27%;
+  --primary-active: 208 69% 23%;
   --primary-foreground: 0 0% 100%;
-  --primary-light: 187 80% 45%;
-  --primary-lighter: 187 70% 90%;
-  --secondary: 210 20% 96%;
-  --muted: 210 20% 96%;
-  --muted-foreground: 215 16% 47%;
-  --accent: 14 88% 58%;
+  --primary-light: 205 57% 43%;
+  --primary-subtle: 206 50% 95%;
+  --primary-subtle-strong: 207 48% 90%;
+  --accent: 359 66% 54%;
   --accent-foreground: 0 0% 100%;
-  --destructive: 0 84% 60%;
-  --success: 142 71% 45%;
+  --accent-subtle: 357 74% 96%;
+  --brand-gold: 39 89% 56%;
+  --brand-red: 359 66% 54%;
+
+  /* Semantic states. Foreground values are chosen for text contrast on subtle surfaces. */
+  --success: 158 71% 30%;
+  --success-foreground: 158 72% 23%;
+  --success-subtle: 151 48% 94%;
+  --success-border: 153 38% 81%;
   --warning: 38 92% 50%;
-  --border: 214 20% 90%;
-  --ring: 187 85% 30%;
+  --warning-foreground: 29 82% 29%;
+  --warning-subtle: 43 92% 94%;
+  --warning-border: 40 78% 77%;
+  --destructive: 355 68% 46%;
+  --destructive-hover: 355 72% 37%;
+  --destructive-foreground: 355 72% 35%;
+  --destructive-subtle: 355 100% 97%;
+  --destructive-border: 353 70% 86%;
+  --info: 253 56% 54%;
+  --info-foreground: 253 53% 35%;
+  --info-subtle: 250 64% 96%;
+  --info-border: 250 55% 86%;
+
+  /* Data visualisation colours remain distinguishable without leaving the brand system. */
+  --chart-1: 207 65% 35%;
+  --chart-2: 158 71% 30%;
+  --chart-3: 38 92% 46%;
+  --chart-4: 355 68% 46%;
+  --chart-5: 253 56% 54%;
+  --chart-6: 210 18% 48%;
+  --chart-grid: 210 30% 89%;
+
+  --ring: 207 65% 35%;
+  --shadow-color: 209 61% 16%;
   --radius: 0.75rem;
 }
 
 @theme inline {
   --font-sans: var(--font-mero), system-ui, sans-serif;
+
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
-  --color-primary: hsl(var(--primary));
-  --color-primary-light: hsl(var(--primary-light));
-  --color-primary-lighter: hsl(var(--primary-lighter));
+  --color-card-foreground: hsl(var(--card-foreground));
   --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-success: hsl(var(--success));
-  --color-warning: hsl(var(--warning));
   --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-overlay: hsl(var(--overlay) / 0.5);
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-hover: hsl(var(--primary-hover));
+  --color-primary-active: hsl(var(--primary-active));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-light: hsl(var(--primary-light));
+  --color-primary-subtle: hsl(var(--primary-subtle));
+  --color-primary-subtle-strong: hsl(var(--primary-subtle-strong));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-subtle: hsl(var(--accent-subtle));
+  --color-brand-gold: hsl(var(--brand-gold));
+  --color-brand-red: hsl(var(--brand-red));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-success-subtle: hsl(var(--success-subtle));
+  --color-success-border: hsl(var(--success-border));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-warning-subtle: hsl(var(--warning-subtle));
+  --color-warning-border: hsl(var(--warning-border));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-hover: hsl(var(--destructive-hover));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-subtle: hsl(var(--destructive-subtle));
+  --color-destructive-border: hsl(var(--destructive-border));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+  --color-info-subtle: hsl(var(--info-subtle));
+  --color-info-border: hsl(var(--info-border));
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+  --color-chart-6: hsl(var(--chart-6));
+  --color-chart-grid: hsl(var(--chart-grid));
+
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.05);
+  --shadow-md: 0 8px 24px hsl(var(--shadow-color) / 0.07);
+  --shadow-lg: 0 16px 36px hsl(var(--shadow-color) / 0.1);
+  --shadow-xl: 0 24px 56px hsl(var(--shadow-color) / 0.14);
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -54,40 +141,75 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-html {
-  scroll-behavior: smooth;
+::selection {
+  background: hsl(var(--primary) / 0.18);
+  color: hsl(var(--foreground));
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
+:where(a[href], button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid hsl(var(--ring) / 0.34);
+  outline-offset: 2px;
+}
+
+:where(button, select, summary) {
+  cursor: pointer;
+}
+
+:where(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+}
+
+:where(input, textarea)::placeholder {
+  color: hsl(var(--muted-foreground) / 0.78);
 }
 
 .field {
   width: 100%;
-  border: 1px solid hsl(var(--border));
+  min-height: 2.625rem;
+  border: 1px solid hsl(var(--input));
   border-radius: var(--radius);
-  background: #fff;
+  background: hsl(var(--card));
   padding: 0.625rem 0.75rem;
   color: hsl(var(--foreground));
+  box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.025);
   transition:
     border-color 150ms ease,
+    background-color 150ms ease,
     box-shadow 150ms ease;
 }
 
-.field:focus {
+.field:hover:not(:disabled) {
+  border-color: hsl(var(--primary) / 0.38);
+}
+
+.field:focus,
+.field:focus-visible {
   border-color: hsl(var(--primary));
   box-shadow: 0 0 0 3px hsl(var(--primary) / 0.13);
   outline: none;
 }
 
+.field[aria-invalid='true'],
+.field:invalid:not(:placeholder-shown) {
+  border-color: hsl(var(--destructive));
+}
+
+.field:disabled {
+  background: hsl(var(--secondary));
+  color: hsl(var(--muted-foreground));
+  opacity: 0.72;
+}
+
 .button-primary,
-.button-secondary {
+.button-secondary,
+.button-destructive {
+  min-height: 2.625rem;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   padding: 0.625rem 0.875rem;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 650;
+  line-height: 1.25;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -98,29 +220,72 @@ html {
 
 .button-primary {
   background: hsl(var(--primary));
-  color: #fff;
+  color: hsl(var(--primary-foreground));
 }
 
 .button-primary:hover:not(:disabled) {
-  background: hsl(187 85% 25%);
-  box-shadow: 0 8px 22px hsl(var(--primary) / 0.2);
+  background: hsl(var(--primary-hover));
+  box-shadow: 0 7px 18px hsl(var(--primary) / 0.18);
   transform: translateY(-1px);
 }
 
+.button-primary:active:not(:disabled) {
+  background: hsl(var(--primary-active));
+  box-shadow: none;
+  transform: translateY(0);
+}
+
 .button-secondary {
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #334155;
+  border-color: hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--secondary-foreground));
 }
 
 .button-secondary:hover:not(:disabled) {
-  border-color: hsl(var(--primary) / 0.3);
-  background: hsl(var(--primary-lighter) / 0.35);
-  color: hsl(var(--primary));
+  border-color: hsl(var(--primary) / 0.32);
+  background: hsl(var(--primary-subtle) / 0.65);
+  color: hsl(var(--primary-hover));
+}
+
+.button-secondary:active:not(:disabled) {
+  background: hsl(var(--primary-subtle-strong) / 0.65);
+}
+
+.button-destructive {
+  background: hsl(var(--destructive));
+  color: hsl(var(--primary-foreground));
+}
+
+.button-destructive:hover:not(:disabled) {
+  background: hsl(var(--destructive-hover));
+  box-shadow: 0 7px 18px hsl(var(--destructive) / 0.18);
+  transform: translateY(-1px);
+}
+
+.button-destructive:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(0);
 }
 
 .button-primary:disabled,
-.button-secondary:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+.button-secondary:disabled,
+.button-destructive:disabled {
+  box-shadow: none;
+  opacity: 0.52;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

@@ -142,13 +142,13 @@ export function SystemUserManagement({
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-end">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">
+          <p className="text-sm font-semibold tracking-wide text-primary">
             {isSuperAdmin ? 'SUPER ADMIN' : 'ADMIN'} · TEAM ACCESS
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Team and access</h1>
-          <p className="mt-2 max-w-2xl text-slate-600">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">Team and access</h1>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
             Invite operational users and control their role and account access. Customer identities
             remain read-only here.
           </p>
@@ -156,7 +156,7 @@ export function SystemUserManagement({
       </header>
 
       {feedback ? (
-        <p className="mt-5 rounded-lg bg-sky-50 p-3 text-sm text-sky-900" role="status">
+        <p className="mt-5 rounded-lg bg-primary-subtle p-3 text-sm text-primary-hover" role="status">
           {feedback}
         </p>
       ) : null}
@@ -164,7 +164,7 @@ export function SystemUserManagement({
       <div className="mt-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <nav
           aria-label="Team workspace sections"
-          className="flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm"
+          className="flex gap-2 overflow-x-auto rounded-xl border border-border bg-card p-1.5 shadow-sm"
         >
           <TeamSectionButton
             active={section === 'members'}
@@ -210,9 +210,9 @@ export function SystemUserManagement({
       </div>
 
       {inviteOpen ? (
-        <section className="mt-4 rounded-xl border border-sky-200 bg-sky-50/50 p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-slate-950">Invite a system user</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        <section className="mt-4 rounded-xl border border-primary/20 bg-primary-subtle/50 p-5 shadow-sm sm:p-6">
+          <h2 className="text-lg font-semibold text-foreground">Invite a system user</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             The recipient verifies their email and creates their own password from a single-use
             link.
           </p>
@@ -261,11 +261,11 @@ export function SystemUserManagement({
       ) : null}
 
       {section === 'members' ? (
-        <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="mt-4 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
           <div className="grid gap-5">
             <div>
-              <h2 className="text-lg font-semibold text-slate-950">Users</h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <h2 className="text-lg font-semibold text-foreground">Users</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Passwords, tokens, and security secrets are never returned.
               </p>
             </div>
@@ -298,7 +298,7 @@ export function SystemUserManagement({
           {users.data?.data.length ? (
             <div className="mt-5 overflow-x-auto">
               <table className="w-full min-w-220 text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3">User</th>
                     <th className="px-3 py-3">Role</th>
@@ -320,14 +320,14 @@ export function SystemUserManagement({
                     const canManageStatus = canChangeTargetStatus(user, item);
                     return (
                       <tr
-                        className="border-b border-slate-100 align-top last:border-0"
+                        className="border-b border-border/70 align-top last:border-0"
                         key={item.id}
                       >
                         <td className="px-3 py-4">
-                          <p className="font-medium text-slate-900">
+                          <p className="font-medium text-foreground">
                             {item.displayName ?? 'Name not set'}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">{item.email}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{item.email}</p>
                         </td>
                         <td className="px-3 py-4">
                           <div className="flex flex-wrap gap-1">
@@ -339,7 +339,7 @@ export function SystemUserManagement({
                         <td className="px-3 py-4">
                           <Badge value={item.status} />
                         </td>
-                        <td className="px-3 py-4 text-slate-600">{date(item.createdAt)}</td>
+                        <td className="px-3 py-4 text-muted-foreground">{date(item.createdAt)}</td>
                         <td className="px-3 py-4">
                           <div className="flex justify-end gap-2">
                             {isSuperAdmin && !immutable && item.role === 'STAFF' ? (
@@ -424,7 +424,7 @@ export function SystemUserManagement({
                               </button>
                             ) : null}
                             {item.isCustomer ? (
-                              <span className="text-xs text-slate-500">Manage in Customers</span>
+                              <span className="text-xs text-muted-foreground">Manage in Customers</span>
                             ) : null}
                           </div>
                         </td>
@@ -445,8 +445,8 @@ export function SystemUserManagement({
       ) : null}
 
       {section === 'invitations' ? (
-        <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-slate-950">Invitations</h2>
+        <section className="mt-4 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
+          <h2 className="text-lg font-semibold text-foreground">Invitations</h2>
           {invitations.isPending ? <InlineStatus message="Loading invitations…" /> : null}
           {invitations.isError ? <InlineStatus message="Unable to load invitations." /> : null}
           {invitations.data?.data.length === 0 ? (
@@ -456,12 +456,12 @@ export function SystemUserManagement({
             <div className="mt-5 grid gap-3">
               {invitations.data.data.map((invitation) => (
                 <article
-                  className="flex flex-col justify-between gap-4 rounded-lg border border-slate-200 p-4 md:flex-row md:items-center"
+                  className="flex flex-col justify-between gap-4 rounded-lg border border-border p-4 md:flex-row md:items-center"
                   key={invitation.id}
                 >
                   <div>
-                    <p className="font-medium text-slate-900">{invitation.email}</p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="font-medium text-foreground">{invitation.email}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
                       {invitation.role} · expires {dateTime(invitation.expiresAt)}
                     </p>
                   </div>
@@ -502,9 +502,9 @@ export function SystemUserManagement({
       ) : null}
 
       {isSuperAdmin && section === 'audit' ? (
-        <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-slate-950">Security audit history</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        <section className="mt-4 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
+          <h2 className="text-lg font-semibold text-foreground">Security audit history</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Restricted to super administrators. Entries include the actor, target, and assurance
             metadata.
           </p>
@@ -530,12 +530,12 @@ export function SystemUserManagement({
           {auditLogs.isError ? <InlineStatus message="Unable to load security events." /> : null}
           <div className="mt-5 grid gap-3">
             {auditLogs.data?.data.map((log) => (
-              <article className="rounded-lg border border-slate-200 p-4" key={log.id}>
+              <article className="rounded-lg border border-border p-4" key={log.id}>
                 <div className="flex flex-wrap justify-between gap-2">
-                  <p className="font-medium text-slate-900">{log.action.replaceAll('_', ' ')}</p>
-                  <time className="text-xs text-slate-500">{dateTime(log.createdAt)}</time>
+                  <p className="font-medium text-foreground">{log.action.replaceAll('_', ' ')}</p>
+                  <time className="text-xs text-muted-foreground">{dateTime(log.createdAt)}</time>
                 </div>
-                <p className="mt-1 text-xs text-slate-600">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {log.actor?.email ?? 'System command'} · {log.entityType} {log.entityId}
                 </p>
               </article>
@@ -576,8 +576,8 @@ function TeamSectionButton({
       aria-pressed={active}
       className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
         active
-          ? 'bg-teal-700 text-white shadow-sm'
-          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+          ? 'bg-primary text-primary-foreground shadow-sm'
+          : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
       }`}
       onClick={onClick}
       type="button"
@@ -585,7 +585,7 @@ function TeamSectionButton({
       {children}
       {count !== undefined ? (
         <span
-          className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}
+          className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}
         >
           {count}
         </span>
@@ -647,26 +647,26 @@ function Field({
   children,
 }: Readonly<{ label: string; error?: string; children: React.ReactNode }>) {
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+    <label className="grid gap-1.5 text-sm font-medium text-foreground">
       {label}
       {children}
-      {error ? <span className="text-xs text-rose-700">{error}</span> : null}
+      {error ? <span className="text-xs text-destructive-foreground">{error}</span> : null}
     </label>
   );
 }
 function Badge({ value }: Readonly<{ value: string }>) {
   const color =
     value === 'ACTIVE' || value === 'ACCEPTED'
-      ? 'bg-emerald-100 text-emerald-800'
+      ? 'bg-success-subtle text-success-foreground'
       : value === 'SUPER_ADMIN'
-        ? 'bg-fuchsia-100 text-fuchsia-900'
+        ? 'bg-accent-subtle text-destructive-foreground'
         : value === 'ADMIN'
-          ? 'bg-violet-100 text-violet-800'
+          ? 'bg-info-subtle text-info-foreground'
           : value === 'SUSPENDED' || value === 'EXPIRED'
-            ? 'bg-amber-100 text-amber-800'
+            ? 'bg-warning-subtle text-warning-foreground'
             : value === 'DEACTIVATED' || value === 'REVOKED'
-              ? 'bg-rose-100 text-rose-800'
-              : 'bg-sky-100 text-sky-800';
+              ? 'bg-destructive-subtle text-destructive-foreground'
+              : 'bg-primary-subtle-strong text-primary';
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${color}`}>
       {value.replaceAll('_', ' ')}
@@ -674,11 +674,11 @@ function Badge({ value }: Readonly<{ value: string }>) {
   );
 }
 function InlineStatus({ message }: Readonly<{ message: string }>) {
-  return <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">{message}</p>;
+  return <p className="mt-5 rounded-lg bg-muted p-4 text-sm text-muted-foreground">{message}</p>;
 }
 function PageStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       {message}
     </main>
   );

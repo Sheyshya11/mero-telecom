@@ -27,7 +27,7 @@ export function AuthRouteGuard({
 
   if (isLoading || !isAllowed) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 text-sm text-slate-600">
+      <main className="grid min-h-screen place-items-center bg-muted text-sm text-muted-foreground">
         Restoring your session…
       </main>
     );

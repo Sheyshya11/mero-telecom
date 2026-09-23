@@ -52,11 +52,11 @@ export function StaffSupport() {
   if (!permitted) return <PageStatus message="Staff access is required." />;
 
   return (
-    <main className="workspace-page mx-auto min-h-screen max-w-7xl px-4 py-8 text-slate-950 sm:px-6 sm:py-10">
-      <header className="border-b border-slate-200 pb-6">
-        <p className="text-sm font-semibold tracking-wide text-sky-700">CONTROL CENTRE · SUPPORT</p>
+    <main className="workspace-page mx-auto min-h-screen max-w-7xl px-4 py-8 text-foreground sm:px-6 sm:py-10">
+      <header className="border-b border-border pb-6">
+        <p className="text-sm font-semibold tracking-wide text-primary">CONTROL CENTRE · SUPPORT</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight">Support requests</h1>
-        <p className="mt-2 text-slate-600">
+        <p className="mt-2 text-muted-foreground">
           Handle customer tickets and pre-sales enquiries in one operational queue.
         </p>
       </header>
@@ -69,10 +69,10 @@ export function StaffSupport() {
           ['Unassigned enquiries', summary.data?.unassignedEnquiries],
         ].map(([label, value]) => (
           <article
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-xl border border-border bg-card p-4 shadow-sm"
             key={label}
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
             <p className="mt-2 text-2xl font-bold">{summary.isPending ? '…' : (value ?? 0)}</p>
           </article>
         ))}
@@ -104,16 +104,16 @@ export function StaffSupport() {
           sorts={['updatedAt', 'createdAt', 'status', 'priority']}
           state={table}
         />
-        <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           {cases.isPending ? <TableSkeleton /> : null}
           {cases.isError ? (
-            <p className="p-6 text-rose-700">We couldn&apos;t load support requests.</p>
+            <p className="p-6 text-destructive-foreground">We couldn&apos;t load support requests.</p>
           ) : null}
           {cases.data?.data.length ? (
             <>
               <div className="hidden overflow-x-auto lg:block">
                 <table className="w-full min-w-240 text-left text-sm">
-                  <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                  <thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="px-5 py-3">Reference</th>
                       <th>Contact</th>
@@ -139,7 +139,7 @@ export function StaffSupport() {
               </div>
             </>
           ) : !cases.isPending && !cases.isError ? (
-            <p className="p-8 text-center text-slate-600">
+            <p className="p-8 text-center text-muted-foreground">
               {table.values.assignment === 'MINE'
                 ? "You don't currently have any assigned support requests."
                 : 'No support requests match these filters.'}
@@ -159,11 +159,11 @@ export function StaffSupport() {
 
 function StaffRow({ supportCase }: Readonly<{ supportCase: SupportCase }>) {
   return (
-    <tr className="border-b border-slate-100">
+    <tr className="border-b border-border/70">
       <td className="px-5 py-4 font-mono text-xs font-semibold">{supportCase.caseNumber}</td>
       <td>
         <p className="font-semibold">{customerName(supportCase)}</p>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           {supportCase.requestType === 'PROSPECT_ENQUIRY'
             ? supportCase.prospectEmail
             : supportCase.customer?.email}
@@ -171,7 +171,7 @@ function StaffRow({ supportCase }: Readonly<{ supportCase: SupportCase }>) {
       </td>
       <td>
         <span className="block">{categoryLabel(supportCase.category)}</span>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-muted-foreground">
           {supportCase.requestType === 'PROSPECT_ENQUIRY' ? 'Enquiry' : 'Customer ticket'}
         </span>
       </td>
@@ -197,18 +197,18 @@ function StaffRow({ supportCase }: Readonly<{ supportCase: SupportCase }>) {
 
 function StaffCard({ supportCase }: Readonly<{ supportCase: SupportCase }>) {
   return (
-    <article className="rounded-lg border border-slate-200 p-4">
+    <article className="rounded-lg border border-border p-4">
       <div className="flex items-start justify-between gap-3">
-        <span className="font-mono text-xs font-semibold text-sky-800">
+        <span className="font-mono text-xs font-semibold text-primary">
           {supportCase.caseNumber}
         </span>
         <StatusBadge status={supportCase.status} />
       </div>
       <h2 className="mt-3 font-semibold">{supportCase.subject}</h2>
-      <p className="mt-1 text-sm text-slate-600">
+      <p className="mt-1 text-sm text-muted-foreground">
         {customerName(supportCase)} · {categoryLabel(supportCase.category)}
       </p>
-      <p className="mt-2 text-xs text-slate-500">
+      <p className="mt-2 text-xs text-muted-foreground">
         {supportCase.assignedTo?.displayName || supportCase.assignedTo?.email || 'Unassigned'} ·
         Updated {formatSupportDate(supportCase.updatedAt)}
       </p>
@@ -233,7 +233,7 @@ function customerName(supportCase: SupportCase): string {
 
 function PageStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <p>{message}</p>
     </main>
   );

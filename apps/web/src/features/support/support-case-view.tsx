@@ -149,14 +149,14 @@ export function SupportCaseView({
   const readOnly = data.status === 'CLOSED';
 
   return (
-    <main className="workspace-page mx-auto min-h-screen max-w-6xl px-4 py-8 text-slate-950 sm:px-6 sm:py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+    <main className="workspace-page mx-auto min-h-screen max-w-6xl px-4 py-8 text-foreground sm:px-6 sm:py-10">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="font-mono text-sm font-semibold tracking-wide text-sky-700">
+          <p className="font-mono text-sm font-semibold tracking-wide text-primary">
             {data.caseNumber}
           </p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">{data.subject}</h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-muted-foreground">
             {categoryLabel(data.category)} · Created {formatSupportDate(data.createdAt)}
           </p>
         </div>
@@ -179,12 +179,12 @@ export function SupportCaseView({
       </header>
 
       {notice ? (
-        <p className="mt-5 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800" role="status">
+        <p className="mt-5 rounded-lg bg-success-subtle p-4 text-sm text-success-foreground" role="status">
           {notice}
         </p>
       ) : null}
       {error ? (
-        <p className="mt-5 rounded-lg bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+        <p className="mt-5 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
           {error}
         </p>
       ) : null}
@@ -212,10 +212,10 @@ export function SupportCaseView({
       </section>
 
       {mode === 'staff' ? (
-        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {data.requestType === 'PROSPECT_ENQUIRY' ? 'Prospective customer' : 'Customer'}
               </p>
               <p className="mt-2 font-semibold">
@@ -223,7 +223,7 @@ export function SupportCaseView({
                   ? data.prospectName
                   : `${data.customer?.firstName ?? ''} ${data.customer?.lastName ?? ''}`.trim()}
               </p>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {data.requestType === 'PROSPECT_ENQUIRY'
                   ? data.prospectEmail
                   : data.customer?.email}
@@ -232,10 +232,10 @@ export function SupportCaseView({
                   : ''}
               </p>
               {data.prospectAddress ? (
-                <p className="mt-1 text-sm text-slate-600">{data.prospectAddress}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{data.prospectAddress}</p>
               ) : null}
               {data.requestType === 'PROSPECT_ENQUIRY' && data.customer ? (
-                <p className="mt-3 text-xs font-medium text-emerald-700">
+                <p className="mt-3 text-xs font-medium text-success-foreground">
                   Linked to verified customer {data.customer.firstName} {data.customer.lastName}
                   {data.linkedCustomerAt ? ` on ${formatSupportDate(data.linkedCustomerAt)}` : ''}.
                 </p>
@@ -243,7 +243,7 @@ export function SupportCaseView({
             </div>
             {data.requestType === 'PROSPECT_ENQUIRY' && !data.customer ? (
               <form
-                className="w-full max-w-sm rounded-lg bg-slate-50 p-4"
+                className="w-full max-w-sm rounded-lg bg-muted p-4"
                 onSubmit={(event) => {
                   event.preventDefault();
                   if (customerNumber.trim().length >= 3) linkCustomer.mutate();
@@ -259,7 +259,7 @@ export function SupportCaseView({
                     value={customerNumber}
                   />
                 </label>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-muted-foreground">
                   Verify identity first. Email matching never links an account automatically.
                 </p>
                 <button
@@ -277,7 +277,7 @@ export function SupportCaseView({
 
       {mode === 'staff' && data.workflow?.resolutionBlockedReason ? (
         <section
-          className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+          className="mt-6 rounded-xl border border-warning-border bg-warning-subtle p-4 text-sm text-warning-foreground"
           role="status"
         >
           <p className="font-semibold">
@@ -288,13 +288,13 @@ export function SupportCaseView({
             review
           </p>
           <p className="mt-1">{data.workflow.resolutionBlockedReason}</p>
-          <p className="mt-2 text-amber-800">
+          <p className="mt-2 text-warning-foreground">
             You can continue the conversation, but this ticket cannot be resolved or closed until
             the internal workflow is complete.
           </p>
           {data.workflow.blockingInternalRequests[0] ? (
             <Link
-              className="mt-3 inline-flex font-semibold text-amber-950 underline underline-offset-2"
+              className="mt-3 inline-flex font-semibold text-warning-foreground underline underline-offset-2"
               href={`/control-centre/internal-requests/${data.workflow.blockingInternalRequests[0].requestNumber}`}
             >
               Review {data.workflow.blockingInternalRequests[0].requestNumber}
@@ -312,7 +312,7 @@ export function SupportCaseView({
       ) : null}
 
       <section
-        className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-6"
+        className="mt-6 rounded-xl border border-border bg-muted p-4 shadow-sm sm:p-6"
         aria-labelledby="conversation-heading"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -320,9 +320,9 @@ export function SupportCaseView({
             <h2 className="text-lg font-semibold" id="conversation-heading">
               Conversation
             </h2>
-            <p className="mt-1 text-sm text-slate-600">Messages are shown oldest first.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Messages are shown oldest first.</p>
           </div>
-          <span className="text-xs text-slate-500">{data.messages?.length ?? 0} messages</span>
+          <span className="text-xs text-muted-foreground">{data.messages?.length ?? 0} messages</span>
         </div>
         <ol className="mt-6 grid gap-4">
           {data.messages?.map((message) => {
@@ -342,24 +342,24 @@ export function SupportCaseView({
             return (
               <li className={`flex ${ownSide ? 'justify-end' : 'justify-start'}`} key={message.id}>
                 <article
-                  className={`max-w-3xl rounded-2xl border p-4 sm:p-5 ${isInternal ? 'border-amber-200 bg-amber-50' : ownSide ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-white'}`}
+                  className={`max-w-3xl rounded-2xl border p-4 sm:p-5 ${isInternal ? 'border-warning-border bg-warning-subtle' : ownSide ? 'border-primary/20 bg-primary-subtle' : 'border-border bg-card'}`}
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1 text-sm">
                     <strong>{isInternal ? `${senderLabel} · Internal note` : senderLabel}</strong>
-                    <time className="text-xs text-slate-500" dateTime={message.createdAt}>
+                    <time className="text-xs text-muted-foreground" dateTime={message.createdAt}>
                       {formatSupportDate(message.createdAt)}
                     </time>
                   </div>
-                  <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-800">
+                  <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
                     {message.body}
                   </p>
                   {mode === 'staff' && message.emailDeliveryStatus !== 'NOT_APPLICABLE' ? (
-                    <p className="mt-2 text-xs font-medium text-slate-500">
+                    <p className="mt-2 text-xs font-medium text-muted-foreground">
                       Email: {message.emailDeliveryStatus.toLowerCase()}
                     </p>
                   ) : null}
                   {message.attachments.length ? (
-                    <ul className="mt-4 grid gap-2 border-t border-slate-200 pt-3">
+                    <ul className="mt-4 grid gap-2 border-t border-border pt-3">
                       {message.attachments.map((attachment) => (
                         <li key={attachment.id}>
                           <AttachmentButton
@@ -378,12 +378,12 @@ export function SupportCaseView({
         </ol>
 
         {readOnly ? (
-          <p className="mt-6 rounded-lg bg-slate-200 p-4 text-sm text-slate-700">
+          <p className="mt-6 rounded-lg bg-border p-4 text-sm text-foreground">
             This support request is closed and the conversation is read-only.
           </p>
         ) : (
           <form
-            className="mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
+            className="mt-6 rounded-xl border border-border bg-card p-4 sm:p-5"
             onSubmit={(event) => {
               event.preventDefault();
               const validationError = validateSupportFiles(files);
@@ -438,11 +438,11 @@ export function SupportCaseView({
                     }}
                     type="file"
                   />
-                  <span className="text-xs font-normal text-slate-500">
+                  <span className="text-xs font-normal text-muted-foreground">
                     Up to 3 safe image, PDF, or Word files.
                   </span>
                   {fileError ? (
-                    <span className="text-xs font-normal text-rose-700">{fileError}</span>
+                    <span className="text-xs font-normal text-destructive-foreground">{fileError}</span>
                   ) : null}
                 </label>
               ) : (
@@ -465,14 +465,14 @@ export function SupportCaseView({
       </section>
 
       {mode === 'staff' && data.activity?.length ? (
-        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold">Activity</h2>
-          <ol className="mt-5 border-l border-slate-200 pl-5">
+          <ol className="mt-5 border-l border-border pl-5">
             {data.activity.map((event) => (
               <li className="relative pb-5 last:pb-0" key={event.id}>
-                <span className="absolute -left-[1.45rem] top-1.5 h-2.5 w-2.5 rounded-full bg-sky-600" />
+                <span className="absolute -left-[1.45rem] top-1.5 h-2.5 w-2.5 rounded-full bg-primary-light" />
                 <p className="text-sm font-medium">{activityLabel(event.action)}</p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {event.actorName} · {formatSupportDate(event.createdAt)}
                 </p>
               </li>
@@ -506,13 +506,13 @@ function StaffControls({
     nextActions.push({ label: 'Reopen / In Progress', status: 'IN_PROGRESS' });
   return (
     <section
-      className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+      className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm"
       aria-label="Staff actions"
     >
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
           <h2 className="font-semibold">Staff actions</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted-foreground">
             Assignment and status changes are recorded in the audit log.
           </p>
         </div>
@@ -548,7 +548,7 @@ function StaffControls({
               Close Request
             </button>
           ) : null}
-          <label className="grid gap-1 text-xs font-semibold text-slate-600">
+          <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
             Priority
             <select
               className="field py-2 text-sm"
@@ -567,7 +567,7 @@ function StaffControls({
       </div>
       {capabilities?.canResolve ? (
         <form
-          className="mt-5 grid gap-3 border-t border-slate-100 pt-5"
+          className="mt-5 grid gap-3 border-t border-border/70 pt-5"
           onSubmit={(event) => {
             event.preventDefault();
             if (resolutionSummary.trim()) {
@@ -598,13 +598,13 @@ function StaffControls({
           </div>
         </form>
       ) : capabilities?.resolutionBlockedReason ? (
-        <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+        <p className="mt-4 rounded-lg bg-warning-subtle p-3 text-sm text-warning-foreground">
           <strong>Resolution unavailable.</strong> {capabilities.resolutionBlockedReason}
         </p>
       ) : null}
       {data.customer ? (
-        <p className="mt-4 border-t border-slate-100 pt-4 text-sm text-slate-600">
-          <strong className="text-slate-900">Customer:</strong> {data.customer.firstName}{' '}
+        <p className="mt-4 border-t border-border/70 pt-4 text-sm text-muted-foreground">
+          <strong className="text-foreground">Customer:</strong> {data.customer.firstName}{' '}
           {data.customer.lastName} · {data.customer.email} · {data.customer.phone}
         </p>
       ) : null}
@@ -614,8 +614,8 @@ function StaffControls({
 
 function Summary({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+    <article className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="mt-2 text-sm">{children}</div>
     </article>
   );
@@ -646,7 +646,7 @@ function AttachmentButton({
   }
   return (
     <button
-      className="text-left text-xs font-semibold text-sky-700 hover:underline"
+      className="text-left text-xs font-semibold text-primary hover:underline"
       disabled={pending}
       onClick={() => void open()}
       type="button"
@@ -690,20 +690,20 @@ function CaseSkeleton() {
       className="mx-auto min-h-screen max-w-6xl animate-pulse space-y-5 px-6 py-10 motion-reduce:animate-none"
       aria-label="Loading support request"
     >
-      <div className="h-24 rounded-xl bg-slate-100" />
+      <div className="h-24 rounded-xl bg-secondary" />
       <div className="grid gap-3 sm:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
-          <div className="h-24 rounded-xl bg-slate-100" key={index} />
+          <div className="h-24 rounded-xl bg-secondary" key={index} />
         ))}
       </div>
-      <div className="h-96 rounded-xl bg-slate-100" />
+      <div className="h-96 rounded-xl bg-secondary" />
     </main>
   );
 }
 
 function PageStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       <p>{message}</p>
     </main>
   );

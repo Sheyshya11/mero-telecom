@@ -9,7 +9,7 @@ export default function TermsPage() {
         <MeroTelecomLogo alt="" preload size="compact" />
       </Link>
       <h1 className="mt-4 text-3xl font-bold">Terms of service</h1>
-      <p className="mt-4 leading-7 text-slate-600">
+      <p className="mt-4 leading-7 text-muted-foreground">
         This development environment uses Stripe test mode and prototype service qualification.
         Final connection, acceptable-use, cancellation, and billing terms must be reviewed before a
         production launch.

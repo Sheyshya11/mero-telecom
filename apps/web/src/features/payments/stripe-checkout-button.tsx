@@ -40,10 +40,10 @@ export function StripeCheckoutButton({ invoiceId }: Readonly<{ invoiceId: string
         {checkout.isPending ? 'Redirecting to Stripe...' : 'Pay securely with Stripe'}
       </button>
       {checkout.isError ? (
-        <p className="mt-2 text-sm text-rose-700">Unable to start the secure payment session.</p>
+        <p className="mt-2 text-sm text-destructive-foreground">Unable to start the secure payment session.</p>
       ) : null}
       {checkout.data?.reconciled ? (
-        <p className="mt-2 text-sm text-emerald-700">Payment confirmed. Refreshing your account…</p>
+        <p className="mt-2 text-sm text-success-foreground">Payment confirmed. Refreshing your account…</p>
       ) : null}
     </div>
   );
@@ -82,14 +82,14 @@ export function PlanCheckoutButton({ planId }: Readonly<{ planId: string }>) {
         {checkout.isPending ? 'Opening secure checkout…' : 'Choose and pay'}
       </button>
       {checkout.isError ? (
-        <p className="mt-2 text-sm text-rose-700">
+        <p className="mt-2 text-sm text-destructive-foreground">
           {checkout.error instanceof ApiError
             ? checkout.error.message
             : 'Unable to start the secure payment session.'}
         </p>
       ) : null}
       {checkout.data?.reconciled ? (
-        <p className="mt-2 text-sm text-emerald-700">
+        <p className="mt-2 text-sm text-success-foreground">
           Payment confirmed. Your subscription is now active.
         </p>
       ) : null}

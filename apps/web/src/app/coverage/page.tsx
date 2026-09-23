@@ -10,11 +10,11 @@ export default function CoveragePage() {
         <MeroTelecomLogo alt="" preload size="compact" />
       </Link>
       <header className="py-8">
-        <p className="text-sm font-semibold tracking-wide text-sky-700">SERVICE COVERAGE</p>
-        <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-950">
+        <p className="text-sm font-semibold tracking-wide text-primary">SERVICE COVERAGE</p>
+        <h1 className="mt-2 text-4xl font-bold tracking-tight text-foreground">
           Check an Australian address
         </h1>
-        <p className="mt-3 max-w-2xl text-slate-600">
+        <p className="mt-3 max-w-2xl text-muted-foreground">
           Select a recognised address for a preliminary Mero Telecom database estimate. Final
           serviceability may still require confirmation.
         </p>

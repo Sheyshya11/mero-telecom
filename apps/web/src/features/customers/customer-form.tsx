@@ -128,10 +128,10 @@ function Field({
   children,
 }: Readonly<{ label: string; error?: string; children: React.ReactNode }>) {
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+    <label className="grid gap-1.5 text-sm font-medium text-foreground">
       {label}
       {children}
-      {error ? <span className="text-xs font-normal text-rose-700">{error}</span> : null}
+      {error ? <span className="text-xs font-normal text-destructive-foreground">{error}</span> : null}
     </label>
   );
 }

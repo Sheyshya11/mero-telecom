@@ -160,7 +160,7 @@ export default function AdminPlansPage() {
 
   if (isLoading) {
     return (
-      <main className="grid min-h-screen place-items-center px-6 text-slate-600">
+      <main className="grid min-h-screen place-items-center px-6 text-muted-foreground">
         Checking your session…
       </main>
     );
@@ -168,7 +168,7 @@ export default function AdminPlansPage() {
 
   if (!user) {
     return (
-      <main className="grid min-h-screen place-items-center px-6 text-slate-600">
+      <main className="grid min-h-screen place-items-center px-6 text-muted-foreground">
         Sign in to manage internet plans.
       </main>
     );
@@ -176,7 +176,7 @@ export default function AdminPlansPage() {
 
   if (!canManagePlans) {
     return (
-      <main className="grid min-h-screen place-items-center px-6 text-slate-600">
+      <main className="grid min-h-screen place-items-center px-6 text-muted-foreground">
         Administrator access is required.
       </main>
     );
@@ -194,20 +194,20 @@ export default function AdminPlansPage() {
     <main className="workspace-page mx-auto min-h-screen max-w-6xl px-6 py-10">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">ADMIN · PLAN CATALOGUE</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Internet plans</h1>
-          <p className="mt-2 text-slate-600">
+          <p className="text-sm font-semibold tracking-wide text-primary">ADMIN · PLAN CATALOGUE</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">Internet plans</h1>
+          <p className="mt-2 text-muted-foreground">
             Create plans and control whether they can be offered to customers.
           </p>
         </div>
-        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+        <span className="rounded-full bg-success-subtle px-2.5 py-1 text-xs font-semibold text-success-foreground">
           Administrator
         </span>
       </header>
 
       <div className="grid gap-7 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-950">
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-foreground">
             {editingPlan ? `Edit ${editingPlan.name}` : 'Add a plan'}
           </h2>
           <form
@@ -220,46 +220,46 @@ export default function AdminPlansPage() {
               }
             })}
           >
-            <label className="block text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-foreground">
               Plan name
               <input className="field mt-1" {...form.register('name')} />
               {form.formState.errors.name && (
-                <span className="mt-1 block text-sm text-rose-700">
+                <span className="mt-1 block text-sm text-destructive-foreground">
                   {form.formState.errors.name.message}
                 </span>
               )}
             </label>
-            <label className="block text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-foreground">
               Tier rank
               <input className="field mt-1" min="0" type="number" {...form.register('tierRank')} />
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm text-foreground">
                 <input type="checkbox" {...form.register('isPublic')} /> Publicly visible
               </label>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm text-foreground">
                 <input type="checkbox" {...form.register('isAvailable')} /> Available to order
               </label>
             </div>
-            <label className="block text-sm font-medium text-slate-700">
-              Description <span className="text-slate-400">(optional)</span>
+            <label className="block text-sm font-medium text-foreground">
+              Description <span className="text-muted-foreground/70">(optional)</span>
               <textarea className="field mt-1 min-h-24" {...form.register('description')} />
             </label>
-            <label className="block text-sm font-medium text-slate-700">
-              Best-for highlights <span className="text-slate-400">(one per line, up to five)</span>
+            <label className="block text-sm font-medium text-foreground">
+              Best-for highlights <span className="text-muted-foreground/70">(one per line, up to five)</span>
               <textarea
                 className="field mt-1 min-h-28"
                 placeholder={'Multiple devices at once\nHD streaming\nWorking from home'}
                 {...form.register('highlightsText')}
               />
               {form.formState.errors.highlightsText ? (
-                <span className="mt-1 block text-sm text-rose-700">
+                <span className="mt-1 block text-sm text-destructive-foreground">
                   {form.formState.errors.highlightsText.message}
                 </span>
               ) : null}
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-foreground">
                 Download Mbps
                 <input
                   className="field mt-1"
@@ -268,12 +268,12 @@ export default function AdminPlansPage() {
                   {...form.register('downloadMbps')}
                 />
                 {form.formState.errors.downloadMbps && (
-                  <span className="mt-1 block text-sm text-rose-700">
+                  <span className="mt-1 block text-sm text-destructive-foreground">
                     {form.formState.errors.downloadMbps.message}
                   </span>
                 )}
               </label>
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-foreground">
                 Upload Mbps
                 <input
                   className="field mt-1"
@@ -282,13 +282,13 @@ export default function AdminPlansPage() {
                   {...form.register('uploadMbps')}
                 />
                 {form.formState.errors.uploadMbps && (
-                  <span className="mt-1 block text-sm text-rose-700">
+                  <span className="mt-1 block text-sm text-destructive-foreground">
                     {form.formState.errors.uploadMbps.message}
                   </span>
                 )}
               </label>
             </div>
-            <label className="block text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-foreground">
               Monthly price (AUD)
               <input
                 className="field mt-1"
@@ -298,13 +298,13 @@ export default function AdminPlansPage() {
                 {...form.register('monthlyPrice')}
               />
               {form.formState.errors.monthlyPrice && (
-                <span className="mt-1 block text-sm text-rose-700">
+                <span className="mt-1 block text-sm text-destructive-foreground">
                   {form.formState.errors.monthlyPrice.message}
                 </span>
               )}
             </label>
             {errorMessage && (
-              <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{errorMessage}</p>
+              <p className="rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground">{errorMessage}</p>
             )}
             {editingPlan && (
               <button
@@ -332,14 +332,14 @@ export default function AdminPlansPage() {
           </form>
         </section>
 
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <h2 className="text-lg font-semibold text-slate-950">Available plans</h2>
+        <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          <div className="border-b border-border px-6 py-5">
+            <h2 className="text-lg font-semibold text-foreground">Available plans</h2>
           </div>
-          {plansQuery.isLoading && <p className="p-6 text-slate-600">Loading plans…</p>}
-          {plansQuery.isError && <p className="p-6 text-red-700">Unable to load plans.</p>}
+          {plansQuery.isLoading && <p className="p-6 text-muted-foreground">Loading plans…</p>}
+          {plansQuery.isError && <p className="p-6 text-destructive-foreground">Unable to load plans.</p>}
           {plansQuery.data?.length === 0 && (
-            <p className="p-6 text-slate-600">No plans have been created yet.</p>
+            <p className="p-6 text-muted-foreground">No plans have been created yet.</p>
           )}
           <div className="divide-y divide-slate-100">
             {plansQuery.data?.map((plan) => (
@@ -349,31 +349,31 @@ export default function AdminPlansPage() {
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-slate-950">{plan.name}</h3>
+                    <h3 className="font-semibold text-foreground">{plan.name}</h3>
                     <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${plan.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${plan.isActive ? 'bg-success-subtle text-success-foreground' : 'bg-secondary text-foreground'}`}
                     >
                       {plan.isActive ? 'Active' : 'Inactive'}
                     </span>
-                    <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs text-sky-800">
+                    <span className="rounded-full bg-primary-subtle px-2.5 py-1 text-xs text-primary">
                       {plan.isPublic ? 'Public' : 'Internal'}
                     </span>
-                    <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs text-violet-800">
+                    <span className="rounded-full bg-info-subtle px-2.5 py-1 text-xs text-info-foreground">
                       {plan.isAvailable ? 'Orderable' : 'Unavailable'}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {plan.downloadMbps} Mbps down · {plan.uploadMbps} Mbps up ·{' '}
                     {formatMoney(plan.monthlyCents)}/month
                   </p>
                   {plan.description && (
-                    <p className="mt-2 text-sm text-slate-500">{plan.description}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{plan.description}</p>
                   )}
                   {plan.highlights.length ? (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {plan.highlights.map((highlight) => (
                         <span
-                          className="rounded-full bg-teal-50 px-2.5 py-1 text-xs text-teal-800"
+                          className="rounded-full bg-primary-subtle px-2.5 py-1 text-xs text-primary"
                           key={highlight}
                         >
                           {highlight}

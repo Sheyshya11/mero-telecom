@@ -163,28 +163,28 @@ export function InvoiceManagement() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-end">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">BILLING · INVOICES</p>
+          <p className="text-sm font-semibold tracking-wide text-primary">BILLING · INVOICES</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Invoices</h1>
-          <p className="mt-2 text-slate-600">Generate, review, deliver, and download invoices.</p>
+          <p className="mt-2 text-muted-foreground">Generate, review, deliver, and download invoices.</p>
         </div>
       </header>
 
       {notice ? (
-        <p className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800" role="status">
+        <p className="mt-6 rounded-lg bg-success-subtle p-4 text-sm text-success-foreground" role="status">
           {notice}
         </p>
       ) : null}
       {actionError ? (
-        <p className="mt-6 rounded-lg bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+        <p className="mt-6 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
           {actionError}
         </p>
       ) : null}
 
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
         <h2 className="font-semibold">Generate monthly invoice</h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-muted-foreground">
           Find the customer, select their active service, and choose the billing date.
         </p>
         <form
@@ -242,16 +242,16 @@ export function InvoiceManagement() {
               />
               {subscriptionPickerOpen ? (
                 <div
-                  className="absolute top-full z-20 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+                  className="absolute top-full z-20 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl"
                   id={subscriptionListId}
                   role="listbox"
                 >
                   {subscriptions.isPending || subscriptions.isFetching ? (
-                    <p className="px-3 py-3 text-sm font-normal text-slate-500">
+                    <p className="px-3 py-3 text-sm font-normal text-muted-foreground">
                       Searching active subscriptions…
                     </p>
                   ) : subscriptions.isError ? (
-                    <p className="px-3 py-3 text-sm font-normal text-rose-700">
+                    <p className="px-3 py-3 text-sm font-normal text-destructive-foreground">
                       Unable to load active subscriptions.
                     </p>
                   ) : activeSubscriptions.length ? (
@@ -260,8 +260,8 @@ export function InvoiceManagement() {
                         aria-selected={selectedSubscription?.id === subscription.id}
                         className={`grid w-full gap-0.5 rounded-lg px-3 py-2.5 text-left font-normal ${
                           index === highlightedSubscription
-                            ? 'bg-teal-50 text-teal-950'
-                            : 'text-slate-700 hover:bg-slate-50'
+                            ? 'bg-primary-subtle text-primary-hover'
+                            : 'text-foreground hover:bg-muted'
                         }`}
                         key={subscription.id}
                         onClick={() => selectSubscription(subscription)}
@@ -269,23 +269,23 @@ export function InvoiceManagement() {
                         role="option"
                         type="button"
                       >
-                        <span className="font-semibold text-slate-900">
+                        <span className="font-semibold text-foreground">
                           {subscription.customer.firstName} {subscription.customer.lastName}
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-muted-foreground">
                           {subscription.customer.customerNumber} · {subscription.plan.name}
                         </span>
                       </button>
                     ))
                   ) : (
-                    <p className="px-3 py-3 text-sm font-normal text-slate-500">
+                    <p className="px-3 py-3 text-sm font-normal text-muted-foreground">
                       No active subscriptions match this search.
                     </p>
                   )}
                 </div>
               ) : null}
             </div>
-            <span className="min-h-4 text-xs font-normal text-slate-500" role="status">
+            <span className="min-h-4 text-xs font-normal text-muted-foreground" role="status">
               {selectedSubscription
                 ? `${selectedSubscription.customer.customerNumber} selected.`
                 : subscriptions.isFetching
@@ -295,7 +295,7 @@ export function InvoiceManagement() {
                     : 'Type to search, then choose one active service.'}
             </span>
             {form.formState.errors.subscriptionId ? (
-              <span className="text-xs text-rose-700">
+              <span className="text-xs text-destructive-foreground">
                 {form.formState.errors.subscriptionId.message}
               </span>
             ) : null}
@@ -304,7 +304,7 @@ export function InvoiceManagement() {
             Billing date
             <input className="field" type="date" {...form.register('issueDate')} />
             {form.formState.errors.issueDate ? (
-              <span className="text-xs text-rose-700">
+              <span className="text-xs text-destructive-foreground">
                 {form.formState.errors.issueDate.message}
               </span>
             ) : null}
@@ -318,20 +318,20 @@ export function InvoiceManagement() {
           </button>
         </form>
         {subscriptions.data && subscriptions.data.meta.total > activeSubscriptions.length ? (
-          <p className="mt-4 text-sm text-slate-500">
+          <p className="mt-4 text-sm text-muted-foreground">
             Showing the first {activeSubscriptions.length} matches. Refine the customer search to
             find another subscription.
           </p>
         ) : null}
         {!subscriptions.isPending && activeSubscriptions.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500">
+          <p className="mt-4 text-sm text-muted-foreground">
             No active subscriptions are available for billing.
           </p>
         ) : null}
       </section>
 
-      <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+      <section className="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex items-center justify-between border-b border-border px-6 py-5">
           <h2 className="font-semibold">Invoice register</h2>
           <button
             className="button-secondary"
@@ -367,11 +367,11 @@ export function InvoiceManagement() {
           ]}
         />
         {invoices.isPending ? <TableSkeleton /> : null}
-        {invoices.isError ? <p className="p-6 text-rose-700">Unable to load invoices.</p> : null}
+        {invoices.isError ? <p className="p-6 text-destructive-foreground">Unable to load invoices.</p> : null}
         {invoices.data?.data.length ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-250 text-left text-sm">
-              <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
+              <thead className="border-b border-border/70 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-5 py-3">Invoice</th>
                   <th className="px-5 py-3">Customer</th>
@@ -383,15 +383,15 @@ export function InvoiceManagement() {
               </thead>
               <tbody>
                 {invoices.data.data.map((invoice) => (
-                  <tr className="border-b border-slate-100 last:border-0" key={invoice.id}>
+                  <tr className="border-b border-border/70 last:border-0" key={invoice.id}>
                     <td className="px-5 py-4 font-semibold">{invoice.invoiceNumber}</td>
                     <td className="px-5 py-4">
                       <p>
                         {invoice.customer.firstName} {invoice.customer.lastName}
                       </p>
-                      <p className="text-xs text-slate-500">{invoice.customer.customerNumber}</p>
+                      <p className="text-xs text-muted-foreground">{invoice.customer.customerNumber}</p>
                     </td>
-                    <td className="px-5 py-4 text-slate-600">
+                    <td className="px-5 py-4 text-muted-foreground">
                       {new Date(invoice.issueDate).toLocaleDateString('en-AU')}
                     </td>
                     <td className="px-5 py-4 font-medium">
@@ -401,11 +401,11 @@ export function InvoiceManagement() {
                       }).format(invoice.totalCents / 100)}
                     </td>
                     <td className="px-5 py-4">
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold">
+                      <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold">
                         {invoice.status}
                       </span>
                       {invoice.payments[0]?.refundedCents ? (
-                        <p className="mt-2 text-xs text-slate-600">
+                        <p className="mt-2 text-xs text-muted-foreground">
                           Refunded:{' '}
                           {new Intl.NumberFormat('en-AU', {
                             style: 'currency',
@@ -446,7 +446,7 @@ export function InvoiceManagement() {
                         ) : null}
                         {isAdmin && ['DRAFT', 'ISSUED', 'OVERDUE'].includes(invoice.status) ? (
                           <button
-                            className="button-secondary text-rose-700"
+                            className="button-secondary text-destructive-foreground"
                             onClick={() => setInvoiceToCancel(invoice)}
                             type="button"
                           >
@@ -461,7 +461,7 @@ export function InvoiceManagement() {
             </table>
           </div>
         ) : !invoices.isPending && !invoices.isError ? (
-          <p className="p-6 text-slate-600">No invoices have been generated.</p>
+          <p className="p-6 text-muted-foreground">No invoices have been generated.</p>
         ) : null}
       </section>
       <DataTablePagination
@@ -504,7 +504,7 @@ export function InvoiceManagement() {
 
 function Status({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       {message}
     </main>
   );

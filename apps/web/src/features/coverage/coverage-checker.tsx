@@ -26,11 +26,11 @@ const resultTitles: Record<CoverageResultStatus, string> = {
 };
 
 const resultStyles: Record<CoverageResultStatus, string> = {
-  AVAILABLE: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-  COMING_SOON: 'border-sky-200 bg-sky-50 text-sky-900',
-  NOT_AVAILABLE: 'border-slate-200 bg-slate-50 text-slate-900',
-  OUTSIDE_OPERATING_REGION: 'border-amber-200 bg-amber-50 text-amber-950',
-  MANUAL_REVIEW: 'border-violet-200 bg-violet-50 text-violet-950',
+  AVAILABLE: 'border-success-border bg-success-subtle text-success-foreground',
+  COMING_SOON: 'border-primary/20 bg-primary-subtle text-primary-hover',
+  NOT_AVAILABLE: 'border-border bg-muted text-foreground',
+  OUTSIDE_OPERATING_REGION: 'border-warning-border bg-warning-subtle text-warning-foreground',
+  MANUAL_REVIEW: 'border-info-border bg-info-subtle text-info-foreground',
 };
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -67,24 +67,24 @@ export function CoverageChecker({
       className={
         isLanding
           ? styles.coverageCard
-          : 'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8'
+          : 'rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8'
       }
     >
       <p
         className={
-          isLanding ? styles.coverageEyebrow : 'text-sm font-semibold tracking-wide text-sky-700'
+          isLanding ? styles.coverageEyebrow : 'text-sm font-semibold tracking-wide text-primary'
         }
       >
         ADDRESS COVERAGE
       </p>
       <h2
         className={
-          isLanding ? styles.coverageTitle : 'mt-2 text-2xl font-bold tracking-tight text-slate-950'
+          isLanding ? styles.coverageTitle : 'mt-2 text-2xl font-bold tracking-tight text-foreground'
         }
       >
         {isLanding ? "Check what's available at your address" : 'Check your service address'}
       </h2>
-      <p className={isLanding ? styles.coverageCopy : 'mt-2 max-w-2xl text-slate-600'}>
+      <p className={isLanding ? styles.coverageCopy : 'mt-2 max-w-2xl text-muted-foreground'}>
         {isLanding
           ? 'Enter your address to see whether Mero Telecom is available in your area and discover the plans available to you.'
           : 'Mero Telecom currently services selected areas of South Australia.'}
@@ -126,7 +126,7 @@ export function CoverageChecker({
           className={
             isLanding
               ? styles.coverageError
-              : 'mt-5 rounded-lg bg-rose-50 p-4 text-sm text-rose-800'
+              : 'mt-5 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground'
           }
           role="alert"
         >
@@ -159,7 +159,7 @@ export function CoverageChecker({
                 className={
                   isLanding
                     ? styles.resultBadge
-                    : 'rounded-full bg-white/70 px-3 py-1 text-xs font-bold'
+                    : 'rounded-full bg-card/70 px-3 py-1 text-xs font-bold'
                 }
               >
                 {result.status.replaceAll('_', ' ')}
@@ -194,28 +194,28 @@ export function CoverageChecker({
 
           {result.status === 'AVAILABLE' && result.plans.length ? (
             <div className={isLanding ? styles.compatiblePlans : 'mt-6'}>
-              <h3 className={isLanding ? undefined : 'text-lg font-semibold text-slate-950'}>
+              <h3 className={isLanding ? undefined : 'text-lg font-semibold text-foreground'}>
                 Compatible plans
               </h3>
               <div className={isLanding ? styles.compatibleGrid : 'mt-3 grid gap-4 md:grid-cols-3'}>
                 {result.plans.map((plan) => (
                   <article
                     className={
-                      isLanding ? styles.compatibleCard : 'rounded-xl border border-slate-200 p-5'
+                      isLanding ? styles.compatibleCard : 'rounded-xl border border-border p-5'
                     }
                     key={plan.id}
                   >
-                    <h4 className="font-semibold text-slate-950">{plan.name}</h4>
-                    <p className="mt-2 text-sm text-slate-600">
+                    <h4 className="font-semibold text-foreground">{plan.name}</h4>
+                    <p className="mt-2 text-sm text-muted-foreground">
                       {plan.downloadMbps}/{plan.uploadMbps} Mbps
                     </p>
                     <p
                       className={
-                        isLanding ? styles.compatiblePrice : 'mt-3 text-xl font-bold text-slate-950'
+                        isLanding ? styles.compatiblePrice : 'mt-3 text-xl font-bold text-foreground'
                       }
                     >
                       ${(plan.monthlyCents / 100).toFixed(2)}
-                      <span className="text-sm font-normal text-slate-500">/month</span>
+                      <span className="text-sm font-normal text-muted-foreground">/month</span>
                     </p>
                     {isLoading ? (
                       <span
@@ -278,7 +278,7 @@ export function CoverageChecker({
                   className={
                     isLanding
                       ? styles.coverageError
-                      : 'mt-4 rounded-lg bg-rose-50 p-4 text-sm text-rose-800'
+                      : 'mt-4 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground'
                   }
                   role="alert"
                 >

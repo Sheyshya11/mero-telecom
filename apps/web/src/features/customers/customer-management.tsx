@@ -111,16 +111,16 @@ export function CustomerManagement() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-7xl px-6 py-10">
-      <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-sky-700">
+          <p className="text-sm font-semibold tracking-wide text-primary">
             CUSTOMER OPERATIONS ·{' '}
             {user.role === 'SUPER_ADMIN' ? 'SUPER ADMIN' : isAdmin ? 'ADMIN' : 'STAFF'}
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
             {isAdmin ? 'Customers' : 'Staff workspace'}
           </h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 text-muted-foreground">
             Search and update customer account records
             {isAdmin ? ', or create a new customer.' : '.'}
           </p>
@@ -140,16 +140,16 @@ export function CustomerManagement() {
         ) : null}
       </header>
 
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="mt-8 rounded-xl border border-border bg-card p-5 shadow-sm">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold tracking-tight text-slate-950">Customer accounts</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="text-lg font-bold tracking-tight text-foreground">Customer accounts</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
               Find a customer to review or update their details.
             </p>
           </div>
           {result ? (
-            <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">
+            <span className="rounded-full bg-primary-subtle px-3 py-1 text-xs font-semibold text-primary">
               {result.meta.total}{' '}
               {Object.entries(table.values).some(
                 ([key, value]) => !['page', 'limit', 'sortBy', 'sortOrder'].includes(key) && value,
@@ -196,7 +196,7 @@ export function CustomerManagement() {
 
         {customersQuery.isPending ? <TableSkeleton /> : null}
         {customersQuery.isError ? (
-          <div className="flex items-center gap-3 py-10 text-rose-700">
+          <div className="flex items-center gap-3 py-10 text-destructive-foreground">
             <p>Unable to load customers.</p>
             <button
               className="button-secondary"
@@ -211,7 +211,7 @@ export function CustomerManagement() {
           <>
             <div className="mt-6 overflow-x-auto">
               <table className="w-full min-w-200 text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3">
                       <SortHeader state={table} field="lastName">
@@ -235,36 +235,36 @@ export function CustomerManagement() {
                 </thead>
                 <tbody>
                   {result.data.map((customer) => (
-                    <tr className="border-b border-slate-100" key={customer.id}>
+                    <tr className="border-b border-border/70" key={customer.id}>
                       <td className="px-3 py-4">
-                        <p className="font-semibold text-slate-900">
+                        <p className="font-semibold text-foreground">
                           {customer.firstName} {customer.lastName}
                         </p>
-                        <p className="mt-1 text-xs text-slate-500">{customer.customerNumber}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{customer.customerNumber}</p>
                       </td>
-                      <td className="px-3 py-4 text-slate-700">
+                      <td className="px-3 py-4 text-foreground">
                         <p>{customer.email}</p>
-                        <p className="mt-1 text-slate-500">{customer.phone}</p>
+                        <p className="mt-1 text-muted-foreground">{customer.phone}</p>
                       </td>
-                      <td className="px-3 py-4 text-slate-700">
+                      <td className="px-3 py-4 text-foreground">
                         {customer.suburb}, {customer.state} {customer.postcode}
                       </td>
-                      <td className="px-3 py-4 text-slate-700">
+                      <td className="px-3 py-4 text-foreground">
                         {customer.currentSubscription ? (
                           <>
                             <p>{customer.currentSubscription.plan.name}</p>
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-muted-foreground">
                               {customer.currentSubscription.status}
                             </p>
                           </>
                         ) : (
-                          <span className="text-slate-500">Not assigned</span>
+                          <span className="text-muted-foreground">Not assigned</span>
                         )}
                       </td>
                       <td className="px-3 py-4">
                         <StatusBadge status={customer.accountStatus ?? customer.status} />
                         {customer.invitationStatus ? (
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             Invitation {customer.invitationStatus.toLowerCase()}
                           </p>
                         ) : null}
@@ -307,7 +307,7 @@ export function CustomerManagement() {
               </table>
             </div>
             {result.data.length === 0 ? (
-              <p className="py-8 text-slate-500">
+              <p className="py-8 text-muted-foreground">
                 {table.values.search
                   ? 'No customers match your search.'
                   : [
@@ -334,20 +334,20 @@ export function CustomerManagement() {
       </section>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-10 grid place-items-center bg-slate-950/40 p-4">
+        <div className="fixed inset-0 z-10 grid place-items-center bg-overlay p-4">
           <section
             aria-modal="true"
-            className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl"
+            className="w-full max-w-2xl rounded-xl bg-card p-6 shadow-xl"
             role="dialog"
           >
-            <h2 className="text-xl font-bold text-slate-950">
+            <h2 className="text-xl font-bold text-foreground">
               {editingCustomer ? 'Edit customer' : 'Create customer'}
             </h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-muted-foreground">
               Customer numbers are allocated automatically.
             </p>
             {error ? (
-              <p className="mt-4 rounded-md bg-rose-50 p-3 text-sm text-rose-800">{error}</p>
+              <p className="mt-4 rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground">{error}</p>
             ) : null}
             <div className="mt-5">
               <CustomerForm
@@ -363,18 +363,18 @@ export function CustomerManagement() {
         </div>
       ) : null}
       {selectedCustomer ? (
-        <div className="fixed inset-0 z-10 grid place-items-center bg-slate-950/40 p-4">
+        <div className="fixed inset-0 z-10 grid place-items-center bg-overlay p-4">
           <section
             aria-modal="true"
-            className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl"
+            className="w-full max-w-lg rounded-xl bg-card p-6 shadow-xl"
             role="dialog"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold tracking-wide text-sky-700">
+                <p className="text-sm font-semibold tracking-wide text-primary">
                   {selectedCustomer.customerNumber}
                 </p>
-                <h2 className="mt-1 text-xl font-bold text-slate-950">
+                <h2 className="mt-1 text-xl font-bold text-foreground">
                   {selectedCustomer.firstName} {selectedCustomer.lastName}
                 </h2>
               </div>
@@ -428,11 +428,11 @@ function StatusBadge({
   status,
 }: Readonly<{ status: Customer['status'] | NonNullable<Customer['accountStatus']> }>) {
   const colors = {
-    INVITATION_PENDING: 'bg-sky-100 text-sky-800',
-    ACTIVE: 'bg-emerald-100 text-emerald-800',
-    INACTIVE: 'bg-slate-100 text-slate-700',
-    SUSPENDED: 'bg-amber-100 text-amber-800',
-    DEACTIVATED: 'bg-slate-200 text-slate-700',
+    INVITATION_PENDING: 'bg-primary-subtle-strong text-primary',
+    ACTIVE: 'bg-success-subtle text-success-foreground',
+    INACTIVE: 'bg-secondary text-foreground',
+    SUSPENDED: 'bg-warning-subtle text-warning-foreground',
+    DEACTIVATED: 'bg-border text-foreground',
   };
 
   return (
@@ -444,7 +444,7 @@ function StatusBadge({
 
 function StatusMessage({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-center text-slate-600">
+    <main className="grid min-h-screen place-items-center px-6 text-center text-muted-foreground">
       {message}
     </main>
   );
@@ -453,8 +453,8 @@ function StatusMessage({ message }: Readonly<{ message: string }>) {
 function Detail({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div>
-      <dt className="font-medium text-slate-500">{label}</dt>
-      <dd className="mt-1 break-words text-slate-900">{value}</dd>
+      <dt className="font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-words text-foreground">{value}</dd>
     </div>
   );
 }
