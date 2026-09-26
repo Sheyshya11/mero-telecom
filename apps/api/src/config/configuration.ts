@@ -45,6 +45,15 @@ export interface AppConfig {
     mockScenario: 'SUCCESS' | 'PENDING' | 'FAILED' | 'MANUAL_REVIEW_REQUIRED';
     mockPendingPolls: number;
   };
+  relocation: {
+    provider: 'mock';
+    reconciliationIntervalMilliseconds: number;
+    batchSize: number;
+    mockScenario: 'SUCCESS' | 'PENDING' | 'FAILED';
+    mockPendingPolls: number;
+    maxProvisioningAttempts: number;
+    maxDisconnectionAttempts: number;
+  };
   addressLookup: {
     provider: 'geoapify';
     geoapifyApiKey: string;
@@ -174,6 +183,20 @@ export default (): AppConfig => ({
       | 'FAILED'
       | 'MANUAL_REVIEW_REQUIRED',
     mockPendingPolls: Number(process.env.NBN_MOCK_PENDING_POLLS ?? 1),
+  },
+  relocation: {
+    provider: (process.env.RELOCATION_PROVIDER ?? 'mock') as 'mock',
+    reconciliationIntervalMilliseconds: Number(
+      process.env.RELOCATION_RECONCILIATION_INTERVAL_MS ?? 60_000,
+    ),
+    batchSize: Number(process.env.RELOCATION_RECONCILIATION_BATCH_SIZE ?? 50),
+    mockScenario: (process.env.RELOCATION_MOCK_SCENARIO ?? 'PENDING') as
+      | 'SUCCESS'
+      | 'PENDING'
+      | 'FAILED',
+    mockPendingPolls: Number(process.env.RELOCATION_MOCK_PENDING_POLLS ?? 1),
+    maxProvisioningAttempts: Number(process.env.RELOCATION_MAX_PROVISIONING_ATTEMPTS ?? 3),
+    maxDisconnectionAttempts: Number(process.env.RELOCATION_MAX_DISCONNECTION_ATTEMPTS ?? 3),
   },
   addressLookup: {
     provider: (process.env.ADDRESS_LOOKUP_PROVIDER ?? 'geoapify') as 'geoapify',

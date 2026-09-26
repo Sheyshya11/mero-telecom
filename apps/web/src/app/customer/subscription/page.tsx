@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '../../../features/auth/auth-provider';
@@ -325,6 +326,25 @@ export default function CustomerSubscriptionPage() {
         ))}
       </div>
 
+      {currentSubscription?.status === 'ACTIVE' ? (
+        <section className="mt-6 rounded-2xl border border-primary/20 bg-primary-subtle p-6">
+          <p className="text-sm font-semibold tracking-wide text-primary">MOVING HOME?</p>
+          <h2 className="mt-2 text-2xl font-bold text-foreground">
+            Transfer your internet service
+          </h2>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            Transfer your Mero Telecom service to your new address. We’ll check service availability
+            before making any changes to your existing connection.
+          </p>
+          <Link
+            className="button-primary mt-5 inline-flex"
+            href="/customer/subscription/moving-home"
+          >
+            Move my service
+          </Link>
+        </section>
+      ) : null}
+
       {cancellationSubscription ? (
         <CustomerCancellation accessToken={accessToken} subscription={cancellationSubscription} />
       ) : null}
@@ -422,7 +442,9 @@ export default function CustomerSubscriptionPage() {
             </p>
           ) : null}
 
-          {plans.isPending ? <p className="mt-5 text-muted-foreground">Loading available plans…</p> : null}
+          {plans.isPending ? (
+            <p className="mt-5 text-muted-foreground">Loading available plans…</p>
+          ) : null}
           {plans.isError ? (
             <ErrorPanel message="Unable to load available plans." retry={() => plans.refetch()} />
           ) : null}
@@ -470,7 +492,10 @@ export default function CustomerSubscriptionPage() {
             />
           ) : null}
           {mutationError ? (
-            <p className="mt-5 rounded-md bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
+            <p
+              className="mt-5 rounded-md bg-destructive-subtle p-4 text-sm text-destructive-foreground"
+              role="alert"
+            >
               {mutationError instanceof ApiError
                 ? mutationError.message
                 : 'The plan change could not be completed.'}
@@ -506,7 +531,9 @@ export default function CustomerSubscriptionPage() {
                 </p>
                 <p className="mt-2 text-2xl font-bold text-foreground">
                   {formatMoney(plan.monthlyCents)}
-                  <span className="text-sm font-normal text-muted-foreground">/month, GST included</span>
+                  <span className="text-sm font-normal text-muted-foreground">
+                    /month, GST included
+                  </span>
                 </p>
                 <PlanCheckoutButton planId={plan.id} />
               </article>
@@ -686,7 +713,10 @@ function PendingPlanChange({
 }>) {
   const awaitingPayment = ['PENDING', 'CHECKOUT_CREATED', 'PROCESSING'].includes(change.status);
   return (
-    <section className="mt-6 rounded-xl border border-warning-border bg-warning-subtle p-5" aria-live="polite">
+    <section
+      className="mt-6 rounded-xl border border-warning-border bg-warning-subtle p-5"
+      aria-live="polite"
+    >
       <h2 className="font-semibold text-warning-foreground">
         {change.type === 'DOWNGRADE' ? 'Downgrade scheduled' : 'Upgrade awaiting payment'}
       </h2>

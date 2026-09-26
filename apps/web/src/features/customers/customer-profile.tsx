@@ -45,7 +45,7 @@ export function CustomerProfile() {
 
   useEffect(() => {
     if (!profile.data) return;
-    const address = profile.data.serviceAddress ?? profile.data;
+    const address = profile.data.contactAddress ?? profile.data;
     form.reset({
       phone: profile.data.phone,
       addressLine1: address.addressLine1,
@@ -84,7 +84,10 @@ export function CustomerProfile() {
         <div>
           <p className="text-sm font-semibold tracking-wide text-primary">MY ACCOUNT</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">My profile</h1>
-          <p className="mt-2 text-muted-foreground">Keep your contact and service address current.</p>
+          <p className="mt-2 text-muted-foreground">
+            Keep your contact and billing address current. To change the address receiving internet
+            service, use Moving Home under My Internet.
+          </p>
         </div>
       </header>
       <section className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
@@ -100,7 +103,10 @@ export function CustomerProfile() {
           <Field label="Mobile" error={form.formState.errors.phone?.message}>
             <input className="field" {...form.register('phone')} />
           </Field>
-          <Field label="Address" error={form.formState.errors.addressLine1?.message}>
+          <Field
+            label="Contact / billing address"
+            error={form.formState.errors.addressLine1?.message}
+          >
             <input className="field" {...form.register('addressLine1')} />
           </Field>
           <Field label="Address line 2" error={form.formState.errors.addressLine2?.message}>
@@ -122,12 +128,18 @@ export function CustomerProfile() {
             </Field>
           </div>
           {update.isSuccess ? (
-            <p className="rounded-md bg-success-subtle p-3 text-sm text-success-foreground" role="status">
+            <p
+              className="rounded-md bg-success-subtle p-3 text-sm text-success-foreground"
+              role="status"
+            >
               Profile updated successfully.
             </p>
           ) : null}
           {update.error ? (
-            <p className="rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground" role="alert">
+            <p
+              className="rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground"
+              role="alert"
+            >
               {update.error instanceof ApiError
                 ? update.error.message
                 : 'Unable to update your profile.'}
@@ -157,7 +169,9 @@ function Field({
     <label className="grid gap-1.5 text-sm font-medium text-foreground">
       {label}
       {children}
-      {error ? <span className="text-xs font-normal text-destructive-foreground">{error}</span> : null}
+      {error ? (
+        <span className="text-xs font-normal text-destructive-foreground">{error}</span>
+      ) : null}
     </label>
   );
 }

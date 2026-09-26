@@ -16,6 +16,7 @@ import {
   PlanChangeType,
   Prisma,
   Role,
+  ServiceRelocationStatus,
   SubscriptionStatus,
 } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
@@ -654,6 +655,25 @@ export class PlanChangesService {
         'A cancellation is already open for this subscription. Revoke or complete it before changing plans.',
       );
     }
+    const relocation = await transaction.serviceRelocation.count({
+      where: {
+        subscriptionId: subscription.id,
+        status: {
+          in: [
+            ServiceRelocationStatus.AWAITING_CONFIRMATION,
+            ServiceRelocationStatus.CONFIRMED,
+            ServiceRelocationStatus.PROVISIONING,
+            ServiceRelocationStatus.SCHEDULED,
+            ServiceRelocationStatus.FAILED,
+          ],
+        },
+      },
+    });
+    if (relocation) {
+      throw new ConflictException(
+        'A moving-home request is already open. Complete or cancel it before changing plans.',
+      );
+    }
     if (rejectExistingRequest) {
       const pending = await transaction.planChangeRequest.count({
         where: { sourceSubscriptionId: subscription.id, status: { in: activeRequestStatuses } },
@@ -1265,6 +1285,7 @@ export class PlanChangesService {
       data: {
         customerId: request.customerId,
         planId: request.targetPlanId,
+        currentServiceAddressId: request.sourceSubscription.currentServiceAddressId,
         monthlyCents: request.targetPlanPriceCents,
         status: SubscriptionStatus.ACTIVE,
         startDate: this.utcDate(effectiveAt),

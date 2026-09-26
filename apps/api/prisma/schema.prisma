@@ -93,6 +93,25 @@ enum ServiceProvisioningStatus {
   FAILED
 }
 
+enum ServiceRelocationStatus {
+  AWAITING_CONFIRMATION
+  CONFIRMED
+  PROVISIONING
+  SCHEDULED
+  PARTIALLY_COMPLETED
+  MANUAL_REVIEW_REQUIRED
+  COMPLETED
+  FAILED
+  CANCELLED
+  FORCE_CLOSED
+}
+
+enum MockRelocationOutcome {
+  SUCCESS
+  PENDING
+  FAILED
+}
+
 enum CancellationType {
   END_OF_PERIOD
   IMMEDIATE
@@ -297,6 +316,7 @@ enum InternalRequestType {
   SUBSCRIPTION_ACTION
   CUSTOMER_ACCOUNT_ACTION
   PLAN_CHANGE_REVIEW
+  RELOCATION_REVIEW
   SUPPORT_ASSISTANCE
   OTHER
 }
@@ -373,6 +393,9 @@ model User {
   cancellationRequestsMade      CancellationRequest[]    @relation("CancellationRequester")
   cancellationRequestsRevoked   CancellationRequest[]    @relation("CancellationRevoker")
   cancellationNotes             CancellationNote[]
+  relocationRequestsMade        ServiceRelocation[]      @relation("RelocationRequester")
+  relocationRequestsCancelled   ServiceRelocation[]      @relation("RelocationCanceller")
+  relocationNotesAuthored       ServiceRelocationNote[]
 
   @@index([createdAt, id])
 }
@@ -417,6 +440,8 @@ model Customer {
   supportCases         SupportCase[]
   internalRequests     InternalRequest[]
   cancellationRequests CancellationRequest[]
+  serviceAddresses     ServiceAddress[]
+  serviceRelocations   ServiceRelocation[]
 
   @@index([lastName, firstName])
   @@index([firstName, id])
@@ -525,6 +550,7 @@ model InternalRequest {
   paymentId                  String?                  @db.Uuid
   refundId                   String?                  @db.Uuid
   planChangeRequestId        String?                  @db.Uuid
+  serviceRelocationId        String?                  @db.Uuid
   createdAt                  DateTime                 @default(now())
   updatedAt                  DateTime                 @updatedAt
   reviewedAt                 DateTime?
@@ -543,6 +569,7 @@ model InternalRequest {
   payment                    Payment?                 @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   refund                     Refund?                  @relation(fields: [refundId], references: [id], onDelete: Restrict)
   planChangeRequest          PlanChangeRequest?       @relation(fields: [planChangeRequestId], references: [id], onDelete: Restrict)
+  serviceRelocation          ServiceRelocation?       @relation(fields: [serviceRelocationId], references: [id], onDelete: Restrict)
   messages                   InternalRequestMessage[]
   events                     InternalRequestEvent[]
 
@@ -558,6 +585,7 @@ model InternalRequest {
   @@index([refundId])
   @@index([subscriptionId])
   @@index([planChangeRequestId])
+  @@index([serviceRelocationId])
 }
 
 model InternalRequestMessage {
@@ -623,6 +651,36 @@ model CustomerAddress {
   @@index([postcode])
 }
 
+model ServiceAddress {
+  id                   String              @id @default(uuid()) @db.Uuid
+  customerId           String              @db.Uuid
+  addressLine1         String              @db.VarChar(255)
+  addressLine2         String?             @db.VarChar(255)
+  suburb               String              @db.VarChar(100)
+  state                String              @db.VarChar(3)
+  postcode             String              @db.VarChar(10)
+  countryCode          String              @default("AU") @db.Char(2)
+  latitude             Decimal?            @db.Decimal(10, 7)
+  longitude            Decimal?            @db.Decimal(10, 7)
+  provider             String?             @db.VarChar(50)
+  providerAddressId    String?             @db.VarChar(255)
+  externalLocationId   String?             @db.VarChar(255)
+  technology           AccessTechnology?
+  serviceClass         String?             @db.VarChar(50)
+  maximumSpeedMbps     Int?
+  qualification        Json?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  customer             Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  currentSubscriptions Subscription[]      @relation("CurrentServiceAddress")
+  relocationsFrom      ServiceRelocation[] @relation("RelocationOldAddress")
+  relocationsTo        ServiceRelocation[] @relation("RelocationNewAddress")
+
+  @@index([customerId, createdAt])
+  @@index([provider, providerAddressId])
+  @@index([externalLocationId])
+}
+
 model InvoiceDocument {
   id         String   @id @default(uuid()) @db.Uuid
   invoiceId  String   @unique @db.Uuid
@@ -657,6 +715,8 @@ model InternetPlan {
   sourcePlanChanges    PlanChangeRequest[]   @relation("PlanChangeSourcePlan")
   targetPlanChanges    PlanChangeRequest[]   @relation("PlanChangeTargetPlan")
   coverageRules        PlanCoverageRule[]
+  sourceRelocations    ServiceRelocation[]   @relation("RelocationCurrentPlan")
+  targetRelocations    ServiceRelocation[]   @relation("RelocationRequestedPlan")
 
   @@index([isActive])
   @@index([isPublic, isAvailable, tierRank])
@@ -686,6 +746,7 @@ model Subscription {
   suspensionWarningSentAt   DateTime?
   provisioningStatus        ServiceProvisioningStatus?
   provisioningFailure       String?                      @db.VarChar(500)
+  currentServiceAddressId   String?                      @db.Uuid
   createdAt                 DateTime                     @default(now())
   updatedAt                 DateTime                     @updatedAt
   customer                  Customer                     @relation(fields: [customerId], references: [id], onDelete: Restrict)
@@ -698,12 +759,95 @@ model Subscription {
   internalRequests          InternalRequest[]
   cancellationRequests      CancellationRequest[]
   provisioningRequests      ServiceProvisioningRequest[]
+  currentServiceAddress     ServiceAddress?              @relation("CurrentServiceAddress", fields: [currentServiceAddressId], references: [id], onDelete: Restrict)
+  serviceRelocations        ServiceRelocation[]
 
   @@index([customerId, status])
   @@index([status, gracePeriodEndsAt, id])
   @@index([status, eligibleForTerminationAt, id])
   @@index([planId])
+  @@index([currentServiceAddressId])
   @@index([createdAt, id])
+}
+
+model ServiceRelocation {
+  id                                   String                      @id @default(uuid()) @db.Uuid
+  customerId                           String                      @db.Uuid
+  subscriptionId                       String                      @db.Uuid
+  oldServiceAddressId                  String                      @db.Uuid
+  newServiceAddressId                  String                      @db.Uuid
+  currentPlanId                        String                      @db.Uuid
+  requestedPlanId                      String                      @db.Uuid
+  requestedMoveDate                    DateTime                    @db.Date
+  requestedOldServiceDisconnectionDate DateTime?                   @db.Date
+  qualificationStatus                  CoverageResultStatus
+  qualification                        Json
+  externalLocationId                   String?                     @db.VarChar(255)
+  oldTechnology                        AccessTechnology?
+  newTechnology                        AccessTechnology?
+  serviceClass                         String?                     @db.VarChar(50)
+  installationRequired                 Boolean?
+  appointmentRequired                  Boolean?
+  status                               ServiceRelocationStatus     @default(AWAITING_CONFIRMATION)
+  statusBeforeManualReview             ServiceRelocationStatus?
+  provisioningStatus                   ServiceProvisioningStatus?
+  oldServiceDisconnectionStatus        CancellationProviderStatus?
+  providerName                         String                      @default("MOCK_MNF") @db.VarChar(50)
+  providerIdempotencyKey               String                      @unique @db.VarChar(180)
+  providerProvisioningId               String?                     @unique @db.VarChar(255)
+  providerPayload                      Json?
+  providerDisconnectionId              String?                     @unique @db.VarChar(255)
+  disconnectionProviderPayload         Json?
+  nextMockProvisioningOutcome          MockRelocationOutcome?
+  nextMockDisconnectionOutcome         MockRelocationOutcome?
+  attemptCount                         Int                         @default(0)
+  disconnectionAttemptCount            Int                         @default(0)
+  failureReason                        String?                     @db.VarChar(500)
+  disconnectionFailureReason           String?                     @db.VarChar(500)
+  requestedByUserId                    String                      @db.Uuid
+  cancelledByUserId                    String?                     @db.Uuid
+  confirmedAt                          DateTime?
+  provisioningStartedAt                DateTime?
+  scheduledAt                          DateTime?
+  newServiceActivatedAt                DateTime?
+  oldServiceDisconnectedAt             DateTime?
+  cancelledAt                          DateTime?
+  completedAt                          DateTime?
+  lastAttemptAt                        DateTime?
+  lastDisconnectionAttemptAt           DateTime?
+  version                              Int                         @default(0)
+  createdAt                            DateTime                    @default(now())
+  updatedAt                            DateTime                    @updatedAt
+  customer                             Customer                    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  subscription                         Subscription                @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  oldServiceAddress                    ServiceAddress              @relation("RelocationOldAddress", fields: [oldServiceAddressId], references: [id], onDelete: Restrict)
+  newServiceAddress                    ServiceAddress              @relation("RelocationNewAddress", fields: [newServiceAddressId], references: [id], onDelete: Restrict)
+  currentPlan                          InternetPlan                @relation("RelocationCurrentPlan", fields: [currentPlanId], references: [id], onDelete: Restrict)
+  requestedPlan                        InternetPlan                @relation("RelocationRequestedPlan", fields: [requestedPlanId], references: [id], onDelete: Restrict)
+  requestedBy                          User                        @relation("RelocationRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy                          User?                       @relation("RelocationCanceller", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  notes                                ServiceRelocationNote[]
+  internalRequests                     InternalRequest[]
+
+  @@index([customerId, createdAt, id])
+  @@index([subscriptionId, status, createdAt])
+  @@index([status, requestedMoveDate, id])
+  @@index([provisioningStatus, updatedAt, id])
+  @@index([oldServiceDisconnectionStatus, updatedAt, id])
+}
+
+model ServiceRelocationNote {
+  id           String            @id @default(uuid()) @db.Uuid
+  relocationId String            @db.Uuid
+  authorUserId String            @db.Uuid
+  authorRole   Role
+  body         String            @db.VarChar(2000)
+  createdAt    DateTime          @default(now())
+  relocation   ServiceRelocation @relation(fields: [relocationId], references: [id], onDelete: Cascade)
+  author       User              @relation(fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([relocationId, createdAt, id])
+  @@index([authorUserId, createdAt])
 }
 
 model ServiceProvisioningRequest {
@@ -798,6 +942,8 @@ model Invoice {
   purchasePlanId      String?              @db.Uuid
   issueDate           DateTime             @db.Date
   dueDate             DateTime             @db.Date
+  billingPeriodStart  DateTime?            @db.Date
+  billingPeriodEnd    DateTime?            @db.Date
   subtotalCents       Int
   taxCents            Int
   totalCents          Int
@@ -820,7 +966,7 @@ model Invoice {
   refunds             Refund[]
   internalRequests    InternalRequest[]
 
-  @@unique([subscriptionId, issueDate])
+  @@unique([subscriptionId, billingPeriodStart, billingPeriodEnd])
   @@index([createdAt, id])
   @@index([customerId, status])
   @@index([dueDate, status])

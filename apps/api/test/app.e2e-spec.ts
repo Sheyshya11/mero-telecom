@@ -823,11 +823,23 @@ describe('Mero Telecom API (e2e)', () => {
       }),
     );
 
-    await request(app.getHttpServer())
+    const existingInvoice = await request(app.getHttpServer())
       .post('/api/v1/invoices/generate')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ subscriptionId: subscriptionA.id, issueDate: '2026-09-01' })
-      .expect(409);
+      .send({ subscriptionId: subscriptionA.id, issueDate: '2026-09-27' })
+      .expect(201);
+    expect(existingInvoice.body).toEqual(
+      expect.objectContaining({ id: invoiceA.id, generationResult: 'EXISTING' }),
+    );
+    expect(
+      await prisma.invoice.count({
+        where: {
+          subscriptionId: subscriptionA.id,
+          billingPeriodStart: new Date('2026-09-01T00:00:00.000Z'),
+          billingPeriodEnd: new Date('2026-09-30T00:00:00.000Z'),
+        },
+      }),
+    ).toBe(1);
 
     await request(app.getHttpServer())
       .get(`/api/v1/invoices/${invoiceAId}/pdf`)

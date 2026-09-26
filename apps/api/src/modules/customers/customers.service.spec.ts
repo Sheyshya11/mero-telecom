@@ -291,8 +291,8 @@ describe('CustomersService', () => {
     );
   });
 
-  it('updates the service address without overwriting the residential customer address', async () => {
-    const serviceAddress = {
+  it('updates the contact and billing address without changing the service address', async () => {
+    const billingAddress = {
       addressLine1: '1 Old Service Road',
       addressLine2: null,
       suburb: 'Adelaide',
@@ -304,7 +304,7 @@ describe('CustomersService', () => {
         update: jest.fn().mockResolvedValue(customer),
         findUniqueOrThrow: jest.fn().mockResolvedValue({
           ...customer,
-          addresses: [{ ...serviceAddress, addressLine1: '2 New Service Road' }],
+          addresses: [{ ...billingAddress, type: 'BILLING', addressLine1: '2 New Service Road' }],
           subscriptions: [],
         }),
       },
@@ -312,7 +312,7 @@ describe('CustomersService', () => {
     };
     const prisma = {
       customer: {
-        findUnique: jest.fn().mockResolvedValue({ ...customer, addresses: [serviceAddress] }),
+        findUnique: jest.fn().mockResolvedValue({ ...customer, addresses: [billingAddress] }),
       },
       $transaction: jest.fn((operation: (client: typeof transaction) => unknown) =>
         operation(transaction),
@@ -326,14 +326,20 @@ describe('CustomersService', () => {
 
     await service.updateOwn('customer-user', { addressLine1: ' 2 New Service Road ', state: 'sa' });
 
-    expect(transaction.customer.update.mock.calls[0][0].data).toEqual({ phone: undefined });
+    expect(transaction.customer.update.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({
+        phone: undefined,
+        addressLine1: ' 2 New Service Road ',
+        state: 'SA',
+      }),
+    );
     expect(transaction.customerAddress.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          customerId_type: { customerId: customer.id, type: 'SERVICE' },
+          customerId_type: { customerId: customer.id, type: 'BILLING' },
         },
         update: expect.objectContaining({
-          type: 'SERVICE',
+          type: 'BILLING',
           addressLine1: '2 New Service Road',
           state: 'SA',
         }),

@@ -432,6 +432,9 @@ describe('PaymentsService', () => {
       subscription: {
         create: jest.fn().mockResolvedValue({ id: 'new-subscription-id' }),
       },
+      serviceAddress: {
+        create: jest.fn().mockResolvedValue({ id: 'new-service-address-id' }),
+      },
       invoice: {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({
@@ -496,6 +499,13 @@ describe('PaymentsService', () => {
     });
     expect(transaction.subscription.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ status: SubscriptionStatus.ACTIVE }),
+    });
+    expect(transaction.invoice.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        subscriptionId: 'new-subscription-id',
+        billingPeriodStart: expect.any(Date),
+        billingPeriodEnd: expect.any(Date),
+      }),
     });
     expect(invitations.queueDelivery).toHaveBeenCalledTimes(1);
     expect(notifications.sendSubscriptionConfirmation).toHaveBeenCalledTimes(1);
@@ -816,6 +826,8 @@ describe('PaymentsService', () => {
       data: expect.objectContaining({
         status: InvoiceStatus.PAID,
         subscriptionId: 'activated-subscription-id',
+        billingPeriodStart: expect.any(Date),
+        billingPeriodEnd: expect.any(Date),
       }),
     });
     expect(transaction.payment.update).toHaveBeenCalledWith(

@@ -35,6 +35,11 @@ export type EmailPurpose =
   | 'PLAN_CHANGE_APPLIED'
   | 'PLAN_CHANGE_CANCELLED'
   | 'PLAN_CHANGE_FAILED'
+  | 'RELOCATION_REQUESTED'
+  | 'RELOCATION_CONFIRMED'
+  | 'RELOCATION_SCHEDULED'
+  | 'RELOCATION_FAILED'
+  | 'RELOCATION_COMPLETED'
   | 'REFUND_REQUESTED'
   | 'REFUND_MORE_INFORMATION_REQUIRED'
   | 'REFUND_APPROVED'
@@ -95,6 +100,7 @@ interface EmailJobContext {
   supportMessageId?: string;
   internalRequestId?: string;
   cancellationRequestId?: string;
+  relocationRequestId?: string;
   subscriptionId?: string;
 }
 
@@ -293,6 +299,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
       context.supportCaseId ??
       context.internalRequestId ??
       context.subscriptionId ??
+      context.relocationRequestId ??
       context.userId;
     if (!entityId) return;
     await this.prisma.auditLog.create({
@@ -316,7 +323,9 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
                         ? 'InternalRequest'
                         : context.subscriptionId
                           ? 'Subscription'
-                          : 'User',
+                          : context.relocationRequestId
+                            ? 'ServiceRelocation'
+                            : 'User',
         entityId,
         metadata: {
           purpose: context.purpose,
@@ -350,6 +359,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         context.supportCaseId ??
         context.internalRequestId ??
         context.subscriptionId ??
+        context.relocationRequestId ??
         context.userId;
       if (!entityId) return;
       await this.prisma.auditLog.create({
@@ -373,7 +383,9 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
                           ? 'InternalRequest'
                           : context.subscriptionId
                             ? 'Subscription'
-                            : 'User',
+                            : context.relocationRequestId
+                              ? 'ServiceRelocation'
+                              : 'User',
           entityId,
           metadata: {
             purpose: context.purpose,

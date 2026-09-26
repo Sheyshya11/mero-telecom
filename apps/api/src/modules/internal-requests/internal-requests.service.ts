@@ -90,6 +90,9 @@ const internalRequestListSelect = {
       targetPlan: { select: { id: true, name: true } },
     },
   },
+  serviceRelocation: {
+    select: { id: true, status: true, requestedMoveDate: true },
+  },
 } satisfies Prisma.InternalRequestSelect;
 
 const internalRequestDetailSelect = {

@@ -6,6 +6,11 @@ export interface InvoiceAmounts {
   totalCents: number;
 }
 
+export interface BillingPeriod {
+  start: Date;
+  end: Date;
+}
+
 export type PlanChangeDirection = 'UPGRADE' | 'DOWNGRADE';
 
 export interface PlanChangeProration {
@@ -44,6 +49,18 @@ export class BillingService {
       year: 'numeric',
       timeZone: 'UTC',
     }).format(issueDate);
+  }
+
+  billingPeriodFor(issueDate: Date): BillingPeriod {
+    if (!Number.isFinite(issueDate.getTime())) {
+      throw new BadRequestException('A valid billing date is required.');
+    }
+    const year = issueDate.getUTCFullYear();
+    const month = issueDate.getUTCMonth();
+    return {
+      start: new Date(Date.UTC(year, month, 1)),
+      end: new Date(Date.UTC(year, month + 1, 0)),
+    };
   }
 
   calculatePlanChangeProration(input: {

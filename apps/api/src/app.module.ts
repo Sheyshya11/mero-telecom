@@ -31,6 +31,7 @@ import { BillingReportsModule } from './modules/billing-reports/billing-reports.
 import { SupportModule } from './modules/support/support.module';
 import { InternalRequestsModule } from './modules/internal-requests/internal-requests.module';
 import { CancellationsModule } from './modules/cancellations/cancellations.module';
+import { RelocationsModule } from './modules/relocations/relocations.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { CancellationsModule } from './modules/cancellations/cancellations.modul
     SupportModule,
     InternalRequestsModule,
     CancellationsModule,
+    RelocationsModule,
     HealthModule,
   ],
   providers: [

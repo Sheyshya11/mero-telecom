@@ -53,6 +53,7 @@ export function InvoiceManagement() {
     resolver: zodResolver(generateSchema),
     defaultValues: { subscriptionId: '', issueDate: new Date().toISOString().slice(0, 10) },
   });
+  const billingDate = form.watch('issueDate');
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
   const canOperate = isAdmin || user?.role === 'STAFF';
@@ -87,6 +88,23 @@ export function InvoiceManagement() {
     },
     enabled: Boolean(accessToken && canOperate),
   });
+  const existingInvoice = useQuery({
+    queryKey: ['invoices', 'billing-period', selectedSubscription?.id ?? '', billingDate],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        subscriptionId: selectedSubscription!.id,
+        billingDate,
+      });
+      return apiRequest<Invoice | null>(
+        `/invoices/billing-period?${params.toString()}`,
+        {},
+        accessToken,
+      );
+    },
+    enabled: Boolean(
+      accessToken && canOperate && selectedSubscription && /^\d{4}-\d{2}-\d{2}$/.test(billingDate),
+    ),
+  });
 
   const generate = useMutation({
     mutationFn: (values: GenerateValues) =>
@@ -97,7 +115,11 @@ export function InvoiceManagement() {
       ),
     onSuccess: async (invoice) => {
       setActionError(null);
-      setNotice(`${invoice.invoiceNumber} was generated successfully.`);
+      setNotice(
+        invoice.generationResult === 'EXISTING'
+          ? `${invoice.invoiceNumber} already exists for this subscription and billing period.`
+          : `${invoice.invoiceNumber} was generated successfully.`,
+      );
       await queryClient.invalidateQueries({ queryKey: ['invoices'] });
     },
     onError: showError,
@@ -167,17 +189,25 @@ export function InvoiceManagement() {
         <div>
           <p className="text-sm font-semibold tracking-wide text-primary">BILLING · INVOICES</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Invoices</h1>
-          <p className="mt-2 text-muted-foreground">Generate, review, deliver, and download invoices.</p>
+          <p className="mt-2 text-muted-foreground">
+            Generate, review, deliver, and download invoices.
+          </p>
         </div>
       </header>
 
       {notice ? (
-        <p className="mt-6 rounded-lg bg-success-subtle p-4 text-sm text-success-foreground" role="status">
+        <p
+          className="mt-6 rounded-lg bg-success-subtle p-4 text-sm text-success-foreground"
+          role="status"
+        >
           {notice}
         </p>
       ) : null}
       {actionError ? (
-        <p className="mt-6 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
+        <p
+          className="mt-6 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground"
+          role="alert"
+        >
           {actionError}
         </p>
       ) : null}
@@ -189,7 +219,15 @@ export function InvoiceManagement() {
         </p>
         <form
           className="mt-6 grid gap-x-4 gap-y-5 lg:grid-cols-[minmax(22rem,1fr)_14rem_auto] lg:items-start"
-          onSubmit={form.handleSubmit((values) => generate.mutate(values))}
+          onSubmit={form.handleSubmit((values) => {
+            if (existingInvoice.data) {
+              setNotice(
+                `${existingInvoice.data.invoiceNumber} already exists for this subscription and billing period.`,
+              );
+              return;
+            }
+            generate.mutate(values);
+          })}
         >
           <div
             className="grid min-w-0 gap-1.5 text-sm font-medium"
@@ -309,14 +347,47 @@ export function InvoiceManagement() {
               </span>
             ) : null}
           </label>
-          <button
-            className="button-primary w-full whitespace-nowrap lg:mt-[1.625rem] lg:min-w-40 lg:w-auto"
-            disabled={generate.isPending}
-            type="submit"
-          >
-            {generate.isPending ? 'Generating…' : 'Generate invoice'}
-          </button>
+          {existingInvoice.data ? (
+            <a
+              className="button-secondary w-full whitespace-nowrap text-center lg:mt-[1.625rem] lg:min-w-40 lg:w-auto"
+              href={`?search=${encodeURIComponent(existingInvoice.data.invoiceNumber)}#invoice-register`}
+            >
+              View invoice
+            </a>
+          ) : (
+            <button
+              className="button-primary w-full whitespace-nowrap lg:mt-[1.625rem] lg:min-w-40 lg:w-auto"
+              disabled={generate.isPending || existingInvoice.isFetching}
+              type="submit"
+            >
+              {generate.isPending
+                ? 'Generating…'
+                : existingInvoice.isFetching
+                  ? 'Checking…'
+                  : 'Generate invoice'}
+            </button>
+          )}
         </form>
+        {existingInvoice.data ? (
+          <div className="mt-5 rounded-lg border border-warning-border bg-warning-subtle p-4 text-sm">
+            <p className="font-semibold text-foreground">
+              {new Intl.DateTimeFormat('en-AU', {
+                month: 'long',
+                year: 'numeric',
+                timeZone: 'UTC',
+              }).format(new Date(`${billingDate}T00:00:00.000Z`))}{' '}
+              invoice already exists.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              {existingInvoice.data.invoiceNumber} ·{' '}
+              {new Intl.NumberFormat('en-AU', {
+                style: 'currency',
+                currency: existingInvoice.data.currency,
+              }).format(existingInvoice.data.totalCents / 100)}{' '}
+              · {existingInvoice.data.status.replaceAll('_', ' ')}
+            </p>
+          </div>
+        ) : null}
         {subscriptions.data && subscriptions.data.meta.total > activeSubscriptions.length ? (
           <p className="mt-4 text-sm text-muted-foreground">
             Showing the first {activeSubscriptions.length} matches. Refine the customer search to
@@ -330,7 +401,10 @@ export function InvoiceManagement() {
         ) : null}
       </section>
 
-      <section className="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <section
+        className="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+        id="invoice-register"
+      >
         <div className="flex items-center justify-between border-b border-border px-6 py-5">
           <h2 className="font-semibold">Invoice register</h2>
           <button
@@ -367,7 +441,9 @@ export function InvoiceManagement() {
           ]}
         />
         {invoices.isPending ? <TableSkeleton /> : null}
-        {invoices.isError ? <p className="p-6 text-destructive-foreground">Unable to load invoices.</p> : null}
+        {invoices.isError ? (
+          <p className="p-6 text-destructive-foreground">Unable to load invoices.</p>
+        ) : null}
         {invoices.data?.data.length ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-250 text-left text-sm">
@@ -389,7 +465,9 @@ export function InvoiceManagement() {
                       <p>
                         {invoice.customer.firstName} {invoice.customer.lastName}
                       </p>
-                      <p className="text-xs text-muted-foreground">{invoice.customer.customerNumber}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {invoice.customer.customerNumber}
+                      </p>
                     </td>
                     <td className="px-5 py-4 text-muted-foreground">
                       {new Date(invoice.issueDate).toLocaleDateString('en-AU')}

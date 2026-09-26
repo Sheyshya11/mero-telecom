@@ -33,12 +33,17 @@ export class InvoicesService {
 
   async generate(input: GenerateInvoiceDto) {
     const issueDate = this.toUtcDate(input.issueDate);
-    const invoice = await this.prisma
-      .$transaction(
+    return this.generateForBillingPeriod(input.subscriptionId, issueDate);
+  }
+
+  async generateForBillingPeriod(subscriptionId: string, issueDate: Date) {
+    const period = this.billing.billingPeriodFor(issueDate);
+    try {
+      const invoice = await this.prisma.$transaction(
         async (transaction) => {
           await transaction.$executeRaw`SELECT pg_advisory_xact_lock(${InvoicesService.invoiceSequenceLock})`;
           const subscription = await transaction.subscription.findUnique({
-            where: { id: input.subscriptionId },
+            where: { id: subscriptionId },
             include: { customer: true, plan: true },
           });
           if (!subscription) throw new NotFoundException('Subscription not found.');
@@ -48,26 +53,28 @@ export class InvoicesService {
             );
           }
 
-          const existing = await transaction.invoice.findUnique({
-            where: { subscriptionId_issueDate: { subscriptionId: subscription.id, issueDate } },
-          });
+          const existing = await this.findExistingStandardInvoice(
+            transaction,
+            subscription.id,
+            period,
+          );
           if (existing) {
-            throw new ConflictException(
-              'An invoice already exists for this subscription and billing period.',
-            );
+            return { ...existing, generationResult: 'EXISTING' as const };
           }
 
           const amounts = this.billing.calculateGstInclusiveAmounts(subscription.monthlyCents);
           const invoiceNumber = await this.nextInvoiceNumber(transaction, issueDate);
           const description = `${subscription.plan.name} monthly internet service — ${this.billing.billingPeriodLabel(issueDate)}`;
 
-          return transaction.invoice.create({
+          const created = await transaction.invoice.create({
             data: {
               invoiceNumber,
               customerId: subscription.customerId,
               subscriptionId: subscription.id,
               issueDate,
               dueDate: this.billing.dueDateFor(issueDate),
+              billingPeriodStart: period.start,
+              billingPeriodEnd: period.end,
               ...amounts,
               status: InvoiceStatus.ISSUED,
               issuedAt: new Date(),
@@ -82,19 +89,32 @@ export class InvoicesService {
             },
             include: invoiceInclude,
           });
+          return { ...created, generationResult: 'CREATED' as const };
         },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      )
-      .catch((error: unknown) => {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          throw new ConflictException(
-            'An invoice already exists for this subscription and billing period.',
-          );
-        }
-        throw error;
-      });
-    await this.dashboardCache.invalidate();
-    return invoice;
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      );
+      if (invoice.generationResult === 'CREATED') await this.dashboardCache.invalidate();
+      return invoice;
+    } catch (error: unknown) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await this.findExistingStandardInvoice(
+          this.prisma,
+          subscriptionId,
+          period,
+        );
+        if (existing) return { ...existing, generationResult: 'EXISTING' as const };
+        throw new ConflictException({
+          code: 'INVOICE_GENERATION_CONFLICT',
+          message: 'The invoice could not be generated because another invoice was created.',
+        });
+      }
+      throw error;
+    }
+  }
+
+  async findForBillingPeriod(subscriptionId: string, billingDate: string) {
+    const period = this.billing.billingPeriodFor(this.toUtcDate(billingDate));
+    return this.findExistingStandardInvoice(this.prisma, subscriptionId, period);
   }
 
   async findAll(query: InvoiceQueryDto, actor: AuthenticatedUser) {
@@ -200,6 +220,30 @@ export class InvoicesService {
     });
     const next = latest ? Number(latest.invoiceNumber.slice(prefix.length)) + 1 : 1;
     return `${prefix}${next.toString().padStart(6, '0')}`;
+  }
+
+  private findExistingStandardInvoice(
+    client: Prisma.TransactionClient | PrismaService,
+    subscriptionId: string,
+    period: { start: Date; end: Date },
+  ) {
+    // Every lifecycle state, including CANCELLED, continues to reserve the period.
+    // Regeneration would obscure the original financial record and can create a new debt.
+    return client.invoice.findFirst({
+      where: {
+        subscriptionId,
+        OR: [
+          { billingPeriodStart: period.start, billingPeriodEnd: period.end },
+          {
+            billingPeriodStart: null,
+            issueDate: { gte: period.start, lte: period.end },
+            planChangeRequest: null,
+          },
+        ],
+      },
+      include: invoiceInclude,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
   }
 
   private toUtcDate(value?: string): Date {

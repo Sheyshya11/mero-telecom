@@ -8,6 +8,11 @@ export class GenerateInvoiceDto {
   @IsOptional() @IsDateString() issueDate?: string;
 }
 
+export class InvoiceBillingPeriodQueryDto {
+  @IsUUID() subscriptionId!: string;
+  @IsDateString() billingDate!: string;
+}
+
 export class InvoiceQueryDto extends ListQueryDto {
   @IsOptional() @IsUUID() customerId?: string;
   @IsOptional() @IsIn(['createdAt', 'issueDate', 'dueDate', 'totalCents']) sortBy = 'createdAt';

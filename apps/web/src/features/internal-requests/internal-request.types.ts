@@ -4,6 +4,7 @@ export type InternalRequestType =
   | 'SUBSCRIPTION_ACTION'
   | 'CUSTOMER_ACCOUNT_ACTION'
   | 'PLAN_CHANGE_REVIEW'
+  | 'RELOCATION_REVIEW'
   | 'SUPPORT_ASSISTANCE'
   | 'OTHER';
 
@@ -63,7 +64,7 @@ export interface InternalRequestMessage {
 export interface InternalRequest {
   id: string;
   requestNumber: string;
-  requesterRole: 'STAFF';
+  requesterRole: 'STAFF' | 'ADMIN';
   targetRole: 'ADMIN';
   currentLevel: InternalRequestLevel;
   type: InternalRequestType;
@@ -117,6 +118,11 @@ export interface InternalRequest {
     status: string;
     type: string;
     targetPlan: { id: string; name: string };
+  } | null;
+  serviceRelocation: {
+    id: string;
+    status: string;
+    requestedMoveDate: string;
   } | null;
   messages?: InternalRequestMessage[];
   events?: InternalRequestEvent[];
@@ -194,6 +200,7 @@ export const internalRequestTypes: ReadonlyArray<{
   { value: 'SUBSCRIPTION_ACTION', label: 'Subscription Action' },
   { value: 'CUSTOMER_ACCOUNT_ACTION', label: 'Customer Account Action' },
   { value: 'PLAN_CHANGE_REVIEW', label: 'Plan Change Review' },
+  { value: 'RELOCATION_REVIEW', label: 'Relocation Review' },
   { value: 'SUPPORT_ASSISTANCE', label: 'Support Assistance' },
   { value: 'OTHER', label: 'Other' },
 ];

@@ -26,6 +26,7 @@ const formSchema = z.object({
     'SUBSCRIPTION_ACTION',
     'CUSTOMER_ACCOUNT_ACTION',
     'PLAN_CHANGE_REVIEW',
+    'RELOCATION_REVIEW',
     'SUPPORT_ASSISTANCE',
     'OTHER',
   ]),
@@ -324,12 +325,17 @@ export function NewInternalRequest({
             <p className="mt-3 text-sm text-muted-foreground">Loading related records…</p>
           ) : null}
           {context.isError || discovery.isError ? (
-            <p className="mt-3 text-sm text-destructive-foreground">We couldn&apos;t load related records.</p>
+            <p className="mt-3 text-sm text-destructive-foreground">
+              We couldn&apos;t load related records.
+            </p>
           ) : null}
         </section>
 
         {create.error ? (
-          <p className="rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
+          <p
+            className="rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground"
+            role="alert"
+          >
             {create.error instanceof ApiError
               ? create.error.message
               : "We couldn't submit this request. Please try again."}
@@ -390,7 +396,9 @@ function Field({
     <label className="grid gap-1.5 text-sm font-medium text-foreground">
       {label}
       {children}
-      {error ? <span className="text-xs font-normal text-destructive-foreground">{error}</span> : null}
+      {error ? (
+        <span className="text-xs font-normal text-destructive-foreground">{error}</span>
+      ) : null}
     </label>
   );
 }

@@ -11,6 +11,8 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsIn,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -20,6 +22,8 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
+
+import { AUSTRALIAN_STATE_CODES } from '../postcode-state.validation';
 
 export class CoverageSearchQueryDto {
   @ApiPropertyOptional({ maxLength: 100 })
@@ -47,7 +51,9 @@ export class CreateOperatingRegionDto {
   @ApiProperty({ example: 'SA' })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   @IsString()
-  @Matches(/^[A-Z]{2,3}$/)
+  @IsIn(AUSTRALIAN_STATE_CODES, {
+    message: `State code must be one of: ${AUSTRALIAN_STATE_CODES.join(', ')}.`,
+  })
   stateCode!: string;
 
   @ApiProperty({ example: 'South Australia' })
@@ -77,12 +83,14 @@ export class PostcodeCoverageQueryDto extends CoverageSearchQueryDto {
 
 export class CreatePostcodeCoverageDto {
   @ApiProperty({ format: 'uuid' })
-  @IsUUID()
+  @IsNotEmpty({ message: 'Select a region.' })
+  @IsUUID(undefined, { message: 'Select a region.' })
   operatingRegionId!: string;
 
   @ApiProperty({ example: '5000' })
-  @IsString()
-  @Matches(/^\d{4}$/)
+  @IsNotEmpty({ message: 'Postcode is required.' })
+  @IsString({ message: 'Enter a valid 4-digit postcode.' })
+  @Matches(/^\d{4}$/, { message: 'Enter a valid 4-digit postcode.' })
   postcode!: string;
 
   @ApiProperty({ enum: PostcodeCoverageStatus })

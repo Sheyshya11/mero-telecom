@@ -16,6 +16,7 @@ import { RedisService } from '../cache/redis.service';
 import { AddressSelectionService } from './address-selection.service';
 import type {
   CoverageCheckResult,
+  CoverageQualificationDecision,
   CoverageQualificationProvider,
   NormalizedAddressSuggestion,
   TrustedCoverageQualification,
@@ -50,10 +51,10 @@ export class CoverageService {
     return { suggestions: await this.selections.suggestions(query) };
   }
 
-  async check(selectionToken: string): Promise<CoverageCheckResult> {
+  async check(selectionToken: string, customerId?: string): Promise<CoverageCheckResult> {
     const address = await this.selections.consume(selectionToken);
     const decision = await this.qualificationProvider.qualify(address);
-    await this.recordAnalytics(decision, address);
+    await this.recordAnalytics(decision, address, customerId);
     const qualificationToken = decision.available
       ? await this.issueQualificationToken(address, decision)
       : null;
@@ -107,6 +108,15 @@ export class CoverageService {
         'Mero Telecom service or the selected plan is no longer orderable at this address.',
       );
     }
+  }
+
+  async requalifyTrustedAddress(
+    address: NormalizedAddressSuggestion,
+    customerId?: string,
+  ): Promise<CoverageQualificationDecision> {
+    const decision = await this.qualificationProvider.qualify(address);
+    await this.recordAnalytics(decision, address, customerId);
+    return decision;
   }
 
   private async issueQualificationToken(
@@ -174,6 +184,7 @@ export class CoverageService {
   private async recordAnalytics(
     decision: Awaited<ReturnType<CoverageQualificationProvider['qualify']>>,
     address: NormalizedAddressSuggestion,
+    customerId?: string,
   ): Promise<void> {
     try {
       await this.prisma.coverageSearch.create({
@@ -184,6 +195,7 @@ export class CoverageService {
           technology: decision.qualification.technology,
           plansReturned: decision.plans.length > 0,
           operatingRegionId: decision.operatingRegionId,
+          customerId,
         },
       });
     } catch (error: unknown) {

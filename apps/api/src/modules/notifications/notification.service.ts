@@ -50,6 +50,10 @@ import {
   type OverdueEmailData,
   type OverdueEmailEvent,
 } from './templates/overdue-email.template';
+import {
+  renderRelocationEmail,
+  type RelocationEmailEvent,
+} from './templates/relocation-email.template';
 
 export interface InvoiceEmailData {
   invoiceNumber: string;
@@ -169,6 +173,32 @@ export class NotificationService {
       { to: recipient, ...template },
       { purpose, planChangeRequestId: input.planChangeRequestId },
       `plan-change-${input.planChangeRequestId}-${input.event.toLowerCase()}`,
+    );
+    return { recipient, messageId: `queued:${result.jobId}` };
+  }
+
+  async sendRelocationNotification(input: {
+    event: RelocationEmailEvent;
+    relocationRequestId: string;
+    customerName: string;
+    customerEmail: string;
+    oldAddress: string;
+    newAddress: string;
+    planName: string;
+    requestedMoveDate: Date;
+    failureReason?: string | null;
+  }): Promise<InvoiceEmailResult> {
+    const recipient = this.invoiceRecipient(input.customerEmail);
+    const template = renderRelocationEmail({
+      ...input,
+      brandLogoUrl: this.brandLogoUrl(),
+      dashboardUrl: `${this.configService.getOrThrow('app').frontendUrl}/customer/subscription/moving-home`,
+    });
+    const purpose = `RELOCATION_${input.event}` as const;
+    const result = await this.emailQueue.enqueue(
+      { to: recipient, ...template },
+      { purpose, relocationRequestId: input.relocationRequestId },
+      `relocation-${input.relocationRequestId}-${input.event.toLowerCase()}`,
     );
     return { recipient, messageId: `queued:${result.jobId}` };
   }

@@ -220,12 +220,18 @@ export function InternalRequestDetail({ requestNumber }: Readonly<{ requestNumbe
       </header>
 
       {notice ? (
-        <p className="mt-5 rounded-lg bg-success-subtle p-4 text-sm text-success-foreground" role="status">
+        <p
+          className="mt-5 rounded-lg bg-success-subtle p-4 text-sm text-success-foreground"
+          role="status"
+        >
           {notice}
         </p>
       ) : null}
       {error ? (
-        <p className="mt-5 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
+        <p
+          className="mt-5 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}
@@ -326,7 +332,9 @@ export function InternalRequestDetail({ requestNumber }: Readonly<{ requestNumbe
               Private between Staff and Administrators. Customers cannot access these messages.
             </p>
           </div>
-          <span className="text-xs text-muted-foreground">{data.messages?.length ?? 0} messages</span>
+          <span className="text-xs text-muted-foreground">
+            {data.messages?.length ?? 0} messages
+          </span>
         </div>
         {data.messages?.length ? (
           <ol className="mt-6 grid gap-4">
@@ -761,7 +769,9 @@ function ActivityTimeline({ data }: Readonly<{ data: InternalRequest }>) {
               {personLabel(event.actor)} {labels[event.eventType]}
             </p>
             {event.comment ? (
-              <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{event.comment}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+                {event.comment}
+              </p>
             ) : null}
             <time className="mt-1 block text-xs text-muted-foreground" dateTime={event.createdAt}>
               {formatInternalRequestDate(event.createdAt)}
@@ -875,6 +885,13 @@ function RelatedRecords({ data }: Readonly<{ data: InternalRequest }>) {
           label: 'Plan change',
           value: `${data.planChangeRequest.type} to ${data.planChangeRequest.targetPlan.name} · ${data.planChangeRequest.status}`,
           href: `/control-centre/services?search=${encodeURIComponent(data.planChangeRequest.targetPlan.name)}`,
+        }
+      : null,
+    data.serviceRelocation
+      ? {
+          label: 'Relocation',
+          value: `${data.serviceRelocation.id.slice(0, 8).toUpperCase()} · ${data.serviceRelocation.status.replaceAll('_', ' ')}`,
+          href: `/control-centre/relocations/${data.serviceRelocation.id}`,
         }
       : null,
   ].filter((item): item is { label: string; value: string; href?: string } => Boolean(item));

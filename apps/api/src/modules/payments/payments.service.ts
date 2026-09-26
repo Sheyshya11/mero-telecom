@@ -592,6 +592,7 @@ export class PaymentsService {
             throw new BadRequestException('Stripe Checkout session is not payable.');
           }
           let activatedSubscriptionId: string | undefined;
+          let activatedAt: Date | undefined;
           if (invoice.purchasePlanId) {
             if (
               session.metadata?.checkoutKind !== 'plan_purchase' ||
@@ -616,7 +617,7 @@ export class PaymentsService {
             if (currentSubscription) {
               throw new ConflictException('The customer already has a current subscription.');
             }
-            const activatedAt = new Date();
+            activatedAt = new Date();
             const billingAnchorDay = activatedAt.getUTCDate();
             const subscription = await transaction.subscription.create({
               data: {
@@ -644,12 +645,21 @@ export class PaymentsService {
               paidAt: new Date(),
             },
           });
+          const invoiceBillingPeriod = activatedAt
+            ? this.billing.billingPeriodFor(activatedAt)
+            : null;
           await transaction.invoice.update({
             where: { id: invoice.id },
             data: {
               status: InvoiceStatus.PAID,
               paidAt: new Date(),
-              subscriptionId: activatedSubscriptionId,
+              ...(activatedSubscriptionId && invoiceBillingPeriod
+                ? {
+                    subscriptionId: activatedSubscriptionId,
+                    billingPeriodStart: invoiceBillingPeriod.start,
+                    billingPeriodEnd: invoiceBillingPeriod.end,
+                  }
+                : {}),
             },
           });
           await transaction.paymentWebhookEvent.create({
@@ -978,10 +988,21 @@ export class PaymentsService {
           });
           const paidAt = new Date();
           const billingAnchorDay = paidAt.getUTCDate();
+          const serviceAddress = await transaction.serviceAddress.create({
+            data: {
+              customerId: customer.id,
+              addressLine1: service.addressLine1,
+              addressLine2: service.addressLine2,
+              suburb: service.suburb,
+              state: service.state.toUpperCase(),
+              postcode: service.postcode,
+            },
+          });
           const subscription = await transaction.subscription.create({
             data: {
               customerId: customer.id,
               planId: application.planId,
+              currentServiceAddressId: serviceAddress.id,
               monthlyCents: application.amountCents,
               status: SubscriptionStatus.ACTIVE,
               startDate: this.utcDate(paidAt),
@@ -992,6 +1013,7 @@ export class PaymentsService {
           });
           await transaction.$executeRaw`SELECT pg_advisory_xact_lock(${PaymentsService.invoiceSequenceLock})`;
           const issueDate = this.utcDate(paidAt);
+          const billingPeriod = this.billing.billingPeriodFor(issueDate);
           const amounts = this.billing.calculateGstInclusiveAmounts(application.amountCents);
           const invoiceNumber = await this.nextInvoiceNumber(transaction, issueDate);
           const invoice = await transaction.invoice.create({
@@ -1002,6 +1024,8 @@ export class PaymentsService {
               purchasePlanId: application.planId,
               issueDate,
               dueDate: this.billing.dueDateFor(issueDate),
+              billingPeriodStart: billingPeriod.start,
+              billingPeriodEnd: billingPeriod.end,
               ...amounts,
               currency: application.currency,
               status: InvoiceStatus.PAID,

@@ -18,7 +18,12 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { asCustomerContext, type AuthenticatedUser } from '../auth/auth.types';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { GenerateInvoiceDto, InvoiceQueryDto, UpdateInvoiceStatusDto } from './dto/invoice.dto';
+import {
+  GenerateInvoiceDto,
+  InvoiceBillingPeriodQueryDto,
+  InvoiceQueryDto,
+  UpdateInvoiceStatusDto,
+} from './dto/invoice.dto';
 import { InvoiceEmailService } from './invoice-email.service';
 import { InvoicesService } from './invoices.service';
 
@@ -60,6 +65,11 @@ export class InvoicesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.invoices.findOne(id, asCustomerContext(user));
+  }
+  @Get('billing-period') @Roles(Role.ADMIN, Role.STAFF) findForBillingPeriod(
+    @Query() query: InvoiceBillingPeriodQueryDto,
+  ) {
+    return this.invoices.findForBillingPeriod(query.subscriptionId, query.billingDate);
   }
   @Get(':invoiceId/pdf') @Roles(Role.ADMIN, Role.STAFF) async downloadPdf(
     @Param('invoiceId', new ParseUUIDPipe()) id: string,

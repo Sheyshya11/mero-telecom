@@ -22,6 +22,7 @@ const include = {
     },
   },
   plan: true,
+  currentServiceAddress: true,
   invoices: {
     where: { status: { in: ['ISSUED', 'OVERDUE'] } },
     orderBy: { dueDate: 'asc' },

@@ -51,19 +51,30 @@ const customerAccountInclude = {
     },
   },
   addresses: {
-    where: { type: AddressType.SERVICE },
     select: {
+      type: true,
       addressLine1: true,
       addressLine2: true,
       suburb: true,
       state: true,
       postcode: true,
     },
-    take: 1,
   },
   subscriptions: {
     where: { status: { in: [...currentSubscriptionStatuses] } },
-    select: { status: true, plan: { select: { id: true, name: true } } },
+    select: {
+      status: true,
+      plan: { select: { id: true, name: true } },
+      currentServiceAddress: {
+        select: {
+          addressLine1: true,
+          addressLine2: true,
+          suburb: true,
+          state: true,
+          postcode: true,
+        },
+      },
+    },
     orderBy: [{ startDate: 'desc' as const }, { createdAt: 'desc' as const }],
     take: 1,
   },
@@ -318,43 +329,54 @@ export class CustomersService {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
       include: {
-        addresses: { where: { type: AddressType.SERVICE }, take: 1 },
+        addresses: { where: { type: AddressType.BILLING }, take: 1 },
       },
     });
     if (!customer) throw new NotFoundException('No customer profile is linked to this account.');
 
     const updatedCustomer = await this.prisma.$transaction(async (transaction) => {
-      await transaction.customer.update({
-        where: { id: customer.id },
-        data: { phone: input.phone?.trim() },
-      });
-      if (
+      const addressChanged =
         input.addressLine1 !== undefined ||
         input.addressLine2 !== undefined ||
         input.suburb !== undefined ||
         input.state !== undefined ||
-        input.postcode !== undefined
-      ) {
-        const currentServiceAddress = customer.addresses[0] ?? customer;
-        const serviceAddress = {
-          addressLine1: input.addressLine1 ?? currentServiceAddress.addressLine1,
-          addressLine2:
-            input.addressLine2 === undefined
-              ? currentServiceAddress.addressLine2
-              : input.addressLine2,
-          suburb: input.suburb ?? currentServiceAddress.suburb,
-          state: input.state ?? currentServiceAddress.state,
-          postcode: input.postcode ?? currentServiceAddress.postcode,
-        };
+        input.postcode !== undefined;
+      const currentContactAddress = customer.addresses[0] ?? customer;
+      const contactAddress = {
+        addressLine1: input.addressLine1 ?? currentContactAddress.addressLine1,
+        addressLine2:
+          input.addressLine2 === undefined
+            ? currentContactAddress.addressLine2
+            : input.addressLine2,
+        suburb: input.suburb ?? currentContactAddress.suburb,
+        state: input.state ?? currentContactAddress.state,
+        postcode: input.postcode ?? currentContactAddress.postcode,
+      };
+      await transaction.customer.update({
+        where: { id: customer.id },
+        data: {
+          phone: input.phone?.trim(),
+          ...(addressChanged
+            ? {
+                addressLine1: contactAddress.addressLine1,
+                addressLine2: contactAddress.addressLine2?.trim() || null,
+                suburb: contactAddress.suburb,
+                state: contactAddress.state.toUpperCase(),
+                postcode: contactAddress.postcode,
+              }
+            : {}),
+        },
+      });
+      if (addressChanged) {
         await transaction.customerAddress.upsert({
           where: {
-            customerId_type: { customerId: customer.id, type: AddressType.SERVICE },
+            customerId_type: { customerId: customer.id, type: AddressType.BILLING },
           },
           create: {
             customerId: customer.id,
-            ...this.addressData(AddressType.SERVICE, serviceAddress),
+            ...this.addressData(AddressType.BILLING, contactAddress),
           },
-          update: this.addressData(AddressType.SERVICE, serviceAddress),
+          update: this.addressData(AddressType.BILLING, contactAddress),
         });
       }
       return transaction.customer.findUniqueOrThrow({

@@ -46,6 +46,13 @@ const customer: Customer = {
     state: 'SA',
     postcode: '5000',
   },
+  contactAddress: {
+    addressLine1: '1 Billing Road',
+    addressLine2: 'Unit 4',
+    suburb: 'Norwood',
+    state: 'SA',
+    postcode: '5067',
+  },
   status: 'ACTIVE',
   accountStatus: 'ACTIVE',
   invitationStatus: 'ACCEPTED',
@@ -60,7 +67,7 @@ describe('CustomerProfile', () => {
     apiRequestMock.mockResolvedValue(customer as never);
   });
 
-  it('shows the stored service address instead of the residential address', async () => {
+  it('shows the contact and billing address without exposing service-address editing', async () => {
     render(
       <QueryClientProvider
         client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
@@ -70,8 +77,9 @@ describe('CustomerProfile', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'My profile' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Address')).toHaveValue('20 Service Street');
-    expect(screen.getByLabelText('Address line 2')).toHaveValue('Unit 2');
-    expect(screen.getByLabelText('Postcode')).toHaveValue('5000');
+    expect(screen.getByLabelText('Contact / billing address')).toHaveValue('1 Billing Road');
+    expect(screen.getByLabelText('Address line 2')).toHaveValue('Unit 4');
+    expect(screen.getByLabelText('Postcode')).toHaveValue('5067');
+    expect(screen.queryByDisplayValue('20 Service Street')).not.toBeInTheDocument();
   });
 });

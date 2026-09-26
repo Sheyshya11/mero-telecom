@@ -11,6 +11,7 @@ import {
   Prisma,
   Role,
   ServiceProvisioningStatus,
+  ServiceRelocationStatus,
   SubscriptionStatus,
   SuspensionReason,
 } from '@prisma/client';
@@ -180,6 +181,26 @@ export class CancellationsService {
           if (activePlanChange) {
             throw new ConflictException(
               'A plan change is already in progress. Cancel or complete it before cancelling the service.',
+            );
+          }
+          const activeRelocation = await transaction.serviceRelocation.findFirst({
+            where: {
+              subscriptionId,
+              status: {
+                in: [
+                  ServiceRelocationStatus.AWAITING_CONFIRMATION,
+                  ServiceRelocationStatus.CONFIRMED,
+                  ServiceRelocationStatus.PROVISIONING,
+                  ServiceRelocationStatus.SCHEDULED,
+                  ServiceRelocationStatus.FAILED,
+                ],
+              },
+            },
+            select: { id: true },
+          });
+          if (activeRelocation) {
+            throw new ConflictException(
+              'A moving-home request is already open. Complete or cancel it before cancelling the service.',
             );
           }
           const effectiveAt =

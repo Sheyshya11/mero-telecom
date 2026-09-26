@@ -17,6 +17,13 @@ describe('BillingService', () => {
     );
   });
 
+  it('resolves a canonical calendar-month billing period', () => {
+    expect(service.billingPeriodFor(new Date('2026-10-19T22:30:00.000Z'))).toEqual({
+      start: new Date('2026-10-01T00:00:00.000Z'),
+      end: new Date('2026-10-31T00:00:00.000Z'),
+    });
+  });
+
   it.each([
     ['start', '2026-08-01T00:00:00.000Z', 6900, 9900, 6900, 9900, 3000],
     ['middle', '2026-08-16T12:00:00.000Z', 6900, 9900, 3450, 4950, 1500],

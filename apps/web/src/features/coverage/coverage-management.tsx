@@ -40,6 +40,16 @@ const postcodeStatuses: PostcodeCoverageStatus[] = [
   'UNAVAILABLE',
 ];
 const overrideStatuses: AddressOverrideStatus[] = ['AVAILABLE', 'UNAVAILABLE', 'MANUAL_REVIEW'];
+const australianRegions = [
+  { stateCode: 'ACT', name: 'Australian Capital Territory' },
+  { stateCode: 'NSW', name: 'New South Wales' },
+  { stateCode: 'NT', name: 'Northern Territory' },
+  { stateCode: 'QLD', name: 'Queensland' },
+  { stateCode: 'SA', name: 'South Australia' },
+  { stateCode: 'TAS', name: 'Tasmania' },
+  { stateCode: 'VIC', name: 'Victoria' },
+  { stateCode: 'WA', name: 'Western Australia' },
+] as const;
 
 const emptyRegionForm = {
   id: '',
@@ -102,8 +112,10 @@ export function CoverageManagement() {
   const [search, setSearch] = useState('');
   const [regionStatus, setRegionStatus] = useState('');
   const [postcodeStatus, setPostcodeStatus] = useState('');
+  const [postcodeRegionId, setPostcodeRegionId] = useState('');
   const [regionForm, setRegionForm] = useState(emptyRegionForm);
   const [postcodeForm, setPostcodeForm] = useState(emptyPostcodeForm);
+  const [postcodeError, setPostcodeError] = useState<string | null>(null);
   const [overrideForm, setOverrideForm] = useState(emptyOverrideForm);
   const [ruleForm, setRuleForm] = useState(emptyRuleForm);
   const [overrideSelection, setOverrideSelection] = useState<AddressSuggestion | null>(null);
@@ -119,15 +131,16 @@ export function CoverageManagement() {
     return params.toString() ? `?${params.toString()}` : '';
   }, [search]);
   const regionsQueryString = useMemo(() => {
-    const params = new URLSearchParams(queryString.slice(1));
-    if (regionStatus) params.set('status', regionStatus);
+    const params = new URLSearchParams(tab === 'regions' ? queryString.slice(1) : '');
+    if (tab === 'regions' && regionStatus) params.set('status', regionStatus);
     return params.toString() ? `?${params.toString()}` : '';
-  }, [queryString, regionStatus]);
+  }, [queryString, regionStatus, tab]);
   const postcodesQueryString = useMemo(() => {
     const params = new URLSearchParams(queryString.slice(1));
     if (postcodeStatus) params.set('status', postcodeStatus);
+    if (postcodeRegionId) params.set('operatingRegionId', postcodeRegionId);
     return params.toString() ? `?${params.toString()}` : '';
-  }, [postcodeStatus, queryString]);
+  }, [postcodeRegionId, postcodeStatus, queryString]);
 
   const regions = useQuery({
     queryKey: ['coverage-management', 'regions', regionsQueryString],
@@ -218,7 +231,7 @@ export function CoverageManagement() {
             {isAdmin ? 'ADMIN' : 'STAFF'} · COVERAGE
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
-            Coverage operations
+            Coverage Management
           </h1>
           <p className="mt-2 max-w-2xl text-muted-foreground">
             {isAdmin
@@ -244,8 +257,11 @@ export function CoverageManagement() {
           ))}
       </nav>
 
-      {mutation.isError ? (
-        <p className="mt-5 rounded-lg bg-destructive-subtle p-4 text-destructive-foreground" role="alert">
+      {mutation.isError && !(tab === 'postcodes' && postcodeError) ? (
+        <p
+          className="mt-5 rounded-lg bg-destructive-subtle p-4 text-destructive-foreground"
+          role="alert"
+        >
           {messageFor(mutation.error)}
         </p>
       ) : null}
@@ -272,13 +288,14 @@ export function CoverageManagement() {
             </div>
             {search ||
             (tab === 'regions' && regionStatus) ||
-            (tab === 'postcodes' && postcodeStatus) ? (
+            (tab === 'postcodes' && (postcodeStatus || postcodeRegionId)) ? (
               <button
                 className="button-secondary"
                 onClick={() => {
                   setSearch('');
                   setRegionStatus('');
                   setPostcodeStatus('');
+                  setPostcodeRegionId('');
                 }}
                 type="button"
               >
@@ -305,12 +322,21 @@ export function CoverageManagement() {
               />
             ) : null}
             {tab === 'postcodes' ? (
-              <StatusFilter
-                label="Coverage status"
-                onChange={setPostcodeStatus}
-                options={postcodeStatuses}
-                value={postcodeStatus}
-              />
+              <>
+                <RegionSelect
+                  allowAll
+                  label="Region"
+                  onChange={setPostcodeRegionId}
+                  regions={regions.data ?? []}
+                  value={postcodeRegionId}
+                />
+                <StatusFilter
+                  label="Coverage status"
+                  onChange={setPostcodeStatus}
+                  options={postcodeStatuses}
+                  value={postcodeStatus}
+                />
+              </>
             ) : null}
           </div>
         </section>
@@ -341,28 +367,73 @@ export function CoverageManagement() {
                   );
                 }}
               >
-                <div className="grid grid-cols-2 gap-3">
-                  <TextField
-                    label="Country"
-                    maxLength={2}
-                    onChange={(countryCode) => setRegionForm({ ...regionForm, countryCode })}
+                <label className="block text-sm font-medium text-foreground">
+                  Country
+                  <select
+                    className="field mt-1"
+                    onChange={(event) =>
+                      setRegionForm({ ...regionForm, countryCode: event.target.value })
+                    }
                     required
                     value={regionForm.countryCode}
-                  />
-                  <TextField
-                    label="State code"
-                    maxLength={3}
-                    onChange={(stateCode) => setRegionForm({ ...regionForm, stateCode })}
-                    required
-                    value={regionForm.stateCode}
-                  />
+                  >
+                    <option value="AU">Australia (AU)</option>
+                  </select>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block text-sm font-medium text-foreground">
+                    State code
+                    <select
+                      className="field mt-1"
+                      onChange={(event) => {
+                        const selected = australianRegions.find(
+                          (region) => region.stateCode === event.target.value,
+                        );
+                        if (selected) {
+                          setRegionForm({
+                            ...regionForm,
+                            stateCode: selected.stateCode,
+                            name: selected.name,
+                          });
+                        }
+                      }}
+                      required
+                      value={regionForm.stateCode}
+                    >
+                      {australianRegions.map((region) => (
+                        <option key={region.stateCode} value={region.stateCode}>
+                          {region.stateCode}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-sm font-medium text-foreground">
+                    Region name
+                    <select
+                      className="field mt-1"
+                      onChange={(event) => {
+                        const selected = australianRegions.find(
+                          (region) => region.name === event.target.value,
+                        );
+                        if (selected) {
+                          setRegionForm({
+                            ...regionForm,
+                            stateCode: selected.stateCode,
+                            name: selected.name,
+                          });
+                        }
+                      }}
+                      required
+                      value={regionForm.name}
+                    >
+                      {australianRegions.map((region) => (
+                        <option key={region.stateCode} value={region.name}>
+                          {region.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
-                <TextField
-                  label="Region name"
-                  onChange={(name) => setRegionForm({ ...regionForm, name })}
-                  required
-                  value={regionForm.name}
-                />
                 <SelectField
                   label="Status"
                   onChange={(status) =>
@@ -447,7 +518,17 @@ export function CoverageManagement() {
                 className="space-y-4"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  save(
+                  setPostcodeError(null);
+                  if (!postcodeForm.postcode) {
+                    setPostcodeError('Postcode is required.');
+                    return;
+                  }
+                  if (!/^\d{4}$/.test(postcodeForm.postcode)) {
+                    setPostcodeError('Enter a valid 4-digit postcode.');
+                    return;
+                  }
+                  setSuccess(null);
+                  mutation.mutate(
                     {
                       path: postcodeForm.id
                         ? `/coverage-management/postcodes/${postcodeForm.id}`
@@ -464,21 +545,42 @@ export function CoverageManagement() {
                         isActive: postcodeForm.isActive,
                       },
                     },
-                    () => setPostcodeForm(emptyPostcodeForm),
+                    {
+                      onError: (error) => setPostcodeError(messageFor(error)),
+                      onSuccess: () => {
+                        setPostcodeError(null);
+                        setPostcodeForm(emptyPostcodeForm);
+                      },
+                    },
                   );
                 }}
               >
                 <RegionSelect
-                  onChange={(operatingRegionId) =>
-                    setPostcodeForm({ ...postcodeForm, operatingRegionId })
-                  }
+                  label="Region"
+                  onChange={(operatingRegionId) => {
+                    setPostcodeError(null);
+                    setPostcodeForm({ ...postcodeForm, operatingRegionId });
+                  }}
                   regions={regions.data ?? []}
                   value={postcodeForm.operatingRegionId}
                 />
+                {postcodeForm.operatingRegionId &&
+                regions.data?.find((region) => region.id === postcodeForm.operatingRegionId)
+                  ?.status === 'DISABLED' ? (
+                  <p className="rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground">
+                    The selected parent region is disabled. This postcode will remain unavailable
+                    for coverage until the region is enabled.
+                  </p>
+                ) : null}
                 <TextField
-                  label="Exact postcode"
+                  error={postcodeError ?? undefined}
+                  inputMode="numeric"
+                  label="Postcode"
                   maxLength={4}
-                  onChange={(postcode) => setPostcodeForm({ ...postcodeForm, postcode })}
+                  onChange={(postcode) => {
+                    setPostcodeError(null);
+                    setPostcodeForm({ ...postcodeForm, postcode });
+                  }}
                   required
                   value={postcodeForm.postcode}
                 />
@@ -522,6 +624,7 @@ export function CoverageManagement() {
                   onChange={(isActive) => setPostcodeForm({ ...postcodeForm, isActive })}
                 />
                 <FormActions
+                  createLabel="Add postcode"
                   editing={Boolean(postcodeForm.id)}
                   isSaving={mutation.isPending}
                   onCancel={() => setPostcodeForm(emptyPostcodeForm)}
@@ -536,7 +639,8 @@ export function CoverageManagement() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h3 className="font-semibold text-foreground">
-                      {record.postcode} · {record.operatingRegion.stateCode}
+                      {record.postcode} · {record.operatingRegion.name} (
+                      {record.operatingRegion.stateCode})
                     </h3>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {record.technology ?? 'No technology'} ·{' '}
@@ -548,6 +652,11 @@ export function CoverageManagement() {
                   <div className="flex gap-2">
                     <StatusBadge value={record.status} />
                     {!record.isActive ? <StatusBadge value="DISABLED" /> : null}
+                    {record.operatingRegion.status === 'DISABLED' ? (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        Parent region <StatusBadge value="DISABLED" />
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 {isAdmin ? (
@@ -957,7 +1066,9 @@ function TrustedAddressSelector({
           value={selected?.formattedAddress ?? query}
         />
       </label>
-      {suggestions.isFetching ? <p className="mt-2 text-sm text-muted-foreground">Searching…</p> : null}
+      {suggestions.isFetching ? (
+        <p className="mt-2 text-sm text-muted-foreground">Searching…</p>
+      ) : null}
       {suggestions.isError ? (
         <p className="mt-2 text-sm text-destructive-foreground" role="alert">
           Address suggestions are unavailable.
@@ -982,7 +1093,9 @@ function TrustedAddressSelector({
         </ul>
       ) : null}
       {selected ? (
-        <p className="mt-2 text-sm font-medium text-success-foreground">Trusted address selected.</p>
+        <p className="mt-2 text-sm font-medium text-success-foreground">
+          Trusted address selected.
+        </p>
       ) : null}
     </div>
   );
@@ -1016,7 +1129,8 @@ function QueryState({
   empty: string;
 }>) {
   if (query.isPending) return <p className="p-5 text-muted-foreground">Loading records…</p>;
-  if (query.isError) return <p className="p-5 text-destructive-foreground">Unable to load these records.</p>;
+  if (query.isError)
+    return <p className="p-5 text-destructive-foreground">Unable to load these records.</p>;
   if (Array.isArray(query.data) && query.data.length === 0) {
     return <p className="p-5 text-muted-foreground">{empty}</p>;
   }
@@ -1025,7 +1139,9 @@ function QueryState({
 
 function PageStatus({ message }: Readonly<{ message: string }>) {
   return (
-    <main className="grid min-h-screen place-items-center px-6 text-muted-foreground">{message}</main>
+    <main className="grid min-h-screen place-items-center px-6 text-muted-foreground">
+      {message}
+    </main>
   );
 }
 
@@ -1037,6 +1153,8 @@ function TextField({
   required = false,
   maxLength,
   min,
+  inputMode,
+  error,
 }: Readonly<{
   label: string;
   value: string;
@@ -1045,12 +1163,16 @@ function TextField({
   required?: boolean;
   maxLength?: number;
   min?: string;
+  inputMode?: 'numeric' | 'text';
+  error?: string;
 }>) {
   return (
     <label className="block text-sm font-medium text-foreground">
       {label}
       <input
         className="field mt-1"
+        aria-invalid={Boolean(error)}
+        inputMode={inputMode}
         maxLength={maxLength}
         min={min}
         onChange={(event) => onChange(event.target.value)}
@@ -1058,6 +1180,11 @@ function TextField({
         type={type}
         value={value}
       />
+      {error ? (
+        <span className="mt-1 block text-sm text-destructive-foreground" role="alert">
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -1114,15 +1241,17 @@ function RegionSelect({
   value,
   onChange,
   allowAll = false,
+  label = 'Operating region',
 }: Readonly<{
   regions: OperatingRegion[];
   value: string;
   onChange: (value: string) => void;
   allowAll?: boolean;
+  label?: string;
 }>) {
   return (
     <label className="block text-sm font-medium text-foreground">
-      Operating region
+      {label}
       <select
         className="field mt-1"
         onChange={(event) => onChange(event.target.value)}
@@ -1132,7 +1261,7 @@ function RegionSelect({
         <option value="">{allowAll ? 'All configured regions' : 'Select a region'}</option>
         {regions.map((region) => (
           <option key={region.id} value={region.id}>
-            {region.name} ({region.stateCode})
+            {region.name} ({region.stateCode}){region.status === 'DISABLED' ? ' — Disabled' : ''}
           </option>
         ))}
       </select>
@@ -1200,7 +1329,13 @@ function FormActions({
   editing,
   isSaving,
   onCancel,
-}: Readonly<{ editing: boolean; isSaving: boolean; onCancel: () => void }>) {
+  createLabel = 'Create record',
+}: Readonly<{
+  editing: boolean;
+  isSaving: boolean;
+  onCancel: () => void;
+  createLabel?: string;
+}>) {
   return (
     <div className="flex gap-2">
       {editing ? (
@@ -1209,7 +1344,7 @@ function FormActions({
         </button>
       ) : null}
       <button className="button-primary" disabled={isSaving} type="submit">
-        {isSaving ? 'Saving…' : editing ? 'Save changes' : 'Create record'}
+        {isSaving ? 'Saving…' : editing ? 'Save changes' : createLabel}
       </button>
     </div>
   );

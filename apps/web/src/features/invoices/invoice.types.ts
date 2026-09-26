@@ -5,11 +5,14 @@ export interface Invoice {
   invoiceNumber: string;
   issueDate: string;
   dueDate: string;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
   subtotalCents: number;
   taxCents: number;
   totalCents: number;
   currency: string;
   status: InvoiceStatus;
+  generationResult?: 'CREATED' | 'EXISTING';
   customer: {
     id: string;
     customerNumber: string;

@@ -17,6 +17,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import { AddressSelectionService } from './address-selection.service';
 import { normalizeAustralianStateCode } from './australian-states';
+import { validatePostcodeForState } from './postcode-state.validation';
 import type {
   AddressOverrideQueryDto,
   CoverageAnalyticsQueryDto,
@@ -123,9 +124,11 @@ export class CoverageManagementService {
   }
 
   async createPostcode(input: CreatePostcodeCoverageDto, actor: AuthenticatedUser) {
-    await this.region(input.operatingRegionId);
+    const region = await this.region(input.operatingRegionId);
+    this.validateRegionalPostcode(input.postcode, region.stateCode, region.name);
+    await this.ensurePostcodeIsUnique(input.operatingRegionId, input.postcode, region.name);
     this.validateQualification(input.status, input.technology, input.maximumSpeedMbps);
-    return this.uniqueMutation('Coverage already exists for this exact regional postcode.', () =>
+    return this.uniqueMutation(this.duplicatePostcodeMessage(input.postcode, region.name), () =>
       this.prisma.$transaction(async (transaction) => {
         const record = await transaction.postcodeCoverage.create({
           data: {
@@ -148,13 +151,17 @@ export class CoverageManagementService {
 
   async updatePostcode(id: string, input: UpdatePostcodeCoverageDto, actor: AuthenticatedUser) {
     const current = await this.postcode(id);
-    if (input.operatingRegionId) await this.region(input.operatingRegionId);
+    const operatingRegionId = input.operatingRegionId ?? current.operatingRegionId;
+    const postcode = input.postcode ?? current.postcode;
+    const region = await this.region(operatingRegionId);
+    this.validateRegionalPostcode(postcode, region.stateCode, region.name);
+    await this.ensurePostcodeIsUnique(operatingRegionId, postcode, region.name, id);
     this.validateQualification(
       input.status ?? current.status,
       input.technology === undefined ? current.technology : input.technology,
       input.maximumSpeedMbps === undefined ? current.maximumSpeedMbps : input.maximumSpeedMbps,
     );
-    return this.uniqueMutation('Coverage already exists for this exact regional postcode.', () =>
+    return this.uniqueMutation(this.duplicatePostcodeMessage(postcode, region.name), () =>
       this.prisma.$transaction(async (transaction) => {
         const record = await transaction.postcodeCoverage.update({
           where: { id },
@@ -458,6 +465,38 @@ export class CoverageManagementService {
     const record = await this.prisma.postcodeCoverage.findUnique({ where: { id } });
     if (!record) throw new NotFoundException('Postcode coverage record not found.');
     return record;
+  }
+
+  private validateRegionalPostcode(postcode: string, stateCode: string, regionName: string): void {
+    if (!/^\d{4}$/.test(postcode)) {
+      throw new BadRequestException('Enter a valid 4-digit postcode.');
+    }
+    if (!validatePostcodeForState(postcode, stateCode)) {
+      throw new BadRequestException(`Postcode ${postcode} does not belong to ${regionName}.`);
+    }
+  }
+
+  private async ensurePostcodeIsUnique(
+    operatingRegionId: string,
+    postcode: string,
+    regionName: string,
+    currentId?: string,
+  ): Promise<void> {
+    const duplicate = await this.prisma.postcodeCoverage.findFirst({
+      where: {
+        operatingRegionId,
+        postcode,
+        ...(currentId ? { id: { not: currentId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new ConflictException(this.duplicatePostcodeMessage(postcode, regionName));
+    }
+  }
+
+  private duplicatePostcodeMessage(postcode: string, regionName: string): string {
+    return `Postcode ${postcode} already exists in ${regionName}.`;
   }
 
   private async override(id: string) {

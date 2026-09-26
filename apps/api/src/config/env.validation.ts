@@ -43,6 +43,17 @@ export const validationSchema = Joi.object({
     .max(86_400_000)
     .default(60_000),
   CANCELLATION_RECONCILIATION_BATCH_SIZE: Joi.number().integer().min(1).max(500).default(50),
+  RELOCATION_PROVIDER: Joi.string().valid('mock').default('mock'),
+  RELOCATION_MOCK_SCENARIO: Joi.string().valid('SUCCESS', 'PENDING', 'FAILED').default('PENDING'),
+  RELOCATION_MOCK_PENDING_POLLS: Joi.number().integer().min(0).max(100).default(1),
+  RELOCATION_MAX_PROVISIONING_ATTEMPTS: Joi.number().integer().min(1).max(20).default(3),
+  RELOCATION_MAX_DISCONNECTION_ATTEMPTS: Joi.number().integer().min(1).max(20).default(3),
+  RELOCATION_RECONCILIATION_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(30_000)
+    .max(86_400_000)
+    .default(60_000),
+  RELOCATION_RECONCILIATION_BATCH_SIZE: Joi.number().integer().min(1).max(500).default(50),
   ADDRESS_LOOKUP_PROVIDER: Joi.string().valid('geoapify').default('geoapify'),
   GEOAPIFY_API_KEY: Joi.when('ADDRESS_LOOKUP_PROVIDER', {
     is: 'geoapify',

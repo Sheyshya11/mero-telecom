@@ -23,6 +23,13 @@ export interface Customer {
     state: string;
     postcode: string;
   } | null;
+  contactAddress?: {
+    addressLine1: string;
+    addressLine2: string | null;
+    suburb: string;
+    state: string;
+    postcode: string;
+  };
   currentSubscription: {
     status:
       | 'PENDING'
