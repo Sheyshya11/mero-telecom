@@ -234,6 +234,9 @@ export class NotificationService {
     effectiveAt: Date;
     providerOperation: 'DISCONNECT_SERVICE' | 'WITHDRAW_ACTIVATION';
     providerSimulated: boolean;
+    cancellationType: 'END_OF_PERIOD' | 'IMMEDIATE';
+    refundAmountCents: number;
+    refundStatus: string | null;
   }): Promise<InvoiceEmailResult> {
     const recipient = this.invoiceRecipient(input.customerEmail);
     const template = renderCancellationEmail({

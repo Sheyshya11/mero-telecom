@@ -5,7 +5,17 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, RefundStatus, RefundType, Role } from '@prisma/client';
+import {
+  InvoiceStatus,
+  InvoiceType,
+  PaymentProvider,
+  PaymentStatus,
+  Prisma,
+  RefundReason,
+  RefundStatus,
+  RefundType,
+  Role,
+} from '@prisma/client';
 import type Stripe from 'stripe';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -88,6 +98,94 @@ export class RefundsService {
     private readonly dashboardCache: AdminDashboardCacheService,
     private readonly attachments: RefundAttachmentsService,
   ) {}
+
+  async createApprovedCancellationRefund(
+    transaction: Prisma.TransactionClient,
+    input: {
+      cancellationRequestId: string;
+      paymentId: string;
+      subscriptionId: string;
+      requestedByUserId: string;
+      amountCents: number;
+      metadata: Prisma.InputJsonObject;
+    },
+  ): Promise<{ id: string; refundAmountCents: number; status: RefundStatus } | null> {
+    await this.lockPayment(transaction, input.paymentId);
+    const existing = await transaction.refund.findUnique({
+      where: { cancellationRequestId: input.cancellationRequestId },
+      select: { id: true, refundAmountCents: true, status: true },
+    });
+    if (existing) return existing;
+    const payment = await transaction.payment.findUnique({
+      where: { id: input.paymentId },
+      include: { invoice: true },
+    });
+    if (
+      !payment ||
+      payment.provider !== PaymentProvider.STRIPE ||
+      !payment.providerPaymentId?.startsWith('pi_') ||
+      (payment.status !== PaymentStatus.SUCCEEDED &&
+        payment.status !== PaymentStatus.PARTIALLY_REFUNDED) ||
+      payment.invoice.subscriptionId !== input.subscriptionId ||
+      payment.invoice.type !== InvoiceType.STRIPE_RECURRING ||
+      payment.invoice.status !== InvoiceStatus.PAID
+    ) {
+      throw new ConflictException('The recurring payment is no longer eligible for a refund.');
+    }
+    const available = await this.availableCents(transaction, payment.id);
+    const amountCents = Math.min(input.amountCents, available);
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) return null;
+    const now = new Date();
+    const refund = await transaction.refund.create({
+      data: {
+        cancellationRequestId: input.cancellationRequestId,
+        customerId: payment.customerId,
+        paymentId: payment.id,
+        invoiceId: payment.invoiceId,
+        subscriptionId: input.subscriptionId,
+        stripePaymentIntentId: payment.providerPaymentId,
+        originalAmountCents: payment.amountCents,
+        refundAmountCents: amountCents,
+        currency: payment.currency,
+        type: amountCents === payment.amountCents ? RefundType.FULL : RefundType.PARTIAL,
+        reason: RefundReason.CANCELLATION_PRORATION,
+        customerReason: 'Unused service after an as-soon-as-possible cancellation.',
+        status: RefundStatus.APPROVED,
+        requestedByUserId: input.requestedByUserId,
+        requestedAt: now,
+        approvedAt: now,
+        metadata: input.metadata,
+      },
+      select: { id: true, refundAmountCents: true, status: true },
+    });
+    const auditMetadata = {
+      cancellationRequestId: input.cancellationRequestId,
+      paymentId: payment.id,
+      invoiceId: payment.invoiceId,
+      amountCents,
+      reason: RefundReason.CANCELLATION_PRORATION,
+      automatic: true,
+    };
+    await this.audit(
+      transaction,
+      refund.id,
+      input.requestedByUserId,
+      'REFUND_REQUESTED',
+      null,
+      RefundStatus.REQUESTED,
+      auditMetadata,
+    );
+    await this.audit(
+      transaction,
+      refund.id,
+      null,
+      'REFUND_APPROVED',
+      RefundStatus.REQUESTED,
+      RefundStatus.APPROVED,
+      auditMetadata,
+    );
+    return refund;
+  }
 
   async request(
     paymentId: string,
@@ -518,7 +616,26 @@ export class RefundsService {
 
   async process(id: string, actor: AuthenticatedUser) {
     this.policy.assertCanProcess(actor.role);
+    return this.processInternal(id, actor.id);
+  }
+
+  async processAutomatic(id: string) {
+    const automatic = await this.prisma.refund.findUnique({
+      where: { id },
+      select: { cancellationRequestId: true, reason: true },
+    });
+    if (
+      !automatic?.cancellationRequestId ||
+      automatic.reason !== RefundReason.CANCELLATION_PRORATION
+    ) {
+      throw new ConflictException('Only a cancellation refund can be processed automatically.');
+    }
+    return this.processInternal(id, null);
+  }
+
+  private async processInternal(id: string, actorUserId: string | null) {
     const before = await this.refundOrThrow(id);
+    let retryingTerminalProviderFailure = false;
     if (before.status === RefundStatus.FAILED && before.stripeRefundId) {
       const remote = await this.stripeRefunds.retrieve(before.stripeRefundId);
       if (remote.status === 'succeeded') {
@@ -535,6 +652,7 @@ export class RefundsService {
           'Stripe is still processing this refund. Retry after its status changes.',
         );
       }
+      retryingTerminalProviderFailure = true;
     }
 
     const refund = await this.prisma.$transaction(
@@ -554,7 +672,7 @@ export class RefundsService {
           where: { id },
           data: {
             status: RefundStatus.PROCESSING,
-            processedByUserId: actor.id,
+            processedByUserId: actorUserId,
             processingAttempt: { increment: 1 },
             stripeRefundId: null,
             stripeChargeId: null,
@@ -566,7 +684,7 @@ export class RefundsService {
         await this.audit(
           transaction,
           id,
-          actor.id,
+          actorUserId,
           current.status === RefundStatus.FAILED ? 'REFUND_RETRY_REQUESTED' : 'REFUND_PROCESSING',
           current.status,
           updated.status,
@@ -588,6 +706,11 @@ export class RefundsService {
         paymentId: refund.paymentId,
         invoiceId: refund.invoiceId,
         processingAttempt: refund.processingAttempt,
+        idempotencyKey: refund.cancellationRequestId
+          ? retryingTerminalProviderFailure
+            ? `cancellation-refund-${refund.cancellationRequestId}-retry-${refund.processingAttempt}`
+            : `cancellation-refund-${refund.cancellationRequestId}`
+          : undefined,
       });
       await this.prisma.refund.updateMany({
         where: { id, status: RefundStatus.PROCESSING, processingAttempt: refund.processingAttempt },
@@ -598,10 +721,14 @@ export class RefundsService {
         },
       });
       this.log('refund.stripe.created', { ...refund, stripeRefundId: stripeRefund.id });
-      if (stripeRefund.status === 'failed' || stripeRefund.status === 'canceled') {
+      if (
+        stripeRefund.status === 'succeeded' ||
+        stripeRefund.status === 'failed' ||
+        stripeRefund.status === 'canceled'
+      ) {
         await this.reconcileStripeRefund(
-          `server-refund-failed-${stripeRefund.id}-${refund.processingAttempt}`,
-          'server.refund_failed',
+          `server-refund-${stripeRefund.status}-${stripeRefund.id}-${refund.processingAttempt}`,
+          `server.refund_${stripeRefund.status}`,
           stripeRefund,
         );
       }
@@ -613,7 +740,7 @@ export class RefundsService {
           error: this.errorName(error),
         }),
       );
-      await this.failProcessing(id, actor.id, 'Stripe could not accept this refund request.');
+      await this.failProcessing(id, actorUserId, 'Stripe could not accept this refund request.');
       const failedRefund = await this.refundOrThrow(id);
       await this.notifySafely(() =>
         this.notifications.sendRefundFailed(this.emailData(failedRefund)),
@@ -866,7 +993,7 @@ export class RefundsService {
     return refund;
   }
 
-  private async failProcessing(id: string, actorUserId: string, failureReason: string) {
+  private async failProcessing(id: string, actorUserId: string | null, failureReason: string) {
     await this.prisma.$transaction(async (transaction) => {
       const refund = await transaction.refund.findUnique({ where: { id } });
       if (!refund || refund.status !== RefundStatus.PROCESSING) return;

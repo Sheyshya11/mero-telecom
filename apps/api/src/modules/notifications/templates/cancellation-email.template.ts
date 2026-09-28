@@ -13,12 +13,27 @@ interface CancellationEmailData {
   dashboardUrl: string;
   providerOperation: 'DISCONNECT_SERVICE' | 'WITHDRAW_ACTIVATION';
   providerSimulated: boolean;
+  cancellationType: 'END_OF_PERIOD' | 'IMMEDIATE';
+  refundAmountCents: number;
+  refundStatus: string | null;
 }
 
 export function renderCancellationEmail(data: CancellationEmailData): RenderedEmailTemplate {
   const date = formatDate(data.effectiveAt);
   const activationWithdrawal = data.providerOperation === 'WITHDRAW_ACTIVATION';
   const content = eventContent(data.event, date, data.providerSimulated, activationWithdrawal);
+  const refundSummary =
+    data.cancellationType === 'IMMEDIATE' && data.refundAmountCents > 0
+      ? `Automatic refund: ${formatMoney(data.refundAmountCents)} · ${humanize(data.refundStatus ?? 'APPROVED')}`
+      : data.cancellationType === 'IMMEDIATE'
+        ? 'Automatic refund: No eligible current-period card payment'
+        : 'Automatic refund: Not applicable; service continues to the paid period end';
+  const note =
+    data.cancellationType === 'IMMEDIATE' && data.refundAmountCents > 0
+      ? data.event === 'COMPLETED'
+        ? `Your ${formatMoney(data.refundAmountCents)} refund is ${humanize(data.refundStatus ?? 'PROCESSING').toLowerCase()} and will return to the original payment method. ${content.note}`
+        : `A ${formatMoney(data.refundAmountCents)} prorated refund is reserved and will be sent to the original payment method after service termination succeeds.`
+      : content.note;
   return {
     subject: `Mero Telecom cancellation ${content.subjectSuffix} · ${data.requestNumber}`,
     text: [
@@ -28,8 +43,9 @@ export function renderCancellationEmail(data: CancellationEmailData): RenderedEm
       `Reference: ${data.requestNumber}`,
       `Plan: ${data.planName}`,
       `${activationWithdrawal ? 'Requested withdrawal' : 'Service end'}: ${date}`,
+      refundSummary,
       '',
-      content.note,
+      note,
       '',
       `View your service: ${data.dashboardUrl}`,
     ].join('\n'),
@@ -46,9 +62,10 @@ export function renderCancellationEmail(data: CancellationEmailData): RenderedEm
       details: [
         { label: 'Internet plan', value: data.planName },
         { label: activationWithdrawal ? 'Requested withdrawal' : 'Service end', value: date },
+        { label: 'Refund', value: refundSummary.replace('Automatic refund: ', '') },
       ],
       action: { label: 'View my internet service', url: data.dashboardUrl },
-      note: content.note,
+      note,
     }),
   };
 }
@@ -118,7 +135,7 @@ function eventContent(
         intro: activationWithdrawal
           ? 'We have received the request to withdraw your pending service order.'
           : 'We have received your service cancellation request.',
-        note: 'No refund is issued automatically. Any applicable adjustment is handled through the existing billing and refund process.',
+        note: 'Any eligible unused recurring service is calculated in cents and returned automatically after termination succeeds.',
       };
     case 'SCHEDULED':
       return {
@@ -157,4 +174,15 @@ function formatDate(value: Date): string {
     dateStyle: 'long',
     timeZone: 'Australia/Adelaide',
   }).format(value);
+}
+
+function formatMoney(cents: number): string {
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(cents / 100);
+}
+
+function humanize(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll('_', ' ')
+    .replace(/^./, (letter) => letter.toUpperCase());
 }

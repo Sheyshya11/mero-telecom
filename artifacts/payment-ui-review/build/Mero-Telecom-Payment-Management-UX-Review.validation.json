@@ -1,0 +1,208 @@
+{
+  "schemaVersion": "presentation-finalization.v1",
+  "finalSha256": "3ac0b61b589cdc7a27329881cdcaa869c3868a30a6b7864d4d9767d8b6552e14",
+  "byteCount": 2011362,
+  "packageIntegrity": {
+    "chart_count": 0,
+    "claim_boundary": "Structural package checks only; no slide text, notes, formulas, chart values, or native PowerPoint execution were inspected.",
+    "finding_count": 0,
+    "findings": [],
+    "notes_parts_skipped": 5,
+    "relationship_part_count": 22,
+    "slide_count": 5,
+    "status": "pass",
+    "exitCode": 0,
+    "findingCount": 0,
+    "warnings": []
+  },
+  "presentationLayout": {
+    "finding_count": 0,
+    "findings": [],
+    "font_policy": {
+      "checked_text_script_count": 52,
+      "native_font_rendering_verified": false,
+      "observed_font_families": [
+        "Helvetica Neue",
+        "Helvetica Neue Medium",
+        "Lora",
+        "Lora Medium",
+        "Lora SemiBold",
+        "Roboto",
+        "Roboto Medium",
+        "Roboto SemiBold"
+      ],
+      "observed_font_use_counts": {
+        "Helvetica Neue": 4,
+        "Helvetica Neue Medium": 4,
+        "Lora": 4,
+        "Lora Medium": 1,
+        "Lora SemiBold": 4,
+        "Roboto": 29,
+        "Roboto Medium": 2,
+        "Roboto SemiBold": 4
+      },
+      "passed": true,
+      "performed": true
+    },
+    "slide_count": 5,
+    "slide_size_in": [
+      13.3333,
+      7.5
+    ],
+    "warning_count": 2,
+    "warnings": [
+      {
+        "kind": "object_outside_slide_boundary",
+        "object_id": "7",
+        "object_kind": "sp",
+        "slide": 1
+      },
+      {
+        "kind": "object_outside_slide_boundary",
+        "object_id": "30",
+        "object_kind": "cxnSp",
+        "slide": 5
+      }
+    ],
+    "exitCode": 0,
+    "findingCount": 0,
+    "fontPolicy": {
+      "checked_text_script_count": 52,
+      "native_font_rendering_verified": false,
+      "observed_font_families": [
+        "Helvetica Neue",
+        "Helvetica Neue Medium",
+        "Lora",
+        "Lora Medium",
+        "Lora SemiBold",
+        "Roboto",
+        "Roboto Medium",
+        "Roboto SemiBold"
+      ],
+      "observed_font_use_counts": {
+        "Helvetica Neue": 4,
+        "Helvetica Neue Medium": 4,
+        "Lora": 4,
+        "Lora Medium": 1,
+        "Lora SemiBold": 4,
+        "Roboto": 29,
+        "Roboto Medium": 2,
+        "Roboto SemiBold": 4
+      },
+      "passed": true,
+      "performed": true
+    }
+  },
+  "fontSelection": {
+    "basis": "reference",
+    "approvedFamilies": [
+      "Helvetica Neue",
+      "Helvetica Neue Medium",
+      "Lora",
+      "Lora Medium",
+      "Lora SemiBold",
+      "Roboto",
+      "Roboto Medium",
+      "Roboto SemiBold"
+    ],
+    "scriptFonts": {},
+    "referenceSha256": "595b9a314c7e8e9b5f22180e7c7db167afba2437c8623d57e3f9dbc20af392c1",
+    "referenceFontsVerifiedInEncodedText": true,
+    "checked_text_script_count": 52,
+    "native_font_rendering_verified": false,
+    "observed_font_families": [
+      "Helvetica Neue",
+      "Helvetica Neue Medium",
+      "Lora",
+      "Lora Medium",
+      "Lora SemiBold",
+      "Roboto",
+      "Roboto Medium",
+      "Roboto SemiBold"
+    ],
+    "observed_font_use_counts": {
+      "Helvetica Neue": 4,
+      "Helvetica Neue Medium": 4,
+      "Lora": 4,
+      "Lora Medium": 1,
+      "Lora SemiBold": 4,
+      "Roboto": 29,
+      "Roboto Medium": 2,
+      "Roboto SemiBold": 4
+    },
+    "passed": true,
+    "performed": true
+  },
+  "firstPartyImport": {
+    "performed": true,
+    "passed": true,
+    "slideCount": 5,
+    "sha256": "3ac0b61b589cdc7a27329881cdcaa869c3868a30a6b7864d4d9767d8b6552e14",
+    "runtimeNodeModules": "C:\\Users\\Subham\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\node_modules",
+    "nodeExecutable": "C:\\Users\\Subham\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe"
+  },
+  "nativeTableArithmetic": {
+    "performed": true,
+    "checked_column_count": 0,
+    "checks": [],
+    "claim_boundary": "Displayed-value arithmetic with rounding tolerance; not source-data verification.",
+    "eligible_table_count": 0,
+    "finding_count": 0,
+    "findings": [],
+    "native_table_count": 0,
+    "passed": true,
+    "schema_version": "presentation-native-table-arithmetic.v1",
+    "skipped_tables": [],
+    "slide_count": 5,
+    "warning_count": 0,
+    "warnings": []
+  },
+  "nativeChartTitles": {
+    "performed": true,
+    "checks": [],
+    "finding_count": 0,
+    "findings": [],
+    "native_chart_count": 0,
+    "native_powerpoint_verified": false,
+    "passed": true,
+    "presentation_sha256": "3ac0b61b589cdc7a27329881cdcaa869c3868a30a6b7864d4d9767d8b6552e14",
+    "schema_version": "presentation-native-chart-titles.v1",
+    "slide_count": 5,
+    "source_text_emitted": false,
+    "unresolved_linked_title_count": 0
+  },
+  "sourceDerivedPolicyFlags": [
+    "--expected-slide-size-emu",
+    "12192000,6858000",
+    "--validate-bullet-geometry",
+    "--validate-heading-fit",
+    "--cover-role",
+    "none",
+    "--expected-slide-count",
+    "5",
+    "--approved-font-family",
+    "Helvetica Neue",
+    "--approved-font-family",
+    "Helvetica Neue Medium",
+    "--approved-font-family",
+    "Lora",
+    "--approved-font-family",
+    "Lora Medium",
+    "--approved-font-family",
+    "Lora SemiBold",
+    "--approved-font-family",
+    "Roboto",
+    "--approved-font-family",
+    "Roboto Medium",
+    "--approved-font-family",
+    "Roboto SemiBold"
+  ],
+  "nativeChartValidation": {
+    "detectedOwnerSlides": [],
+    "detectedChartCount": 0,
+    "targetApplication": "portable",
+    "sourceChartOwnersExplicitlyDeclared": true,
+    "validatorRan": false,
+    "passed": true
+  }
+}

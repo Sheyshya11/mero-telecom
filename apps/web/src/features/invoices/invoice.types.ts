@@ -40,6 +40,7 @@ export interface InvoiceList {
 
 export interface InvoiceSubscription {
   id: string;
+  billingMode?: 'MANUAL' | 'STRIPE_RECURRING';
   status:
     | 'PENDING'
     | 'ACTIVE'

@@ -9,9 +9,11 @@ import { ConfigService } from '@nestjs/config';
 import {
   AccountInvitationReason,
   AddressType,
+  BillingMode,
   CheckoutApplicationStatus,
   CustomerStatus,
   InvoiceStatus,
+  InvoiceType,
   PaymentProvider,
   PaymentStatus,
   Prisma,
@@ -19,7 +21,7 @@ import {
   SubscriptionStatus,
   UserStatus,
 } from '@prisma/client';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type Stripe from 'stripe';
 
 import type { AppConfig } from '../../config/configuration';
@@ -73,6 +75,32 @@ interface PublicCheckoutCompletion {
   currency: string;
 }
 
+interface RecurringCheckoutDetails {
+  stripeSubscriptionId: string;
+  stripeInvoiceId: string;
+  stripePriceId: string;
+  stripeStatus: string;
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  cancelAtPeriodEnd: boolean;
+  paymentIntentId?: string;
+  paymentMethodId: string;
+  paymentMethodBrand?: string;
+  paymentMethodLast4?: string;
+  paymentMethodExpMonth?: number;
+  paymentMethodExpYear?: number;
+  hostedInvoiceUrl?: string;
+  invoicePdfUrl?: string;
+}
+
+const protectedRecurringStatuses: SubscriptionStatus[] = [
+  SubscriptionStatus.ACTIVE,
+  SubscriptionStatus.PAST_DUE,
+  SubscriptionStatus.SUSPENDED,
+  SubscriptionStatus.CANCELLATION_PENDING,
+  SubscriptionStatus.DISCONNECTION_PENDING,
+];
+
 @Injectable()
 export class PaymentsService {
   private static readonly invoiceSequenceLock = BigInt(873201);
@@ -113,6 +141,9 @@ export class PaymentsService {
     if (!plan) throw new NotFoundException('Internet plan not found.');
     if (!plan.isActive || !plan.isPublic || !plan.isAvailable) {
       throw new BadRequestException('This internet plan is not available for online purchase.');
+    }
+    if (!plan.stripePriceId) {
+      throw new BadRequestException('Automatic billing is not configured for this plan yet.');
     }
     if (existingUser || existingCustomer) {
       throw new ConflictException(
@@ -205,21 +236,18 @@ export class PaymentsService {
     try {
       const session = await this.stripe.checkout.sessions.create(
         {
-          mode: 'payment',
+          mode: 'subscription',
           integration_identifier: `mero_telecom_public_${this.randomLetters(8)}`,
-          customer_creation: 'always',
           customer_email: applicantEmail,
           client_reference_id: application.id,
           metadata,
-          payment_intent_data: { metadata },
+          subscription_data: {
+            metadata,
+          },
           line_items: [
             {
               quantity: 1,
-              price_data: {
-                currency: application.currency.toLowerCase(),
-                unit_amount: application.amountCents,
-                product_data: { name: `${plan.name} monthly internet plan` },
-              },
+              price: plan.stripePriceId,
             },
           ],
           expires_at: Math.floor(expiresAt.getTime() / 1000),
@@ -351,6 +379,11 @@ export class PaymentsService {
     if (invoice.status !== InvoiceStatus.ISSUED && invoice.status !== InvoiceStatus.OVERDUE) {
       throw new BadRequestException('Only issued or overdue invoices can be paid.');
     }
+    if (invoice.type === InvoiceType.STRIPE_RECURRING) {
+      throw new BadRequestException(
+        'Stripe manages payment collection for this recurring invoice. Update the saved payment method from My subscription.',
+      );
+    }
     if (invoice.purchasePlanId) {
       return this.createPlanCheckoutSession(invoice.purchasePlanId, actor);
     }
@@ -440,6 +473,9 @@ export class PaymentsService {
     if (!plan.isActive || !plan.isPublic || !plan.isAvailable) {
       throw new BadRequestException('This internet plan is not available.');
     }
+    if (!plan.stripePriceId) {
+      throw new BadRequestException('Automatic billing is not configured for this plan yet.');
+    }
 
     await this.assertCanPurchasePlan(customer.id);
 
@@ -462,6 +498,289 @@ export class PaymentsService {
     const checkout = await this.createStripePlanSession(invoice);
     await this.dashboardCache.invalidate();
     return checkout;
+  }
+
+  async createRecurringSetupSession(subscriptionId: string, actor: AuthenticatedUser) {
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { id: subscriptionId, customer: { userId: actor.id } },
+      include: { customer: true, plan: true },
+    });
+    if (!subscription) throw new NotFoundException('Subscription not found.');
+    if (subscription.status !== SubscriptionStatus.ACTIVE) {
+      throw new BadRequestException('Only an active subscription can enable automatic payments.');
+    }
+    if (subscription.billingMode === BillingMode.STRIPE_RECURRING) {
+      throw new ConflictException('Automatic recurring payments are already enabled.');
+    }
+    if (!subscription.plan.stripePriceId) {
+      throw new BadRequestException('Automatic billing is not configured for this plan yet.');
+    }
+    if (subscription.currentPeriodEnd <= new Date()) {
+      throw new ConflictException('The current billing period has ended. Refresh and try again.');
+    }
+    const outstanding = await this.prisma.invoice.count({
+      where: {
+        subscriptionId: subscription.id,
+        status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE] },
+      },
+    });
+    if (outstanding) {
+      throw new ConflictException('Pay outstanding invoices before enabling automatic payments.');
+    }
+
+    let stripeCustomerId = subscription.customer.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const customer = await this.stripe.customers.create(
+        {
+          email: subscription.customer.email,
+          name: `${subscription.customer.firstName} ${subscription.customer.lastName}`,
+          metadata: { meroCustomerId: subscription.customerId },
+        },
+        { idempotencyKey: `recurring-customer-${subscription.customerId}` },
+      );
+      stripeCustomerId = customer.id;
+      await this.prisma.customer.update({
+        where: { id: subscription.customerId },
+        data: { stripeCustomerId },
+      });
+    }
+    const metadata = {
+      checkoutKind: 'enable_recurring',
+      existingSubscriptionId: subscription.id,
+      customerId: subscription.customerId,
+      planId: subscription.planId,
+    };
+    const session = await this.stripe.checkout.sessions.create(
+      {
+        mode: 'setup',
+        currency: 'aud',
+        integration_identifier: `mero_telecom_recurring_${this.stableLetters(subscription.id)}`,
+        customer: stripeCustomerId,
+        client_reference_id: subscription.id,
+        metadata,
+        setup_intent_data: { metadata },
+        success_url: `${this.frontendUrl()}/customer/subscription?recurring=enabled&sessionId={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${this.frontendUrl()}/customer/subscription?recurring=cancelled`,
+      },
+      { idempotencyKey: `recurring-setup-${subscription.id}` },
+    );
+    if (!session.url) throw new BadRequestException('Stripe did not return a Checkout URL.');
+    return { checkoutUrl: session.url };
+  }
+
+  async createCustomerPortalSession(actor: AuthenticatedUser) {
+    const customer = await this.prisma.customer.findUnique({ where: { userId: actor.id } });
+    if (!customer?.stripeCustomerId) {
+      throw new BadRequestException('Automatic billing has not been set up for this account.');
+    }
+    const returnUrl = `${this.frontendUrl()}/customer/subscription?paymentMethod=updated`;
+    const session = await this.stripe.billingPortal.sessions.create({
+      customer: customer.stripeCustomerId,
+      return_url: returnUrl,
+      flow_data: {
+        type: 'payment_method_update',
+        after_completion: { type: 'redirect', redirect: { return_url: returnUrl } },
+      },
+      ...(this.configService.getOrThrow('stripe').portalConfigurationId
+        ? { configuration: this.configService.getOrThrow('stripe').portalConfigurationId }
+        : {}),
+    });
+    return { portalUrl: session.url };
+  }
+
+  async getPaymentMethods(actor: AuthenticatedUser) {
+    const customer = await this.customerForActor(actor);
+    if (!customer.stripeCustomerId) {
+      return { paymentMethods: [], hasProtectedRecurringSubscription: false };
+    }
+    const [stripeCustomer, methods, protectedSubscriptionCount] = await Promise.all([
+      this.stripe.customers.retrieve(customer.stripeCustomerId),
+      this.stripe.paymentMethods.list({
+        customer: customer.stripeCustomerId,
+        limit: 100,
+      }),
+      this.prisma.subscription.count({
+        where: {
+          customerId: customer.id,
+          billingMode: BillingMode.STRIPE_RECURRING,
+          status: { in: protectedRecurringStatuses },
+        },
+      }),
+    ]);
+    if ('deleted' in stripeCustomer && stripeCustomer.deleted) {
+      throw new BadRequestException('The Stripe customer for this account is no longer available.');
+    }
+    const defaultPaymentMethodId = this.stripeId(
+      stripeCustomer.invoice_settings.default_payment_method,
+    );
+    const hasProtectedRecurringSubscription = protectedSubscriptionCount > 0;
+    const now = new Date();
+    return {
+      paymentMethods: methods.data.map((method) => {
+        const isDefault = method.id === defaultPaymentMethodId;
+        const isExpired = method.card
+          ? method.card.exp_year < now.getUTCFullYear() ||
+            (method.card.exp_year === now.getUTCFullYear() &&
+              method.card.exp_month < now.getUTCMonth() + 1)
+          : false;
+        const canRemove =
+          !hasProtectedRecurringSubscription || (methods.data.length > 1 && !isDefault);
+        return {
+          id: method.id,
+          type: method.type,
+          brand: method.card?.brand ?? null,
+          last4: method.card?.last4 ?? null,
+          expMonth: method.card?.exp_month ?? null,
+          expYear: method.card?.exp_year ?? null,
+          isDefault,
+          isExpired,
+          canRemove,
+          removalBlockedReason: canRemove
+            ? null
+            : methods.data.length === 1
+              ? 'Add another payment method before removing this one. Your current payment method is being used for automatic subscription payments.'
+              : 'Set another payment method as the default before removing this one.',
+        };
+      }),
+      hasProtectedRecurringSubscription,
+    };
+  }
+
+  async createPaymentMethodSetupSession(actor: AuthenticatedUser) {
+    const customer = await this.ensureStripeCustomerForActor(actor);
+    const operationId = randomUUID();
+    const metadata = {
+      checkoutKind: 'manage_payment_method',
+      customerId: customer.id,
+      actorUserId: actor.id,
+      operationId,
+    };
+    const session = await this.stripe.checkout.sessions.create(
+      {
+        mode: 'setup',
+        currency: 'aud',
+        customer: customer.stripeCustomerId!,
+        client_reference_id: customer.id,
+        metadata,
+        setup_intent_data: { metadata },
+        success_url: `${this.frontendUrl()}/customer/subscription?paymentMethod=added&sessionId={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${this.frontendUrl()}/customer/subscription?paymentMethod=cancelled`,
+      },
+      { idempotencyKey: `payment-method-setup-${customer.id}-${operationId}` },
+    );
+    if (!session.url) throw new BadRequestException('Stripe did not return a Checkout URL.');
+    return { checkoutUrl: session.url };
+  }
+
+  async setDefaultPaymentMethod(paymentMethodId: string, actor: AuthenticatedUser) {
+    const customer = await this.customerForActor(actor);
+    if (!customer.stripeCustomerId) {
+      throw new BadRequestException('No Stripe payment methods are configured for this account.');
+    }
+    const paymentMethod = await this.ownedPaymentMethod(paymentMethodId, customer.stripeCustomerId);
+    this.assertUsablePaymentMethod(paymentMethod);
+    const subscriptions = await this.protectedRecurringSubscriptions(customer.id);
+    const operationId = randomUUID();
+    await this.stripe.customers.update(
+      customer.stripeCustomerId,
+      { invoice_settings: { default_payment_method: paymentMethod.id } },
+      { idempotencyKey: `payment-method-default-customer-${customer.id}-${operationId}` },
+    );
+    await Promise.all(
+      subscriptions
+        .filter((subscription) => subscription.stripeSubscriptionId)
+        .map((subscription) =>
+          this.stripe.subscriptions.update(
+            subscription.stripeSubscriptionId!,
+            { default_payment_method: paymentMethod.id },
+            {
+              idempotencyKey: `payment-method-default-subscription-${subscription.id}-${operationId}`,
+            },
+          ),
+        ),
+    );
+    await this.persistDefaultPaymentMethod({
+      customerId: customer.id,
+      actorUserId: actor.id,
+      paymentMethod,
+      action: 'DEFAULT_PAYMENT_METHOD_CHANGED',
+      entityId: customer.id,
+      operationId,
+    });
+    await this.retryOutstandingStripeInvoices(customer.id, paymentMethod.id, operationId);
+    await this.dashboardCache.invalidate();
+    return { updated: true };
+  }
+
+  async removePaymentMethod(paymentMethodId: string, actor: AuthenticatedUser) {
+    const customer = await this.customerForActor(actor);
+    if (!customer.stripeCustomerId) {
+      throw new BadRequestException('No Stripe payment methods are configured for this account.');
+    }
+    const [paymentMethod, methods, stripeCustomer, subscriptions] = await Promise.all([
+      this.ownedPaymentMethod(paymentMethodId, customer.stripeCustomerId),
+      this.stripe.paymentMethods.list({
+        customer: customer.stripeCustomerId,
+        limit: 100,
+      }),
+      this.stripe.customers.retrieve(customer.stripeCustomerId),
+      this.protectedRecurringSubscriptions(customer.id),
+    ]);
+    if ('deleted' in stripeCustomer && stripeCustomer.deleted) {
+      throw new BadRequestException('The Stripe customer for this account is no longer available.');
+    }
+    const isDefault =
+      this.stripeId(stripeCustomer.invoice_settings.default_payment_method) === paymentMethod.id;
+    if (subscriptions.length > 0 && methods.data.length <= 1) {
+      throw new ConflictException(
+        'Add another payment method before removing this one. Your current payment method is being used for automatic subscription payments.',
+      );
+    }
+    if (subscriptions.length > 0 && isDefault) {
+      throw new ConflictException(
+        'Set another payment method as the default before removing this one.',
+      );
+    }
+    const operationId = randomUUID();
+    if (isDefault) {
+      await this.stripe.customers.update(
+        customer.stripeCustomerId,
+        { invoice_settings: { default_payment_method: '' } },
+        { idempotencyKey: `payment-method-clear-default-${customer.id}-${operationId}` },
+      );
+    }
+    await this.stripe.paymentMethods.detach(
+      paymentMethod.id,
+      {},
+      { idempotencyKey: `payment-method-detach-${customer.id}-${operationId}` },
+    );
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.subscription.updateMany({
+        where: { customerId: customer.id, stripePaymentMethodId: paymentMethod.id },
+        data: {
+          stripePaymentMethodId: null,
+          paymentMethodBrand: null,
+          paymentMethodLast4: null,
+          paymentMethodExpMonth: null,
+          paymentMethodExpYear: null,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          action: 'PAYMENT_METHOD_REMOVED',
+          entityType: 'Customer',
+          entityId: customer.id,
+          metadata: {
+            brand: paymentMethod.card?.brand ?? null,
+            last4: paymentMethod.card?.last4 ?? null,
+            operationId,
+          },
+        },
+      });
+    });
+    await this.dashboardCache.invalidate();
+    return { removed: true };
   }
 
   async processStripeWebhook(payload: Buffer, signature: string | undefined): Promise<void> {
@@ -495,6 +814,26 @@ export class PaymentsService {
       return;
     }
     if (
+      event.type === 'customer.subscription.created' ||
+      event.type === 'customer.subscription.updated' ||
+      event.type === 'customer.subscription.deleted'
+    ) {
+      await this.processStripeSubscriptionEvent(event);
+      return;
+    }
+    if (event.type === 'customer.updated') {
+      await this.processStripeCustomerUpdated(event);
+      return;
+    }
+    if (
+      event.type === 'payment_method.attached' ||
+      event.type === 'payment_method.updated' ||
+      event.type === 'payment_method.detached'
+    ) {
+      await this.processStripePaymentMethodEvent(event);
+      return;
+    }
+    if (
       event.type !== 'checkout.session.completed' &&
       event.type !== 'checkout.session.async_payment_succeeded' &&
       event.type !== 'checkout.session.async_payment_failed' &&
@@ -509,6 +848,14 @@ export class PaymentsService {
     }
     if (session.metadata?.checkoutKind === 'public_subscription') {
       await this.processPublicCheckoutEvent(event, session);
+      return;
+    }
+    if (session.metadata?.checkoutKind === 'enable_recurring') {
+      await this.processRecurringSetupEvent(event, session);
+      return;
+    }
+    if (session.metadata?.checkoutKind === 'manage_payment_method') {
+      await this.processPaymentMethodSetupEvent(event, session);
       return;
     }
     if (event.type === 'checkout.session.async_payment_failed') {
@@ -546,6 +893,13 @@ export class PaymentsService {
     const invoiceId = session.metadata?.invoiceId ?? session.client_reference_id;
     if (!invoiceId)
       throw new BadRequestException('Stripe Checkout session is missing an invoice reference.');
+    const recurring =
+      session.metadata?.checkoutKind === 'plan_purchase'
+        ? await this.loadRecurringCheckoutDetails(session)
+        : null;
+    if (recurring) {
+      await this.synchronizeInitialRecurringPaymentMethod(session, recurring, providerEventId);
+    }
 
     try {
       await this.prisma.$transaction(
@@ -627,16 +981,27 @@ export class PaymentsService {
                 status: SubscriptionStatus.ACTIVE,
                 startDate: this.utcDate(activatedAt),
                 billingAnchorDay,
-                currentPeriodStart: activatedAt,
-                currentPeriodEnd: this.billing.nextMonthlyBoundary(activatedAt, billingAnchorDay),
+                billingMode: BillingMode.STRIPE_RECURRING,
+                stripeSubscriptionId: recurring?.stripeSubscriptionId,
+                stripePriceId: recurring?.stripePriceId,
+                stripeStatus: recurring?.stripeStatus,
+                stripePaymentMethodId: recurring?.paymentMethodId,
+                paymentMethodBrand: recurring?.paymentMethodBrand,
+                paymentMethodLast4: recurring?.paymentMethodLast4,
+                paymentMethodExpMonth: recurring?.paymentMethodExpMonth,
+                paymentMethodExpYear: recurring?.paymentMethodExpYear,
+                cancelAtPeriodEnd: recurring?.cancelAtPeriodEnd ?? false,
+                currentPeriodStart: recurring?.currentPeriodStart ?? activatedAt,
+                currentPeriodEnd:
+                  recurring?.currentPeriodEnd ??
+                  this.billing.nextMonthlyBoundary(activatedAt, billingAnchorDay),
+                nextBillingAt: recurring?.currentPeriodEnd,
               },
             });
             activatedSubscriptionId = subscription.id;
           }
           const paymentIntentId =
-            typeof session.payment_intent === 'string'
-              ? session.payment_intent
-              : session.payment_intent?.id;
+            recurring?.paymentIntentId ?? this.stripeId(session.payment_intent);
           const payment = await transaction.payment.update({
             where: { id: paymentForSession.id },
             data: {
@@ -645,9 +1010,15 @@ export class PaymentsService {
               paidAt: new Date(),
             },
           });
-          const invoiceBillingPeriod = activatedAt
-            ? this.billing.billingPeriodFor(activatedAt)
-            : null;
+          const invoiceBillingPeriod =
+            activatedAt && recurring
+              ? {
+                  start: this.utcDate(recurring.currentPeriodStart),
+                  end: this.utcDate(new Date(recurring.currentPeriodEnd.getTime() - 1)),
+                }
+              : activatedAt
+                ? this.billing.billingPeriodFor(activatedAt)
+                : null;
           await transaction.invoice.update({
             where: { id: invoice.id },
             data: {
@@ -658,10 +1029,21 @@ export class PaymentsService {
                     subscriptionId: activatedSubscriptionId,
                     billingPeriodStart: invoiceBillingPeriod.start,
                     billingPeriodEnd: invoiceBillingPeriod.end,
+                    type: InvoiceType.STRIPE_RECURRING,
+                    stripeInvoiceId: recurring?.stripeInvoiceId,
+                    stripeHostedUrl: recurring?.hostedInvoiceUrl,
+                    stripePdfUrl: recurring?.invoicePdfUrl,
                   }
                 : {}),
             },
           });
+          const stripeCustomerId = this.stripeId(session.customer);
+          if (stripeCustomerId) {
+            await transaction.customer.updateMany({
+              where: { id: invoice.customerId, stripeCustomerId: null },
+              data: { stripeCustomerId },
+            });
+          }
           await transaction.paymentWebhookEvent.create({
             data: {
               provider: PaymentProvider.STRIPE,
@@ -690,21 +1072,23 @@ export class PaymentsService {
     event: Stripe.InvoicePaymentFailedEvent,
   ): Promise<void> {
     const stripeInvoice = event.data.object;
-    const invoiceId = stripeInvoice.metadata?.invoiceId ?? stripeInvoice.metadata?.meroInvoiceId;
+    const invoiceId = await this.ensureStripeRecurringInvoice(stripeInvoice, InvoiceStatus.ISSUED);
     if (!invoiceId) return;
     await this.subscriptionLifecycle.handlePaymentFailure({
       providerEventId: event.id,
       eventType: event.type,
       invoiceId,
-      expectedCustomerId: stripeInvoice.metadata?.customerId,
+      expectedCustomerId: undefined,
       expectedAmountCents: stripeInvoice.amount_due,
       expectedCurrency: stripeInvoice.currency,
+      providerPaymentId: this.invoicePaymentIntentId(stripeInvoice),
+      failedAt: new Date(event.created * 1_000),
     });
   }
 
   private async processStripeInvoicePaid(event: Stripe.InvoicePaidEvent): Promise<void> {
     const stripeInvoice = event.data.object;
-    const invoiceId = stripeInvoice.metadata?.invoiceId ?? stripeInvoice.metadata?.meroInvoiceId;
+    const invoiceId = await this.ensureStripeRecurringInvoice(stripeInvoice, InvoiceStatus.PAID);
     if (!invoiceId) return;
     try {
       await this.prisma.$transaction(
@@ -720,26 +1104,27 @@ export class PaymentsService {
           if (
             !invoice ||
             !invoice.subscriptionId ||
-            invoice.customerId !== stripeInvoice.metadata?.customerId ||
-            invoice.totalCents !== stripeInvoice.amount_paid ||
             invoice.currency !== stripeInvoice.currency.toUpperCase()
           ) {
             throw new BadRequestException(
               'Stripe invoice payment does not match a Mero Telecom subscription invoice.',
             );
           }
+          await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoice.subscriptionId}))`;
+          const providerPaymentId =
+            this.invoicePaymentIntentId(stripeInvoice) ?? `stripe-invoice:${stripeInvoice.id}`;
           const payment = await transaction.payment.upsert({
             where: {
               provider_providerPaymentId: {
                 provider: PaymentProvider.STRIPE,
-                providerPaymentId: `stripe-invoice:${stripeInvoice.id}`,
+                providerPaymentId,
               },
             },
             create: {
               invoiceId: invoice.id,
               customerId: invoice.customerId,
               provider: PaymentProvider.STRIPE,
-              providerPaymentId: `stripe-invoice:${stripeInvoice.id}`,
+              providerPaymentId,
               amountCents: stripeInvoice.amount_paid,
               currency: invoice.currency,
               status: PaymentStatus.SUCCEEDED,
@@ -749,7 +1134,24 @@ export class PaymentsService {
           });
           await transaction.invoice.update({
             where: { id: invoice.id },
-            data: { status: InvoiceStatus.PAID, paidAt: new Date(event.created * 1_000) },
+            data: {
+              status: InvoiceStatus.PAID,
+              paidAt: new Date(event.created * 1_000),
+              stripeHostedUrl: stripeInvoice.hosted_invoice_url,
+              stripePdfUrl: stripeInvoice.invoice_pdf,
+            },
+          });
+          await transaction.auditLog.create({
+            data: {
+              action: 'AUTOMATIC_PAYMENT_SUCCEEDED',
+              entityType: 'Payment',
+              entityId: payment.id,
+              metadata: {
+                invoiceId: invoice.id,
+                stripeInvoiceId: stripeInvoice.id,
+                amountCents: stripeInvoice.amount_paid,
+              },
+            },
           });
           await transaction.paymentWebhookEvent.create({
             data: {
@@ -773,6 +1175,423 @@ export class PaymentsService {
     }
     await this.subscriptionLifecycle.handleConfirmedPayment(invoiceId);
     await this.dashboardCache.invalidate();
+  }
+
+  private async ensureStripeRecurringInvoice(
+    stripeInvoice: Stripe.Invoice,
+    status: InvoiceStatus,
+  ): Promise<string | null> {
+    const stripeSubscriptionId = this.stripeSubscriptionIdFromInvoice(stripeInvoice);
+    if (!stripeSubscriptionId) return null;
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { stripeSubscriptionId },
+      include: { customer: true, plan: true },
+    });
+    if (!subscription) return null;
+    const stripeCustomerId = this.stripeId(stripeInvoice.customer);
+    if (
+      subscription.billingMode !== BillingMode.STRIPE_RECURRING ||
+      (stripeCustomerId && subscription.customer.stripeCustomerId !== stripeCustomerId) ||
+      stripeInvoice.currency.toUpperCase() !== 'AUD'
+    ) {
+      throw new BadRequestException('Stripe recurring invoice does not match the subscription.');
+    }
+    const existing = await this.prisma.invoice.findUnique({
+      where: { stripeInvoiceId: stripeInvoice.id },
+      select: { id: true },
+    });
+    if (existing) return existing.id;
+
+    const issueAt = new Date(stripeInvoice.created * 1_000);
+    const periodStart = this.utcDate(new Date(stripeInvoice.period_start * 1_000));
+    const periodEnd = this.utcDate(new Date(stripeInvoice.period_end * 1_000 - 1));
+    const isPlanChangeInvoice = stripeInvoice.billing_reason === 'subscription_update';
+    const totalCents = Math.max(stripeInvoice.amount_due, stripeInvoice.amount_paid);
+    if (totalCents <= 0) return null;
+    const amounts = this.billing.calculateGstInclusiveAmounts(totalCents);
+    try {
+      const created = await this.prisma.$transaction(
+        async (transaction) => {
+          await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${subscription.id}))`;
+          await transaction.$executeRaw`SELECT pg_advisory_xact_lock(${PaymentsService.invoiceSequenceLock})`;
+          const alreadyExists = await transaction.invoice.findUnique({
+            where: { stripeInvoiceId: stripeInvoice.id },
+            select: { id: true },
+          });
+          if (alreadyExists) return alreadyExists;
+          const issueDate = this.utcDate(issueAt);
+          const invoiceNumber = await this.nextInvoiceNumber(transaction, issueDate);
+          const invoice = await transaction.invoice.create({
+            data: {
+              invoiceNumber,
+              customerId: subscription.customerId,
+              subscriptionId: subscription.id,
+              type: isPlanChangeInvoice ? InvoiceType.PLAN_CHANGE : InvoiceType.STRIPE_RECURRING,
+              stripeInvoiceId: stripeInvoice.id,
+              stripeHostedUrl: stripeInvoice.hosted_invoice_url,
+              stripePdfUrl: stripeInvoice.invoice_pdf,
+              issueDate,
+              dueDate: stripeInvoice.due_date
+                ? this.utcDate(new Date(stripeInvoice.due_date * 1_000))
+                : issueDate,
+              billingPeriodStart: isPlanChangeInvoice ? null : periodStart,
+              billingPeriodEnd: isPlanChangeInvoice ? null : periodEnd,
+              ...amounts,
+              currency: stripeInvoice.currency.toUpperCase(),
+              status,
+              issuedAt: issueAt,
+              paidAt: status === InvoiceStatus.PAID ? issueAt : null,
+              items: {
+                create: {
+                  description: isPlanChangeInvoice
+                    ? `${subscription.plan.name} Stripe plan-change adjustment`
+                    : `${subscription.plan.name} automatic monthly internet service`,
+                  quantity: 1,
+                  unitPriceCents: amounts.totalCents,
+                  amountCents: amounts.totalCents,
+                },
+              },
+            },
+          });
+          const providerPaymentId =
+            this.invoicePaymentIntentId(stripeInvoice) ?? `stripe-invoice:${stripeInvoice.id}`;
+          await transaction.payment.upsert({
+            where: {
+              provider_providerPaymentId: {
+                provider: PaymentProvider.STRIPE,
+                providerPaymentId,
+              },
+            },
+            create: {
+              invoiceId: invoice.id,
+              customerId: subscription.customerId,
+              provider: PaymentProvider.STRIPE,
+              providerPaymentId,
+              amountCents:
+                status === InvoiceStatus.PAID
+                  ? stripeInvoice.amount_paid
+                  : stripeInvoice.amount_due,
+              currency: stripeInvoice.currency.toUpperCase(),
+              status:
+                status === InvoiceStatus.PAID ? PaymentStatus.SUCCEEDED : PaymentStatus.PENDING,
+              paidAt: status === InvoiceStatus.PAID ? issueAt : null,
+            },
+            update: {},
+          });
+          return { id: invoice.id };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+      return created.id;
+    } catch (error: unknown) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const duplicate = await this.prisma.invoice.findFirst({
+          where: {
+            OR: [
+              { stripeInvoiceId: stripeInvoice.id },
+              ...(isPlanChangeInvoice
+                ? []
+                : [
+                    {
+                      subscriptionId: subscription.id,
+                      billingPeriodStart: periodStart,
+                      billingPeriodEnd: periodEnd,
+                    },
+                  ]),
+            ],
+          },
+          select: { id: true },
+        });
+        if (duplicate) return duplicate.id;
+      }
+      throw error;
+    }
+  }
+
+  private async processStripeSubscriptionEvent(event: Stripe.Event): Promise<void> {
+    const stripeSubscription = event.data.object as Stripe.Subscription;
+    const local = await this.prisma.subscription.findUnique({
+      where: { stripeSubscriptionId: stripeSubscription.id },
+    });
+    // During Checkout Stripe can emit subscription/invoice events before the
+    // completed-session event creates the local record. Leaving the event
+    // unclaimed allows Stripe's retry to synchronize it after activation.
+    if (!local) return;
+    const item = stripeSubscription.items.data[0];
+    if (!item) throw new BadRequestException('Stripe subscription has no price item.');
+    const paymentMethod = await this.resolvePaymentMethod(
+      stripeSubscription.default_payment_method,
+    );
+    const periodStart = new Date(item.current_period_start * 1_000);
+    const periodEnd = new Date(item.current_period_end * 1_000);
+    const stripeEnded = event.type === 'customer.subscription.deleted';
+    await this.prisma.$transaction(async (transaction) => {
+      if (
+        await transaction.paymentWebhookEvent.findUnique({ where: { providerEventId: event.id } })
+      ) {
+        return;
+      }
+      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${local.id}))`;
+      const current = await transaction.subscription.findUnique({ where: { id: local.id } });
+      if (!current) return;
+      const cancellationInProgress =
+        current.status === SubscriptionStatus.CANCELLATION_PENDING ||
+        current.status === SubscriptionStatus.DISCONNECTION_PENDING;
+      const status = stripeEnded
+        ? cancellationInProgress
+          ? current.status
+          : SubscriptionStatus.CANCELLED
+        : stripeSubscription.status === 'past_due' || stripeSubscription.status === 'unpaid'
+          ? current.status === SubscriptionStatus.ACTIVE
+            ? SubscriptionStatus.PAST_DUE
+            : current.status
+          : stripeSubscription.status === 'active' || stripeSubscription.status === 'trialing'
+            ? current.status === SubscriptionStatus.PAST_DUE
+              ? SubscriptionStatus.ACTIVE
+              : current.status
+            : current.status;
+      await transaction.subscription.update({
+        where: { id: current.id },
+        data: {
+          stripeStatus: stripeSubscription.status,
+          stripePriceId: item.price.id,
+          stripePaymentMethodId: paymentMethod?.id,
+          paymentMethodBrand: paymentMethod?.card?.brand,
+          paymentMethodLast4: paymentMethod?.card?.last4,
+          paymentMethodExpMonth: paymentMethod?.card?.exp_month,
+          paymentMethodExpYear: paymentMethod?.card?.exp_year,
+          cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+          nextBillingAt: stripeEnded || stripeSubscription.cancel_at_period_end ? null : periodEnd,
+          status,
+          ...(stripeEnded && !cancellationInProgress
+            ? {
+                endDate: this.utcDate(new Date(event.created * 1_000)),
+                endReason: 'STRIPE_SUBSCRIPTION_ENDED',
+              }
+            : {}),
+        },
+      });
+      if (!stripeSubscription.pending_update) {
+        const pendingUpgrade = await transaction.planChangeRequest.findFirst({
+          where: {
+            sourceSubscriptionId: current.id,
+            type: 'UPGRADE',
+            status: 'PROCESSING',
+            targetPlan: { stripePriceId: item.price.id },
+          },
+          include: { targetPlan: true },
+        });
+        if (pendingUpgrade) {
+          await transaction.subscription.update({
+            where: { id: current.id },
+            data: {
+              planId: pendingUpgrade.targetPlanId,
+              monthlyCents: pendingUpgrade.targetPlanPriceCents,
+              stripePriceId: item.price.id,
+            },
+          });
+          await transaction.planChangeRequest.update({
+            where: { id: pendingUpgrade.id },
+            data: {
+              status: 'APPLIED',
+              appliedAt: new Date(event.created * 1_000),
+              effectiveAt: new Date(event.created * 1_000),
+            },
+          });
+          await transaction.auditLog.create({
+            data: {
+              action: 'STRIPE_PLAN_UPGRADE_APPLIED',
+              entityType: 'PlanChangeRequest',
+              entityId: pendingUpgrade.id,
+              metadata: { stripeSubscriptionId: stripeSubscription.id },
+            },
+          });
+        }
+      }
+      await transaction.paymentWebhookEvent.create({
+        data: {
+          provider: PaymentProvider.STRIPE,
+          providerEventId: event.id,
+          eventType: event.type,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          action: stripeEnded ? 'STRIPE_SUBSCRIPTION_ENDED' : 'STRIPE_SUBSCRIPTION_SYNCHRONIZED',
+          entityType: 'Subscription',
+          entityId: current.id,
+          metadata: {
+            stripeSubscriptionId: stripeSubscription.id,
+            stripeStatus: stripeSubscription.status,
+            cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+          },
+        },
+      });
+    });
+    await this.dashboardCache.invalidate();
+  }
+
+  private async processStripePaymentMethodEvent(event: Stripe.Event): Promise<void> {
+    const paymentMethod = event.data.object as Stripe.PaymentMethod;
+    const previous = event.data.previous_attributes as Partial<Stripe.PaymentMethod> | undefined;
+    const stripeCustomerId =
+      this.stripeId(paymentMethod.customer) ?? this.stripeId(previous?.customer ?? null);
+    await this.prisma.$transaction(async (transaction) => {
+      if (
+        await transaction.paymentWebhookEvent.findUnique({ where: { providerEventId: event.id } })
+      ) {
+        return;
+      }
+      const customer = stripeCustomerId
+        ? await transaction.customer.findUnique({ where: { stripeCustomerId } })
+        : await transaction.customer.findFirst({
+            where: { subscriptions: { some: { stripePaymentMethodId: paymentMethod.id } } },
+          });
+      if (!customer) return;
+      if (event.type === 'payment_method.detached') {
+        await transaction.subscription.updateMany({
+          where: {
+            customerId: customer.id,
+            stripePaymentMethodId: paymentMethod.id,
+          },
+          data: {
+            stripePaymentMethodId: null,
+            paymentMethodBrand: null,
+            paymentMethodLast4: null,
+            paymentMethodExpMonth: null,
+            paymentMethodExpYear: null,
+          },
+        });
+      } else if (event.type === 'payment_method.updated') {
+        await transaction.subscription.updateMany({
+          where: { customerId: customer.id, stripePaymentMethodId: paymentMethod.id },
+          data: {
+            paymentMethodBrand: paymentMethod.card?.brand,
+            paymentMethodLast4: paymentMethod.card?.last4,
+            paymentMethodExpMonth: paymentMethod.card?.exp_month,
+            paymentMethodExpYear: paymentMethod.card?.exp_year,
+          },
+        });
+      }
+      await transaction.paymentWebhookEvent.create({
+        data: {
+          provider: PaymentProvider.STRIPE,
+          providerEventId: event.id,
+          eventType: event.type,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          action:
+            event.type === 'payment_method.attached'
+              ? 'PAYMENT_METHOD_ADDED'
+              : event.type === 'payment_method.detached'
+                ? 'PAYMENT_METHOD_REMOVED'
+                : 'PAYMENT_METHOD_UPDATED',
+          entityType: 'Customer',
+          entityId: customer.id,
+          metadata: {
+            eventType: event.type,
+            brand: paymentMethod.card?.brand ?? null,
+            last4: paymentMethod.card?.last4 ?? null,
+          },
+        },
+      });
+    });
+    await this.dashboardCache.invalidate();
+  }
+
+  private async processStripeCustomerUpdated(event: Stripe.Event): Promise<void> {
+    const stripeCustomer = event.data.object as Stripe.Customer;
+    if ('deleted' in stripeCustomer && stripeCustomer.deleted) return;
+    if (
+      await this.prisma.paymentWebhookEvent.findUnique({ where: { providerEventId: event.id } })
+    ) {
+      return;
+    }
+    const customer = await this.prisma.customer.findUnique({
+      where: { stripeCustomerId: stripeCustomer.id },
+    });
+    if (!customer) return;
+    const paymentMethodId = this.stripeId(stripeCustomer.invoice_settings.default_payment_method);
+    const paymentMethod = paymentMethodId
+      ? await this.ownedPaymentMethod(paymentMethodId, stripeCustomer.id)
+      : null;
+    const subscriptions = await this.protectedRecurringSubscriptions(customer.id);
+    if (paymentMethod) {
+      await Promise.all(
+        subscriptions
+          .filter((subscription) => subscription.stripeSubscriptionId)
+          .map((subscription) =>
+            this.stripe.subscriptions.update(
+              subscription.stripeSubscriptionId!,
+              { default_payment_method: paymentMethod.id },
+              {
+                idempotencyKey: `customer-updated-subscription-${subscription.id}-${event.id}`,
+              },
+            ),
+          ),
+      );
+      await this.retryOutstandingStripeInvoices(customer.id, paymentMethod.id, event.id);
+    }
+    await this.prisma.$transaction(async (transaction) => {
+      if (
+        await transaction.paymentWebhookEvent.findUnique({ where: { providerEventId: event.id } })
+      ) {
+        return;
+      }
+      await transaction.subscription.updateMany({
+        where: {
+          customerId: customer.id,
+          billingMode: BillingMode.STRIPE_RECURRING,
+          status: { in: protectedRecurringStatuses },
+        },
+        data: paymentMethod
+          ? {
+              stripePaymentMethodId: paymentMethod.id,
+              paymentMethodBrand: paymentMethod.card?.brand,
+              paymentMethodLast4: paymentMethod.card?.last4,
+              paymentMethodExpMonth: paymentMethod.card?.exp_month,
+              paymentMethodExpYear: paymentMethod.card?.exp_year,
+            }
+          : {
+              stripePaymentMethodId: null,
+              paymentMethodBrand: null,
+              paymentMethodLast4: null,
+              paymentMethodExpMonth: null,
+              paymentMethodExpYear: null,
+            },
+      });
+      await transaction.paymentWebhookEvent.create({
+        data: {
+          provider: PaymentProvider.STRIPE,
+          providerEventId: event.id,
+          eventType: event.type,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          action: paymentMethod
+            ? 'DEFAULT_PAYMENT_METHOD_SYNCHRONIZED'
+            : 'DEFAULT_PAYMENT_METHOD_CLEARED',
+          entityType: 'Customer',
+          entityId: customer.id,
+          metadata: paymentMethod
+            ? {
+                brand: paymentMethod.card?.brand ?? null,
+                last4: paymentMethod.card?.last4 ?? null,
+              }
+            : undefined,
+        },
+      });
+    });
+    await this.dashboardCache.invalidate();
+  }
+
+  private stripeSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | undefined {
+    return this.stripeId(invoice.parent?.subscription_details?.subscription ?? null);
   }
 
   private async processPublicCheckoutEvent(
@@ -864,6 +1683,8 @@ export class PaymentsService {
       throw new BadRequestException('Stripe Checkout session is missing an application reference.');
     }
 
+    const recurring = await this.loadRecurringCheckoutDetails(session);
+    await this.synchronizeInitialRecurringPaymentMethod(session, recurring, providerEventId);
     let completion: PublicCheckoutCompletion | null = null;
     try {
       completion = await this.prisma.$transaction(
@@ -1007,13 +1828,27 @@ export class PaymentsService {
               status: SubscriptionStatus.ACTIVE,
               startDate: this.utcDate(paidAt),
               billingAnchorDay,
-              currentPeriodStart: paidAt,
-              currentPeriodEnd: this.billing.nextMonthlyBoundary(paidAt, billingAnchorDay),
+              billingMode: BillingMode.STRIPE_RECURRING,
+              stripeSubscriptionId: recurring.stripeSubscriptionId,
+              stripePriceId: recurring.stripePriceId,
+              stripeStatus: recurring.stripeStatus,
+              stripePaymentMethodId: recurring.paymentMethodId,
+              paymentMethodBrand: recurring.paymentMethodBrand,
+              paymentMethodLast4: recurring.paymentMethodLast4,
+              paymentMethodExpMonth: recurring.paymentMethodExpMonth,
+              paymentMethodExpYear: recurring.paymentMethodExpYear,
+              cancelAtPeriodEnd: recurring.cancelAtPeriodEnd,
+              currentPeriodStart: recurring.currentPeriodStart,
+              currentPeriodEnd: recurring.currentPeriodEnd,
+              nextBillingAt: recurring.currentPeriodEnd,
             },
           });
           await transaction.$executeRaw`SELECT pg_advisory_xact_lock(${PaymentsService.invoiceSequenceLock})`;
           const issueDate = this.utcDate(paidAt);
-          const billingPeriod = this.billing.billingPeriodFor(issueDate);
+          const billingPeriod = {
+            start: this.utcDate(recurring.currentPeriodStart),
+            end: this.utcDate(new Date(recurring.currentPeriodEnd.getTime() - 1)),
+          };
           const amounts = this.billing.calculateGstInclusiveAmounts(application.amountCents);
           const invoiceNumber = await this.nextInvoiceNumber(transaction, issueDate);
           const invoice = await transaction.invoice.create({
@@ -1022,6 +1857,10 @@ export class PaymentsService {
               customerId: customer.id,
               subscriptionId: subscription.id,
               purchasePlanId: application.planId,
+              type: InvoiceType.STRIPE_RECURRING,
+              stripeInvoiceId: recurring.stripeInvoiceId,
+              stripeHostedUrl: recurring.hostedInvoiceUrl,
+              stripePdfUrl: recurring.invoicePdfUrl,
               issueDate,
               dueDate: this.billing.dueDateFor(issueDate),
               billingPeriodStart: billingPeriod.start,
@@ -1047,7 +1886,7 @@ export class PaymentsService {
               customerId: customer.id,
               provider: PaymentProvider.STRIPE,
               providerSessionId: session.id,
-              providerPaymentId: paymentIntentId,
+              providerPaymentId: recurring.paymentIntentId ?? paymentIntentId,
               amountCents: application.amountCents,
               currency: application.currency,
               status: PaymentStatus.SUCCEEDED,
@@ -1063,7 +1902,8 @@ export class PaymentsService {
             where: { id: application.id },
             data: {
               status: CheckoutApplicationStatus.COMPLETED,
-              stripePaymentIntentId: paymentIntentId,
+              stripePaymentIntentId: recurring.paymentIntentId ?? paymentIntentId,
+              stripeSubscriptionId: recurring.stripeSubscriptionId,
               stripeCustomerId,
               customerId: customer.id,
               invoiceId: invoice.id,
@@ -1197,6 +2037,466 @@ export class PaymentsService {
     });
   }
 
+  private async processPaymentMethodSetupEvent(
+    event: Stripe.Event,
+    session: Stripe.Checkout.Session,
+  ): Promise<void> {
+    if (event.type !== 'checkout.session.completed') return;
+    if (
+      await this.prisma.paymentWebhookEvent.findUnique({ where: { providerEventId: event.id } })
+    ) {
+      return;
+    }
+    const customerId = session.metadata?.customerId ?? session.client_reference_id;
+    const setupIntentId = this.stripeId(session.setup_intent);
+    if (!customerId || !setupIntentId) {
+      throw new BadRequestException('Stripe setup session is missing payment method references.');
+    }
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
+    if (
+      !customer?.stripeCustomerId ||
+      this.stripeId(session.customer) !== customer.stripeCustomerId
+    ) {
+      throw new BadRequestException('Stripe setup session does not belong to this customer.');
+    }
+    const setupIntent = await this.stripe.setupIntents.retrieve(setupIntentId);
+    const paymentMethodId = this.stripeId(setupIntent.payment_method);
+    if (
+      setupIntent.status !== 'succeeded' ||
+      !paymentMethodId ||
+      this.stripeId(setupIntent.customer) !== customer.stripeCustomerId
+    ) {
+      throw new BadRequestException('Stripe did not confirm a reusable payment method.');
+    }
+    const paymentMethod = await this.ownedPaymentMethod(paymentMethodId, customer.stripeCustomerId);
+    this.assertUsablePaymentMethod(paymentMethod);
+    const subscriptions = await this.protectedRecurringSubscriptions(customer.id);
+    await this.stripe.customers.update(
+      customer.stripeCustomerId,
+      { invoice_settings: { default_payment_method: paymentMethod.id } },
+      { idempotencyKey: `payment-method-setup-customer-${customer.id}-${event.id}` },
+    );
+    await Promise.all(
+      subscriptions
+        .filter((subscription) => subscription.stripeSubscriptionId)
+        .map((subscription) =>
+          this.stripe.subscriptions.update(
+            subscription.stripeSubscriptionId!,
+            { default_payment_method: paymentMethod.id },
+            { idempotencyKey: `payment-method-setup-subscription-${subscription.id}-${event.id}` },
+          ),
+        ),
+    );
+    await this.retryOutstandingStripeInvoices(customer.id, paymentMethod.id, event.id);
+    await this.prisma.$transaction(async (transaction) => {
+      if (
+        await transaction.paymentWebhookEvent.findUnique({ where: { providerEventId: event.id } })
+      ) {
+        return;
+      }
+      await transaction.subscription.updateMany({
+        where: {
+          customerId: customer.id,
+          billingMode: BillingMode.STRIPE_RECURRING,
+          status: { in: protectedRecurringStatuses },
+        },
+        data: {
+          stripePaymentMethodId: paymentMethod.id,
+          paymentMethodBrand: paymentMethod.card?.brand,
+          paymentMethodLast4: paymentMethod.card?.last4,
+          paymentMethodExpMonth: paymentMethod.card?.exp_month,
+          paymentMethodExpYear: paymentMethod.card?.exp_year,
+        },
+      });
+      await transaction.paymentWebhookEvent.create({
+        data: {
+          provider: PaymentProvider.STRIPE,
+          providerEventId: event.id,
+          eventType: event.type,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: customer.userId,
+          action: 'DEFAULT_PAYMENT_METHOD_CHANGED',
+          entityType: 'Customer',
+          entityId: customer.id,
+          metadata: {
+            brand: paymentMethod.card?.brand ?? null,
+            last4: paymentMethod.card?.last4 ?? null,
+            operationId: session.metadata?.operationId ?? null,
+          },
+        },
+      });
+    });
+    await this.dashboardCache.invalidate();
+  }
+
+  private async processRecurringSetupEvent(
+    event: Stripe.Event,
+    session: Stripe.Checkout.Session,
+  ): Promise<void> {
+    if (event.type !== 'checkout.session.completed') return;
+    const localSubscriptionId =
+      session.metadata?.existingSubscriptionId ?? session.client_reference_id;
+    const setupIntentId = this.stripeId(session.setup_intent);
+    if (!localSubscriptionId || !setupIntentId) {
+      throw new BadRequestException(
+        'Stripe setup session is missing recurring billing references.',
+      );
+    }
+    if (
+      await this.prisma.paymentWebhookEvent.findUnique({ where: { providerEventId: event.id } })
+    ) {
+      return;
+    }
+    const local = await this.prisma.subscription.findUnique({
+      where: { id: localSubscriptionId },
+      include: { customer: true, plan: true },
+    });
+    if (!local || !local.customer.stripeCustomerId || !local.plan.stripePriceId) {
+      throw new BadRequestException('The subscription is not ready for automatic billing.');
+    }
+    if (local.billingMode === BillingMode.STRIPE_RECURRING && local.stripeSubscriptionId) {
+      await this.prisma.paymentWebhookEvent.create({
+        data: {
+          provider: PaymentProvider.STRIPE,
+          providerEventId: event.id,
+          eventType: event.type,
+        },
+      });
+      return;
+    }
+    const setupIntent = await this.stripe.setupIntents.retrieve(setupIntentId);
+    const paymentMethodId = this.stripeId(setupIntent.payment_method);
+    if (setupIntent.status !== 'succeeded' || !paymentMethodId) {
+      throw new BadRequestException('Stripe did not confirm a reusable payment method.');
+    }
+    const trialEnd = Math.floor(local.currentPeriodEnd.getTime() / 1_000);
+    if (trialEnd <= Math.floor(Date.now() / 1_000)) {
+      throw new ConflictException('The current billing period ended before setup completed.');
+    }
+    const stripeSubscription = await this.stripe.subscriptions.create(
+      {
+        customer: local.customer.stripeCustomerId,
+        items: [{ price: local.plan.stripePriceId }],
+        default_payment_method: paymentMethodId,
+        trial_end: trialEnd,
+        payment_settings: { save_default_payment_method: 'on_subscription' },
+        metadata: {
+          checkoutKind: 'enable_recurring',
+          meroSubscriptionId: local.id,
+          customerId: local.customerId,
+          planId: local.planId,
+        },
+      },
+      { idempotencyKey: `recurring-subscription-${local.id}` },
+    );
+    const item = stripeSubscription.items.data[0];
+    if (!item) throw new BadRequestException('Stripe subscription has no recurring price item.');
+    const paymentMethod = await this.resolvePaymentMethod(paymentMethodId);
+    await this.prisma.$transaction(async (transaction) => {
+      if (
+        await transaction.paymentWebhookEvent.findUnique({ where: { providerEventId: event.id } })
+      ) {
+        return;
+      }
+      const updated = await transaction.subscription.updateMany({
+        where: { id: local.id, billingMode: BillingMode.MANUAL, stripeSubscriptionId: null },
+        data: {
+          billingMode: BillingMode.STRIPE_RECURRING,
+          stripeSubscriptionId: stripeSubscription.id,
+          stripePriceId: item.price.id,
+          stripeStatus: stripeSubscription.status,
+          stripePaymentMethodId: paymentMethodId,
+          paymentMethodBrand: paymentMethod?.card?.brand,
+          paymentMethodLast4: paymentMethod?.card?.last4,
+          paymentMethodExpMonth: paymentMethod?.card?.exp_month,
+          paymentMethodExpYear: paymentMethod?.card?.exp_year,
+          cancelAtPeriodEnd: false,
+          nextBillingAt: local.currentPeriodEnd,
+        },
+      });
+      if (updated.count !== 1) {
+        throw new ConflictException('Automatic billing was enabled by another request.');
+      }
+      await transaction.paymentWebhookEvent.create({
+        data: {
+          provider: PaymentProvider.STRIPE,
+          providerEventId: event.id,
+          eventType: event.type,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: local.customer.userId,
+          action: 'AUTOMATIC_BILLING_ENABLED',
+          entityType: 'Subscription',
+          entityId: local.id,
+          metadata: {
+            stripeSubscriptionId: stripeSubscription.id,
+            nextBillingAt: local.currentPeriodEnd.toISOString(),
+          },
+        },
+      });
+    });
+    await this.dashboardCache.invalidate();
+  }
+
+  private async loadRecurringCheckoutDetails(
+    session: Stripe.Checkout.Session,
+  ): Promise<RecurringCheckoutDetails> {
+    const subscriptionId = this.stripeId(session.subscription);
+    const invoiceId = this.stripeId(session.invoice);
+    if (!subscriptionId || !invoiceId) {
+      throw new BadRequestException(
+        'Stripe Checkout did not return the recurring subscription billing references.',
+      );
+    }
+    const [subscription, invoice] = await Promise.all([
+      this.stripe.subscriptions.retrieve(subscriptionId, {
+        expand: ['default_payment_method'],
+      }),
+      this.stripe.invoices.retrieve(invoiceId, {
+        expand: ['payments.data.payment.payment_intent'],
+      }),
+    ]);
+    const item = subscription.items.data[0];
+    if (!item) throw new BadRequestException('Stripe subscription has no recurring price item.');
+    const paymentMethod =
+      (await this.resolvePaymentMethod(subscription.default_payment_method)) ??
+      (await this.resolveInvoicePaymentMethod(invoice));
+    if (!paymentMethod) {
+      throw new BadRequestException(
+        'Stripe did not retain a reusable payment method for this subscription.',
+      );
+    }
+    return {
+      stripeSubscriptionId: subscription.id,
+      stripeInvoiceId: invoice.id,
+      stripePriceId: item.price.id,
+      stripeStatus: subscription.status,
+      currentPeriodStart: new Date(item.current_period_start * 1_000),
+      currentPeriodEnd: new Date(item.current_period_end * 1_000),
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      paymentIntentId: this.invoicePaymentIntentId(invoice),
+      paymentMethodId: paymentMethod.id,
+      paymentMethodBrand: paymentMethod?.card?.brand,
+      paymentMethodLast4: paymentMethod?.card?.last4,
+      paymentMethodExpMonth: paymentMethod?.card?.exp_month,
+      paymentMethodExpYear: paymentMethod?.card?.exp_year,
+      hostedInvoiceUrl: invoice.hosted_invoice_url ?? undefined,
+      invoicePdfUrl: invoice.invoice_pdf ?? undefined,
+    };
+  }
+
+  private async synchronizeInitialRecurringPaymentMethod(
+    session: Stripe.Checkout.Session,
+    recurring: RecurringCheckoutDetails,
+    operationId: string,
+  ): Promise<void> {
+    const stripeCustomerId = this.stripeId(session.customer);
+    if (!stripeCustomerId) {
+      throw new BadRequestException('Stripe Checkout did not return a customer reference.');
+    }
+    const idempotencySuffix = this.stableLetters(operationId);
+    await Promise.all([
+      this.stripe.customers.update(
+        stripeCustomerId,
+        { invoice_settings: { default_payment_method: recurring.paymentMethodId } },
+        {
+          idempotencyKey: `initial-payment-method-customer-${stripeCustomerId}-${idempotencySuffix}`,
+        },
+      ),
+      this.stripe.subscriptions.update(
+        recurring.stripeSubscriptionId,
+        {
+          default_payment_method: recurring.paymentMethodId,
+          payment_settings: { save_default_payment_method: 'on_subscription' },
+        },
+        {
+          idempotencyKey: `initial-payment-method-subscription-${recurring.stripeSubscriptionId}-${idempotencySuffix}`,
+        },
+      ),
+      this.prisma.subscription.updateMany({
+        where: { stripeSubscriptionId: recurring.stripeSubscriptionId },
+        data: {
+          stripePaymentMethodId: recurring.paymentMethodId,
+          paymentMethodBrand: recurring.paymentMethodBrand,
+          paymentMethodLast4: recurring.paymentMethodLast4,
+          paymentMethodExpMonth: recurring.paymentMethodExpMonth,
+          paymentMethodExpYear: recurring.paymentMethodExpYear,
+        },
+      }),
+    ]);
+  }
+
+  private async resolveInvoicePaymentMethod(
+    invoice: Stripe.Invoice,
+  ): Promise<Stripe.PaymentMethod | null> {
+    const reference = invoice.payments?.data.find(
+      (payment) => payment.status === 'paid' || payment.is_default,
+    )?.payment.payment_intent;
+    if (!reference) return null;
+    const paymentIntent =
+      typeof reference === 'string'
+        ? await this.stripe.paymentIntents.retrieve(reference)
+        : reference;
+    return this.resolvePaymentMethod(paymentIntent.payment_method);
+  }
+
+  private async resolvePaymentMethod(
+    value: string | Stripe.PaymentMethod | null,
+  ): Promise<Stripe.PaymentMethod | null> {
+    if (!value) return null;
+    return typeof value === 'string' ? this.stripe.paymentMethods.retrieve(value) : value;
+  }
+
+  private async customerForActor(actor: AuthenticatedUser) {
+    const customer = await this.prisma.customer.findUnique({ where: { userId: actor.id } });
+    if (!customer) throw new NotFoundException('Customer account not found.');
+    return customer;
+  }
+
+  private async ensureStripeCustomerForActor(actor: AuthenticatedUser) {
+    const customer = await this.customerForActor(actor);
+    if (customer.stripeCustomerId) return customer;
+    const stripeCustomer = await this.stripe.customers.create(
+      {
+        email: customer.email,
+        name: `${customer.firstName} ${customer.lastName}`,
+        metadata: { meroCustomerId: customer.id },
+      },
+      { idempotencyKey: `payment-method-customer-${customer.id}` },
+    );
+    return this.prisma.customer.update({
+      where: { id: customer.id },
+      data: { stripeCustomerId: stripeCustomer.id },
+    });
+  }
+
+  private async ownedPaymentMethod(
+    paymentMethodId: string,
+    stripeCustomerId: string,
+  ): Promise<Stripe.PaymentMethod> {
+    let paymentMethod: Stripe.PaymentMethod;
+    try {
+      paymentMethod = await this.stripe.paymentMethods.retrieve(paymentMethodId);
+    } catch {
+      throw new NotFoundException('Payment method not found for this account.');
+    }
+    if (this.stripeId(paymentMethod.customer) !== stripeCustomerId) {
+      throw new NotFoundException('Payment method not found for this account.');
+    }
+    return paymentMethod;
+  }
+
+  private assertUsablePaymentMethod(paymentMethod: Stripe.PaymentMethod): void {
+    if (!paymentMethod.card) return;
+    const now = new Date();
+    if (
+      paymentMethod.card.exp_year < now.getUTCFullYear() ||
+      (paymentMethod.card.exp_year === now.getUTCFullYear() &&
+        paymentMethod.card.exp_month < now.getUTCMonth() + 1)
+    ) {
+      throw new BadRequestException('This card has expired. Add a valid card before using it.');
+    }
+  }
+
+  private protectedRecurringSubscriptions(customerId: string) {
+    return this.prisma.subscription.findMany({
+      where: {
+        customerId,
+        billingMode: BillingMode.STRIPE_RECURRING,
+        status: { in: protectedRecurringStatuses },
+      },
+      select: { id: true, stripeSubscriptionId: true },
+    });
+  }
+
+  private async persistDefaultPaymentMethod(input: {
+    customerId: string;
+    actorUserId?: string | null;
+    paymentMethod: Stripe.PaymentMethod;
+    action: string;
+    entityId: string;
+    operationId: string;
+  }): Promise<void> {
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.subscription.updateMany({
+        where: {
+          customerId: input.customerId,
+          billingMode: BillingMode.STRIPE_RECURRING,
+          status: { in: protectedRecurringStatuses },
+        },
+        data: {
+          stripePaymentMethodId: input.paymentMethod.id,
+          paymentMethodBrand: input.paymentMethod.card?.brand,
+          paymentMethodLast4: input.paymentMethod.card?.last4,
+          paymentMethodExpMonth: input.paymentMethod.card?.exp_month,
+          paymentMethodExpYear: input.paymentMethod.card?.exp_year,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: input.actorUserId,
+          action: input.action,
+          entityType: 'Customer',
+          entityId: input.entityId,
+          metadata: {
+            brand: input.paymentMethod.card?.brand ?? null,
+            last4: input.paymentMethod.card?.last4 ?? null,
+            operationId: input.operationId,
+          },
+        },
+      });
+    });
+  }
+
+  private async retryOutstandingStripeInvoices(
+    customerId: string,
+    paymentMethodId: string,
+    operationId: string,
+  ): Promise<void> {
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        customerId,
+        type: InvoiceType.STRIPE_RECURRING,
+        stripeInvoiceId: { not: null },
+        status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE] },
+      },
+      select: { id: true, stripeInvoiceId: true },
+    });
+    await Promise.all(
+      invoices.map(async (invoice) => {
+        try {
+          await this.stripe.invoices.pay(
+            invoice.stripeInvoiceId!,
+            { payment_method: paymentMethodId },
+            {
+              idempotencyKey: `retry-invoice-${invoice.id}-${this.stableLetters(operationId)}`,
+            },
+          );
+        } catch (error: unknown) {
+          this.logger.warn(
+            JSON.stringify({
+              event: 'stripe.invoice.retry_failed',
+              invoiceId: invoice.id,
+              reason: error instanceof Error ? error.message : 'unknown_error',
+            }),
+          );
+        }
+      }),
+    );
+  }
+
+  private invoicePaymentIntentId(invoice: Stripe.Invoice): string | undefined {
+    const intent = invoice.payments?.data.find(
+      (payment) => payment.status === 'paid' || payment.is_default,
+    )?.payment.payment_intent;
+    return this.stripeId(intent ?? null);
+  }
+
   private addressJson(address: StoredAddress): Prisma.InputJsonObject {
     return {
       addressLine1: address.addressLine1,
@@ -1283,6 +2583,12 @@ export class PaymentsService {
     return Array.from(randomBytes(length), (byte) => String.fromCharCode(97 + (byte % 26))).join(
       '',
     );
+  }
+
+  private stableLetters(value: string): string {
+    return Array.from(createHash('sha256').update(value).digest().subarray(0, 8), (byte) =>
+      String.fromCharCode(97 + (byte % 26)),
+    ).join('');
   }
 
   private reconciliationEventId(sessionId: string): string {
@@ -1430,6 +2736,7 @@ export class PaymentsService {
               invoiceNumber,
               customerId,
               purchasePlanId: plan.id,
+              type: InvoiceType.PLAN_PURCHASE,
               issueDate,
               dueDate: this.billing.dueDateFor(issueDate),
               ...amounts,
@@ -1471,6 +2778,9 @@ export class PaymentsService {
     if (!invoice.purchasePlan) {
       throw new BadRequestException('The selected plan is missing from the purchase invoice.');
     }
+    if (!invoice.purchasePlan.stripePriceId) {
+      throw new BadRequestException('Automatic billing is not configured for this plan yet.');
+    }
 
     const metadata = {
       checkoutKind: 'plan_purchase',
@@ -1480,22 +2790,20 @@ export class PaymentsService {
     };
     const session = await this.stripe.checkout.sessions.create(
       {
-        mode: 'payment',
+        mode: 'subscription',
         integration_identifier: `mero_telecom_plan_${this.randomLetters(8)}`,
-        customer_email: invoice.customer.email,
+        ...(invoice.customer.stripeCustomerId
+          ? { customer: invoice.customer.stripeCustomerId }
+          : { customer_email: invoice.customer.email }),
         client_reference_id: invoice.id,
         metadata,
-        payment_intent_data: { metadata },
+        subscription_data: {
+          metadata,
+        },
         line_items: [
           {
             quantity: 1,
-            price_data: {
-              currency: invoice.currency.toLowerCase(),
-              unit_amount: invoice.totalCents,
-              product_data: {
-                name: `${invoice.purchasePlan.name} monthly internet plan`,
-              },
-            },
+            price: invoice.purchasePlan.stripePriceId,
           },
         ],
         success_url: `${this.frontendUrl()}/customer/subscription?payment=success&sessionId={CHECKOUT_SESSION_ID}`,

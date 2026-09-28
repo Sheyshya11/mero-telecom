@@ -16,7 +16,6 @@ import {
   InternalRequestLevel,
   InternalRequestStatus,
   InternalRequestType,
-  MockRelocationOutcome,
   PlanChangeStatus,
   Prisma,
   Role,

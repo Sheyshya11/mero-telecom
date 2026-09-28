@@ -110,8 +110,11 @@ install -> Prisma client generation -> API build -> prisma migrate deploy -> API
 Do not run the development seed against production. After the API deploys, create a Stripe test
 webhook for `https://api.example.com/api/v1/payments/stripe/webhook`. Subscribe to
 `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-`checkout.session.async_payment_failed`, and `checkout.session.expired`, set its signing secret in
-Render, and redeploy. Confirm SMTP can deliver account activation as well as invoice messages and
+`checkout.session.async_payment_failed`, `checkout.session.expired`, `invoice.paid`,
+`invoice.payment_failed`, `customer.subscription.created`, `customer.subscription.updated`,
+`customer.subscription.deleted`, `customer.updated`, `payment_method.attached`,
+`payment_method.updated`, `payment_method.detached`, and the configured refund events. Set its
+signing secret in Render, and redeploy. Confirm SMTP can deliver account activation as well as invoice messages and
 that every activation URL uses the final `FRONTEND_URL` origin.
 
 For a new database, configure `BOOTSTRAP_SUPER_ADMIN_EMAIL` and `BOOTSTRAP_SUPER_ADMIN_NAME`, then run

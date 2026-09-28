@@ -8,8 +8,9 @@ import { OverdueLifecycleSchedulerService } from './overdue-lifecycle-scheduler.
 import { PaymentEligibilityService } from './payment-eligibility.service';
 import { ProvisioningService } from './provisioning.service';
 import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
+import { StripeModule } from '../payments/stripe.module';
 @Module({
-  imports: [AuthModule, AuthorizationModule, NotificationsModule],
+  imports: [AuthModule, AuthorizationModule, NotificationsModule, StripeModule],
   controllers: [SubscriptionsController],
   providers: [
     SubscriptionsService,

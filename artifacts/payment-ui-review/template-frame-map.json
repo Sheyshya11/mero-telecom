@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "sourceTemplate": "Business Review",
+  "outputSlides": [
+    {
+      "outputSlide": 1,
+      "sourceSlide": 1,
+      "reuseMode": "duplicate-slide",
+      "narrativeRole": "Cover",
+      "editTargets": [
+        {
+          "shapeId": "sh/7qp4be9c",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/65g3298r",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/ts7md4r2",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/wn6dc7eh",
+          "action": "rewrite"
+        }
+      ]
+    },
+    {
+      "outputSlide": 2,
+      "sourceSlide": 3,
+      "reuseMode": "duplicate-slide",
+      "narrativeRole": "Executive summary",
+      "editTargets": [
+        {
+          "shapeId": "sh/u9wf21cv",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/4zex8bux",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/3ah8rqlg",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/obq90bml",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/pcjqtg36",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/n2l4fq98",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/m1c3mlsn",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/x8nml0ra",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/w7ulsvqp",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/d0jax03i",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/v6l4jq94",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/ja54na9g",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/cza94vmx",
+          "action": "delete"
+        }
+      ]
+    },
+    {
+      "outputSlide": 3,
+      "sourceSlide": 7,
+      "reuseMode": "duplicate-slide",
+      "narrativeRole": "Comparison analysis",
+      "editTargets": [
+        {
+          "shapeId": "sh/etsrm5gn",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/sra9kfyx",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/tsjad0z2",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/cb2tkvap",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/dcbud0ra",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/kzmdova1",
+          "action": "delete"
+        }
+      ]
+    },
+    {
+      "outputSlide": 4,
+      "sourceSlide": 10,
+      "reuseMode": "duplicate-slide",
+      "narrativeRole": "Interface analysis",
+      "editTargets": [
+        {
+          "shapeId": "sh/l8z690ji",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/k7q50v2x",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/q5gb21kb",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/r6pcv6lw",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/0bit8b2d",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/1cru1g3y",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/fapcz6ls",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/ozitcv29",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "ch/3ydoze9w",
+          "action": "replace"
+        },
+        {
+          "shapeId": "sh/ydcnatkn",
+          "action": "delete"
+        }
+      ]
+    },
+    {
+      "outputSlide": 5,
+      "sourceSlide": 12,
+      "reuseMode": "duplicate-slide",
+      "narrativeRole": "Timeline",
+      "editTargets": [
+        {
+          "shapeId": "sh/mps7a5or",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/ra943il8",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/xw3q94ne",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/nq1o3a5w",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/0nap8f6l",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/a543mx4r",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/bulo7u58",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/orapcf6h",
+          "action": "rewrite"
+        },
+        {
+          "shapeId": "sh/sb2lcnmd",
+          "action": "delete"
+        }
+      ]
+    }
+  ]
+}

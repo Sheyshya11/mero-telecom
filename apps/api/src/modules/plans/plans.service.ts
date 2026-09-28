@@ -9,6 +9,8 @@ import { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import type { AuditRequestContext } from '../system-users/system-users.types';
+import { StripeClientService } from '../payments/stripe-client.service';
+import type Stripe from 'stripe';
 import {
   CreatePlanDto,
   DeletePlanDto,
@@ -18,10 +20,15 @@ import {
 
 @Injectable()
 export class PlansService {
+  private readonly stripe?: Stripe;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly dashboardCache: AdminDashboardCacheService,
-  ) {}
+    stripeClient?: StripeClientService,
+  ) {
+    this.stripe = stripeClient?.client;
+  }
 
   async create(input: CreatePlanDto, actor: AuthenticatedUser, context: AuditRequestContext) {
     if (input.isPublic || input.isAvailable || input.isFeatured) {
@@ -100,6 +107,12 @@ export class PlansService {
         ) as Prisma.InternetPlanUpdateManyMutationInput;
         const merged = this.enforceLifecycle(current, changes);
         if (this.isPublished(merged)) {
+          if (!merged.stripePriceId) {
+            throw new BadRequestException(
+              'Add the recurring Stripe Price ID before publishing this plan.',
+            );
+          }
+          await this.assertStripePriceMatchesPlan(merged);
           const activeRules = await transaction.planCoverageRule.count({
             where: {
               planId: id,
@@ -224,6 +237,28 @@ export class PlansService {
     return [...new Set(highlights.map((highlight) => highlight.trim()).filter(Boolean))];
   }
 
+  private async assertStripePriceMatchesPlan(plan: InternetPlan): Promise<void> {
+    if (!plan.stripePriceId) return;
+    if (!this.stripe) return;
+    let price: Stripe.Price;
+    try {
+      price = await this.stripe.prices.retrieve(plan.stripePriceId);
+    } catch {
+      throw new BadRequestException('The configured Stripe Price could not be found.');
+    }
+    if (
+      !price.active ||
+      price.currency.toUpperCase() !== 'AUD' ||
+      price.unit_amount !== plan.monthlyCents ||
+      price.recurring?.interval !== 'month' ||
+      price.recurring.interval_count !== 1
+    ) {
+      throw new BadRequestException(
+        'The Stripe Price must be active, monthly, in AUD, and match the plan price exactly.',
+      );
+    }
+  }
+
   private async assertUniqueName(name: string, excludingId?: string) {
     const existing = await this.prisma.internetPlan.findFirst({
       where: {
@@ -254,6 +289,7 @@ export class PlansService {
       downloadMbps: plan.downloadMbps,
       uploadMbps: plan.uploadMbps,
       monthlyCents: plan.monthlyCents,
+      stripePriceId: plan.stripePriceId,
       isActive: plan.isActive,
       isPublic: plan.isPublic,
       isAvailable: plan.isAvailable,

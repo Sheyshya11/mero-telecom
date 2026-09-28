@@ -201,27 +201,63 @@ describe('Mero Telecom API (e2e)', () => {
   let invitedCustomerId: string;
   let invitedUserId: string;
   const stripeSessions = new Map<string, Stripe.Checkout.Session>();
+  const stripeSubscriptionPrices = new Map<string, string>();
   const stripeRefunds = new Map<string, Stripe.Refund>();
   let stripeSessionSequence = 0;
   let stripeRefundSequence = 0;
 
   const fakeStripeClient = {
     client: {
+      prices: {
+        retrieve: jest.fn(async (id: string) => {
+          const amount = Number(id.replace(/^price_e2e/, ''));
+          if (!Number.isInteger(amount) || amount <= 0)
+            throw new Error('Unknown fake Stripe price');
+          return {
+            id,
+            object: 'price',
+            active: true,
+            currency: 'aud',
+            unit_amount: amount,
+            recurring: { interval: 'month', interval_count: 1 },
+          } as Stripe.Price;
+        }),
+      },
+      customers: {
+        update: jest.fn(async (id: string) => ({ id, object: 'customer' })),
+      },
       checkout: {
         sessions: {
           create: jest.fn(async (input: Stripe.Checkout.SessionCreateParams) => {
             const priceData = input.line_items?.[0] as
-              | { price_data?: { currency?: string; unit_amount?: number } }
+              | {
+                  price?: string;
+                  price_data?: { currency?: string; unit_amount?: number };
+                }
               | undefined;
+            const recurringAmount = priceData?.price
+              ? Number(priceData.price.replace(/^price_e2e/, ''))
+              : undefined;
             const id = `cs_test_plan_change_${++stripeSessionSequence}`;
+            const subscriptionId = input.mode === 'subscription' ? `sub_e2e_${id}` : null;
+            const invoiceId = input.mode === 'subscription' ? `in_e2e_${id}` : null;
+            if (subscriptionId && priceData?.price) {
+              stripeSubscriptionPrices.set(subscriptionId, priceData.price);
+            }
             const session = {
               id,
               object: 'checkout.session',
               client_reference_id: input.client_reference_id ?? null,
               metadata: input.metadata ?? {},
-              amount_total: priceData?.price_data?.unit_amount ?? null,
-              currency: priceData?.price_data?.currency ?? null,
+              amount_total: priceData?.price_data?.unit_amount ?? recurringAmount ?? null,
+              currency: priceData?.price_data?.currency ?? (recurringAmount ? 'aud' : null),
               payment_intent: null,
+              customer:
+                typeof input.customer === 'string'
+                  ? input.customer
+                  : `cus_e2e_${stripeSessionSequence}`,
+              subscription: subscriptionId,
+              invoice: invoiceId,
               payment_status: 'unpaid',
               status: 'open',
               url: `https://checkout.stripe.test/${id}`,
@@ -234,7 +270,60 @@ describe('Mero Telecom API (e2e)', () => {
             if (!session) throw new Error(`Unknown fake Stripe session: ${id}`);
             return session;
           }),
+          expire: jest.fn(async (id: string) => {
+            const session = stripeSessions.get(id);
+            if (!session) throw new Error(`Unknown fake Stripe session: ${id}`);
+            const expired = { ...session, status: 'expired', url: null } as Stripe.Checkout.Session;
+            stripeSessions.set(id, expired);
+            return expired;
+          }),
         },
+      },
+      subscriptions: {
+        retrieve: jest.fn(async (id: string) => ({
+          id,
+          object: 'subscription',
+          status: 'active',
+          cancel_at_period_end: false,
+          default_payment_method: {
+            id: `pm_e2e_${id}`,
+            object: 'payment_method',
+            type: 'card',
+            card: { brand: 'visa', last4: '4242', exp_month: 12, exp_year: 2030 },
+          },
+          items: {
+            data: [
+              {
+                price: { id: stripeSubscriptionPrices.get(id) ?? 'price_e2e6900' },
+                current_period_start: Math.floor(Date.now() / 1_000),
+                current_period_end: Math.floor(Date.now() / 1_000) + 30 * 24 * 60 * 60,
+              },
+            ],
+          },
+        })),
+        update: jest.fn(async (id: string) => ({ id, object: 'subscription' })),
+      },
+      invoices: {
+        retrieve: jest.fn(async (id: string) => {
+          const session = [...stripeSessions.values()].find(
+            (candidate) => candidate.invoice === id,
+          );
+          return {
+            id,
+            object: 'invoice',
+            hosted_invoice_url: `https://invoice.stripe.test/${id}`,
+            invoice_pdf: `https://invoice.stripe.test/${id}.pdf`,
+            payments: {
+              data: [
+                {
+                  status: 'paid',
+                  is_default: true,
+                  payment: { payment_intent: session?.payment_intent ?? `pi_e2e_${id}` },
+                },
+              ],
+            },
+          } as Stripe.Invoice;
+        }),
       },
       refunds: {
         create: jest.fn(
@@ -766,6 +855,7 @@ describe('Mero Telecom API (e2e)', () => {
         downloadMbps: 50,
         uploadMbps: 20,
         monthlyCents: 6900,
+        stripePriceId: 'price_e2e6900',
       })
       .expect(201);
     planId = plan.body.id;
@@ -873,7 +963,11 @@ describe('Mero Telecom API (e2e)', () => {
       },
     });
     const subscription = await createActiveSubscription(cancellationCustomer.id);
-    const invoice = await generateInvoice(subscription.id, '2026-09-02');
+    const invoice = await generateInvoice(subscription.id, '2026-09-27');
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { status: InvoiceStatus.PAID, paidAt: new Date() },
+    });
     const token = await loginDirectAs(cancellationEmail);
     const scheduledInput = {
       type: CancellationType.END_OF_PERIOD,
@@ -1318,7 +1412,7 @@ describe('Mero Telecom API (e2e)', () => {
         ...paidSession,
         metadata: { ...paidSession.metadata, checkoutKind: 'plan_purchase' },
       } as Stripe.Checkout.Session),
-    ).expect(404);
+    ).expect(400);
     await postStripeEvent(
       stripeEvent('evt_e2e_missing_metadata', 'checkout.session.completed', {
         ...paidSession,
@@ -2940,7 +3034,13 @@ describe('Mero Telecom API (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post('/api/v1/plans')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name, downloadMbps, uploadMbps, monthlyCents })
+      .send({
+        name,
+        downloadMbps,
+        uploadMbps,
+        monthlyCents,
+        stripePriceId: `price_e2e${monthlyCents}`,
+      })
       .expect(201);
     const id = response.body.id as string;
     await prisma.planCoverageRule.create({

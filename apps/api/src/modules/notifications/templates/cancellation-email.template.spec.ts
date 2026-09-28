@@ -13,6 +13,9 @@ describe('cancellation email templates', () => {
     dashboardUrl: 'https://example.test/customer/subscription',
     providerOperation: 'DISCONNECT_SERVICE' as const,
     providerSimulated: true,
+    cancellationType: 'IMMEDIATE' as const,
+    refundAmountCents: 5610,
+    refundStatus: 'APPROVED',
   };
 
   it('clearly labels a mock completion as a simulation, not an NBN disconnection', () => {
@@ -22,6 +25,8 @@ describe('cancellation email templates', () => {
     expect(rendered.text).toContain('internal disconnection simulation');
     expect(rendered.text).toContain('not confirmation of a real NBN or wholesale disconnection');
     expect(rendered.html).toContain('Cancellation simulation completed');
+    expect(rendered.text).toContain('$56.10');
+    expect(rendered.text).toContain('original payment method');
   });
 
   it('marks operational failure alerts as internal and confidential', () => {

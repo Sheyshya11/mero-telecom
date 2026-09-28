@@ -6,6 +6,7 @@ export interface InternetPlan {
   downloadMbps: number;
   uploadMbps: number;
   monthlyCents: number;
+  stripePriceId: string | null;
   isActive: boolean;
   isPublic: boolean;
   isAvailable: boolean;

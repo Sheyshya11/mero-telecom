@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  BillingMode,
   InvoiceStatus,
   PaymentProvider,
   PaymentStatus,
@@ -16,11 +17,13 @@ import {
   SubscriptionStatus,
   SuspensionReason,
 } from '@prisma/client';
+import type Stripe from 'stripe';
 
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
+import { StripeClientService } from '../payments/stripe-client.service';
 import { NotificationService } from '../notifications/notification.service';
 import { PaymentEligibilityService } from './payment-eligibility.service';
 import { ProvisioningService } from './provisioning.service';
@@ -51,6 +54,7 @@ export class SubscriptionLifecycleService {
   private readonly gracePeriodDays: number;
   private readonly terminationDays: number;
   private readonly batchSize: number;
+  private readonly stripe?: Stripe;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -59,7 +63,9 @@ export class SubscriptionLifecycleService {
     private readonly provisioning: ProvisioningService,
     private readonly notifications: NotificationService,
     private readonly dashboardCache: AdminDashboardCacheService,
+    stripeClient?: StripeClientService,
   ) {
+    this.stripe = stripeClient?.client;
     const lifecycle = config.getOrThrow('overdueLifecycle');
     this.gracePeriodDays = lifecycle.gracePeriodDays;
     this.terminationDays = lifecycle.terminationDays;
@@ -571,6 +577,16 @@ export class SubscriptionLifecycleService {
       subscription.eligibleForTerminationAt > new Date()
     ) {
       throw new ConflictException('This subscription is not eligible for non-payment termination.');
+    }
+    if (
+      subscription.billingMode === BillingMode.STRIPE_RECURRING &&
+      subscription.stripeSubscriptionId
+    ) {
+      await this.stripe!.subscriptions.cancel(
+        subscription.stripeSubscriptionId,
+        {},
+        { idempotencyKey: `non-payment-termination-${subscription.id}` },
+      );
     }
     const now = new Date();
     assertSubscriptionTransition(subscription.status, SubscriptionStatus.TERMINATED);

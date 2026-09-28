@@ -1,0 +1,2593 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/udsvah03",
+    "id": "udsvah03",
+    "slide": 9,
+    "layoutId": "/ppt/slideLayouts/slideLayout6.xml",
+    "layoutName": "Title Only",
+    "masterLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "Theme 2",
+    "colors": {
+      "accent1": "#3357B8",
+      "accent2": "#CFD2D9",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#FAFCFE",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "fontScheme": {
+      "name": "Lora Roboto",
+      "majorFont": {
+        "latinTypeface": "Lora"
+      },
+      "minorFont": {
+        "latinTypeface": "Roboto"
+      }
+    },
+    "typefaces": [
+      "Lora",
+      "Lora SemiBold",
+      "Roboto"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "/ppt/slideLayouts/slideLayout6.xml",
+      "name": "Title Only",
+      "parentLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+      "elements": [
+        {
+          "order": 1,
+          "kind": "shape",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout6.xml/8",
+          "id": "8",
+          "name": "Footer Placeholder 4",
+          "bbox": [
+            41.33,
+            659.24,
+            772.89,
+            25.4
+          ],
+          "geometry": "rect",
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "vertical": 1,
+            "verticalAlignment": "bottom",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          }
+        },
+        {
+          "order": 2,
+          "kind": "shape",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout6.xml/9",
+          "id": "9",
+          "name": "Slide Number Placeholder 5",
+          "bbox": [
+            1184.18,
+            659.24,
+            54.48,
+            25.33
+          ],
+          "geometry": "rect",
+          "text": "‹#›",
+          "textPreview": "‹#›",
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "vertical": 1,
+            "verticalAlignment": "bottom",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "‹#›",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "‹#›"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "kind": "shape",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout6.xml/2",
+          "id": "2",
+          "name": "Title Placeholder 1",
+          "bbox": [
+            41.33,
+            36.12,
+            1197.33,
+            109.97
+          ],
+          "geometry": "rect",
+          "text": "Click to edit Master title style",
+          "textPreview": "Click to edit Master title style",
+          "resolvedTextStyle": {
+            "anchor": 1,
+            "vertical": 1,
+            "verticalAlignment": "top",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Click to edit Master title style",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Click to edit Master title style"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "master",
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "type": "master",
+      "backgroundColor": "bg2",
+      "elements": [
+        {
+          "order": 1,
+          "kind": "shape",
+          "scope": "master",
+          "aid": "template/master//ppt/slideMasters/slideMaster1.xml/2",
+          "id": "2",
+          "name": "Title Placeholder 1",
+          "bbox": [
+            41.33,
+            36.12,
+            1197.33,
+            109.97
+          ],
+          "geometry": "rect",
+          "text": "Click to edit Master title style",
+          "textPreview": "Click to edit Master title style",
+          "resolvedTextStyle": {
+            "anchor": 1,
+            "vertical": 1,
+            "verticalAlignment": "top",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Click to edit Master title style",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Click to edit Master title style"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "kind": "shape",
+          "scope": "master",
+          "aid": "template/master//ppt/slideMasters/slideMaster1.xml/3",
+          "id": "3",
+          "name": "Text Placeholder 2",
+          "bbox": [
+            41.33,
+            213.33,
+            1197.33,
+            416
+          ],
+          "geometry": "rect",
+          "text": "Click to edit Master styles\nSecond level\nThird level\nFourth level\nFifth level",
+          "textPreview": "Click to edit Master styles | Second level | Third level | Fourth level | Fifth level",
+          "resolvedTextStyle": {
+            "vertical": 1,
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Click to edit Master styles",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Click to edit Master styles"
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "text": "Second level",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Second level"
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "text": "Third level",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Third level"
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "text": "Fourth level",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Fourth level"
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "text": "Fifth level",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Fifth level"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "kind": "shape",
+          "scope": "master",
+          "aid": "template/master//ppt/slideMasters/slideMaster1.xml/5",
+          "id": "5",
+          "name": "Footer Placeholder 4",
+          "bbox": [
+            41.33,
+            659.24,
+            790.67,
+            25.4
+          ],
+          "geometry": "rect",
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "vertical": 1,
+            "verticalAlignment": "bottom",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          }
+        },
+        {
+          "order": 4,
+          "kind": "shape",
+          "scope": "master",
+          "aid": "template/master//ppt/slideMasters/slideMaster1.xml/6",
+          "id": "6",
+          "name": "Slide Number Placeholder 5",
+          "bbox": [
+            1184.18,
+            659.24,
+            54.48,
+            25.33
+          ],
+          "geometry": "rect",
+          "text": "‹#›",
+          "textPreview": "‹#›",
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "vertical": 1,
+            "verticalAlignment": "bottom",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "‹#›",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "‹#›"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/94zaxgfa",
+      "id": "532",
+      "name": "Google Shape;532;p58",
+      "bbox": [
+        1184.18,
+        659.24,
+        54.48,
+        25.33
+      ],
+      "geometry": "rect",
+      "text": "9",
+      "textPreview": "9",
+      "resolvedFontSize": 14.67,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "vertical": 1,
+        "fontSize": 14.67,
+        "typeface": "Roboto",
+        "color": "tx1",
+        "alignment": "right",
+        "verticalAlignment": "bottom",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "useParagraphSpacing": true
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "9"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "9",
+          "runs": [
+            {
+              "index": 1,
+              "text": "9"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/83qtobep",
+      "id": "533",
+      "name": "Google Shape;533;p58",
+      "bbox": [
+        41.33,
+        36.12,
+        822.67,
+        109.22
+      ],
+      "geometry": "rect",
+      "text": "Full width data table slide",
+      "textPreview": "Full width data table slide",
+      "resolvedFontSize": 38.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "vertical": 1,
+        "fontSize": 38.67,
+        "typeface": "Lora SemiBold",
+        "color": "tx1",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "useParagraphSpacing": true
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Full width data table slide"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Full width data table slide",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Full width data table slide",
+              "color": "accent1"
+            }
+          ],
+          "bulletCharacter": "",
+          "lineSpacingPercent": 90000
+        }
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "table",
+      "scope": "slide",
+      "aid": "tb/2x0ne10r",
+      "id": "534",
+      "name": "Google Shape;644;p93",
+      "bbox": [
+        498.98,
+        162.66,
+        711.6,
+        485.86
+      ],
+      "text": "Column Label | Column Label | Column Label | Column Label\nData Point | Yes | 1,000,000k / s | 0.00023862381\nData Point | No | 1,000,000k / s | 0.00023862381\nData Point | Yes | 1,000,000k / s | 0.00023862381\nData Point | No | 1,000,000k / s | 0.00023862381\nData Point | Yes | 1,000,000k / s | 0.00023862381\nData Point | No | 1,000,000k / s | 0.00023862381\nData Point | Yes | 1,000,000k / s | 0.00023862381\nData Point | Yes | 1,000,000k / s | 0.00023862381\nData Point | Yes | 1,000,000k / s | 0.00023862381",
+      "textPreview": "Column Label | Column Label | Column Label | Column Label | Data Point | Yes | 1,000,000k / s | 0.00023862381 | Data Point | No | 1,000,0...",
+      "rows": 10,
+      "cols": 4,
+      "cells": [
+        {
+          "index": 1,
+          "row": 1,
+          "column": 1,
+          "bbox": [
+            498.98,
+            162.66,
+            177.9,
+            58.63
+          ],
+          "text": "Column Label",
+          "textPreview": "Column Label",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Column Label",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Column Label",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "row": 1,
+          "column": 2,
+          "bbox": [
+            676.88,
+            162.66,
+            177.9,
+            58.63
+          ],
+          "text": "Column Label",
+          "textPreview": "Column Label",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Column Label",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Column Label",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 3,
+          "bbox": [
+            854.78,
+            162.66,
+            177.9,
+            58.63
+          ],
+          "text": "Column Label",
+          "textPreview": "Column Label",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Column Label",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Column Label",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 4,
+          "bbox": [
+            1032.68,
+            162.66,
+            177.9,
+            58.63
+          ],
+          "text": "Column Label",
+          "textPreview": "Column Label",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Column Label",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Column Label",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "row": 2,
+          "column": 1,
+          "bbox": [
+            498.98,
+            221.29,
+            177.9,
+            47.47
+          ],
+          "text": "Data Point",
+          "textPreview": "Data Point",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Data Point",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Data Point",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "row": 2,
+          "column": 2,
+          "bbox": [
+            676.88,
+            221.29,
+            177.9,
+            47.47
+          ],
+          "text": "Yes",
+          "textPreview": "Yes",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Yes",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Yes",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "row": 2,
+          "column": 3,
+          "bbox": [
+            854.78,
+            221.29,
+            177.9,
+            47.47
+          ],
+          "text": "1,000,000k / s",
+          "textPreview": "1,000,000k / s",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1,000,000k / s",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1,000,000k / s",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 8,
+          "row": 2,
+          "column": 4,
+          "bbox": [
+            1032.68,
+            221.29,
+            177.9,
+            47.47
+          ],
+          "text": "0.00023862381",
+          "textPreview": "0.00023862381",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "0.00023862381",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "0.00023862381",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 9,
+          "row": 3,
+          "column": 1,
+          "bbox": [
+            498.98,
+            268.76,
+            177.9,
+            47.47
+          ],
+          "text": "Data Point",
+          "textPreview": "Data Point",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Data Point",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Data Point",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "row": 3,
+          "column": 2,
+          "bbox": [
+            676.88,
+            268.76,
+            177.9,
+            47.47
+          ],
+          "text": "No",
+          "textPreview": "No",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "No",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "No",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 11,
+          "row": 3,
+          "column": 3,
+          "bbox": [
+            854.78,
+            268.76,
+            177.9,
+            47.47
+          ],
+          "text": "1,000,000k / s",
+          "textPreview": "1,000,000k / s",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1,000,000k / s",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1,000,000k / s",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 12,
+          "row": 3,
+          "column": 4,
+          "bbox": [
+            1032.68,
+            268.76,
+            177.9,
+            47.47
+          ],
+          "text": "0.00023862381",
+          "textPreview": "0.00023862381",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "0.00023862381",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "0.00023862381",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 13,
+          "row": 4,
+          "column": 1,
+          "bbox": [
+            498.98,
+            316.23,
+            177.9,
+            47.47
+          ],
+          "text": "Data Point",
+          "textPreview": "Data Point",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Data Point",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Data Point",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 14,
+          "row": 4,
+          "column": 2,
+          "bbox": [
+            676.88,
+            316.23,
+            177.9,
+            47.47
+          ],
+          "text": "Yes",
+          "textPreview": "Yes",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Yes",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Yes",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 15,
+          "row": 4,
+          "column": 3,
+          "bbox": [
+            854.78,
+            316.23,
+            177.9,
+            47.47
+          ],
+          "text": "1,000,000k / s",
+          "textPreview": "1,000,000k / s",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1,000,000k / s",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1,000,000k / s",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 16,
+          "row": 4,
+          "column": 4,
+          "bbox": [
+            1032.68,
+            316.23,
+            177.9,
+            47.47
+          ],
+          "text": "0.00023862381",
+          "textPreview": "0.00023862381",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "0.00023862381",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "0.00023862381",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 17,
+          "row": 5,
+          "column": 1,
+          "bbox": [
+            498.98,
+            363.7,
+            177.9,
+            47.47
+          ],
+          "text": "Data Point",
+          "textPreview": "Data Point",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Data Point",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Data Point",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 18,
+          "row": 5,
+          "column": 2,
+          "bbox": [
+            676.88,
+            363.7,
+            177.9,
+            47.47
+          ],
+          "text": "No",
+          "textPreview": "No",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "No",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "No",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 19,
+          "row": 5,
+          "column": 3,
+          "bbox": [
+            854.78,
+            363.7,
+            177.9,
+            47.47
+          ],
+          "text": "1,000,000k / s",
+          "textPreview": "1,000,000k / s",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1,000,000k / s",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1,000,000k / s",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 20,
+          "row": 5,
+          "column": 4,
+          "bbox": [
+            1032.68,
+            363.7,
+            177.9,
+            47.47
+          ],
+          "text": "0.00023862381",
+          "textPreview": "0.00023862381",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "0.00023862381",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "0.00023862381",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 21,
+          "row": 6,
+          "column": 1,
+          "bbox": [
+            498.98,
+            411.17,
+            177.9,
+            47.47
+          ],
+          "text": "Data Point",
+          "textPreview": "Data Point",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Data Point",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Data Point",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 22,
+          "row": 6,
+          "column": 2,
+          "bbox": [
+            676.88,
+            411.17,
+            177.9,
+            47.47
+          ],
+          "text": "Yes",
+          "textPreview": "Yes",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Yes",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Yes",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 23,
+          "row": 6,
+          "column": 3,
+          "bbox": [
+            854.78,
+            411.17,
+            177.9,
+            47.47
+          ],
+          "text": "1,000,000k / s",
+          "textPreview": "1,000,000k / s",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1,000,000k / s",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1,000,000k / s",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 24,
+          "row": 6,
+          "column": 4,
+          "bbox": [
+            1032.68,
+            411.17,
+            177.9,
+            47.47
+          ],
+          "text": "0.00023862381",
+          "textPreview": "0.00023862381",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "0.00023862381",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "0.00023862381",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 25,
+          "row": 7,
+          "column": 1,
+          "bbox": [
+            498.98,
+            458.64,
+            177.9,
+            47.47
+          ],
+          "text": "Data Point",
+          "textPreview": "Data Point",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Data Point",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Data Point",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 26,
+          "row": 7,
+          "column": 2,
+          "bbox": [
+            676.88,
+            458.64,
+            177.9,
+            47.47
+          ],
+          "text": "No",
+          "textPreview": "No",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "No",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "No",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 27,
+          "row": 7,
+          "column": 3,
+          "bbox": [
+            854.78,
+            458.64,
+            177.9,
+            47.47
+          ],
+          "text": "1,000,000k / s",
+          "textPreview": "1,000,000k / s",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1,000,000k / s",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1,000,000k / s",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 28,
+          "row": 7,
+          "column": 4,
+          "bbox": [
+            1032.68,
+            458.64,
+            177.9,
+            47.47
+          ],
+          "text": "0.00023862381",
+          "textPreview": "0.00023862381",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "0.00023862381",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "0.00023862381",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 29,
+          "row": 8,
+          "column": 1,
+          "bbox": [
+            498.98,
+            506.11,
+            177.9,
+            47.47
+          ],
+          "text": "Data Point",
+          "textPreview": "Data Point",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Data Point",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Data Point",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 30,
+          "row": 8,
+          "column": 2,
+          "bbox": [
+            676.88,
+            506.11,
+            177.9,
+            47.47
+          ],
+          "text": "Yes",
+          "textPreview": "Yes",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Yes",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Yes",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 31,
+          "row": 8,
+          "column": 3,
+          "bbox": [
+            854.78,
+            506.11,
+            177.9,
+            47.47
+          ],
+          "text": "1,000,000k / s",
+          "textPreview": "1,000,000k / s",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1,000,000k / s",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1,000,000k / s",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 32,
+          "row": 8,
+          "column": 4,
+          "bbox": [
+            1032.68,
+            506.11,
+            177.9,
+            47.47
+          ],
+          "text": "0.00023862381",
+          "textPreview": "0.00023862381",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "0.00023862381",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "0.00023862381",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 33,
+          "row": 9,
+          "column": 1,
+          "bbox": [
+            498.98,
+            553.58,
+            177.9,
+            47.47
+          ],
+          "text": "Data Point",
+          "textPreview": "Data Point",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Data Point",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Data Point",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 34,
+          "row": 9,
+          "column": 2,
+          "bbox": [
+            676.88,
+            553.58,
+            177.9,
+            47.47
+          ],
+          "text": "Yes",
+          "textPreview": "Yes",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Yes",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Yes",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 35,
+          "row": 9,
+          "column": 3,
+          "bbox": [
+            854.78,
+            553.58,
+            177.9,
+            47.47
+          ],
+          "text": "1,000,000k / s",
+          "textPreview": "1,000,000k / s",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1,000,000k / s",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1,000,000k / s",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 36,
+          "row": 9,
+          "column": 4,
+          "bbox": [
+            1032.68,
+            553.58,
+            177.9,
+            47.47
+          ],
+          "text": "0.00023862381",
+          "textPreview": "0.00023862381",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "0.00023862381",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "0.00023862381",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 37,
+          "row": 10,
+          "column": 1,
+          "bbox": [
+            498.98,
+            601.05,
+            177.9,
+            47.47
+          ],
+          "text": "Data Point",
+          "textPreview": "Data Point",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Data Point",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Data Point",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 38,
+          "row": 10,
+          "column": 2,
+          "bbox": [
+            676.88,
+            601.05,
+            177.9,
+            47.47
+          ],
+          "text": "Yes",
+          "textPreview": "Yes",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Yes",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Yes",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 39,
+          "row": 10,
+          "column": 3,
+          "bbox": [
+            854.78,
+            601.05,
+            177.9,
+            47.47
+          ],
+          "text": "1,000,000k / s",
+          "textPreview": "1,000,000k / s",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1,000,000k / s",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1,000,000k / s",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 40,
+          "row": 10,
+          "column": 4,
+          "bbox": [
+            1032.68,
+            601.05,
+            177.9,
+            47.47
+          ],
+          "text": "0.00023862381",
+          "textPreview": "0.00023862381",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "0.00023862381",
+              "lineSpacingPercent": 110000,
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "0.00023862381",
+                  "fontSize": 18.67,
+                  "typeface": "Roboto",
+                  "color": "#000000"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/0b65obm9",
+      "id": "3",
+      "name": "Footer Placeholder 2",
+      "bbox": [
+        41.33,
+        659.24,
+        772.89,
+        25.4
+      ],
+      "resolvedFontSize": 14.67,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "vertical": 1,
+        "fontSize": 14.67,
+        "typeface": "Roboto",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "bottom",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ofq5svm5",
+      "id": "7",
+      "name": "Google Shape;534;p58",
+      "bbox": [
+        41.33,
+        291.25,
+        378.67,
+        338.08
+      ],
+      "geometry": "rect",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus cursus. Nullam pharetra mauris tortor. In hac habitasse platea dictumst. Proin mattis nibh risus. Nulla tempor ut massa elementum dapibus. Nam non ante quis enim fringilla tempus nec in lectus. In hac habitasse platea dictumst. \nLorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus cursus. Nullam pharetra mauris tortor. In hac habitasse platea dictumst. Proin mattis nibh risus. ",
+      "textPreview": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus cursus. Nullam pharetra mauris torto...",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Roboto",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "useParagraphSpacing": true
+      },
+      "textLayout": {
+        "lineCount": 13,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Lorem ipsum dolor sit amet, consectetur"
+          },
+          {
+            "index": 2,
+            "text": "adipiscing elit. Pellentesque ultricies quam ut"
+          },
+          {
+            "index": 3,
+            "text": "massa luctus cursus. Nullam pharetra mauris"
+          },
+          {
+            "index": 4,
+            "text": "tortor. In hac habitasse platea dictumst."
+          },
+          {
+            "index": 5,
+            "text": "Proin mattis nibh risus. Nulla tempor ut"
+          },
+          {
+            "index": 6,
+            "text": "massa elementum dapibus. Nam non ante"
+          },
+          {
+            "index": 7,
+            "text": "quis enim fringilla tempus nec in lectus. In"
+          },
+          {
+            "index": 8,
+            "text": "hac habitasse platea dictumst."
+          },
+          {
+            "index": 9,
+            "text": "Lorem ipsum dolor sit amet, consectetur"
+          },
+          {
+            "index": 10,
+            "text": "adipiscing elit. Pellentesque ultricies quam ut"
+          },
+          {
+            "index": 11,
+            "text": "massa luctus cursus. Nullam pharetra mauris"
+          },
+          {
+            "index": 12,
+            "text": "tortor. In hac habitasse platea dictumst."
+          },
+          {
+            "index": 13,
+            "text": "Proin mattis nibh risus."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus cursus. Nullam pharetra mauris tortor. In hac habitasse platea dictumst. Proin mattis nibh risus. Nulla tempor ut massa elementum dapibus. Nam non ante quis enim fringilla tempus nec in lectus. In hac habitasse platea dictumst. ",
+          "lineSpacingPercent": 114000,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Lorem ipsum dolor sit ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 2,
+              "text": "amet",
+              "fontSize": 18.67
+            },
+            {
+              "index": 3,
+              "text": ", ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 4,
+              "text": "consectetur",
+              "fontSize": 18.67
+            },
+            {
+              "index": 5,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 6,
+              "text": "adipiscing",
+              "fontSize": 18.67
+            },
+            {
+              "index": 7,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 8,
+              "text": "elit",
+              "fontSize": 18.67
+            },
+            {
+              "index": 9,
+              "text": ". ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 10,
+              "text": "Pellentesque",
+              "fontSize": 18.67
+            },
+            {
+              "index": 11,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 12,
+              "text": "ultricies",
+              "fontSize": 18.67
+            },
+            {
+              "index": 13,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 14,
+              "text": "quam",
+              "fontSize": 18.67
+            },
+            {
+              "index": 15,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 16,
+              "text": "ut",
+              "fontSize": 18.67
+            },
+            {
+              "index": 17,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 18,
+              "text": "massa",
+              "fontSize": 18.67
+            },
+            {
+              "index": 19,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 20,
+              "text": "luctus",
+              "fontSize": 18.67
+            },
+            {
+              "index": 21,
+              "text": " cursus. ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 22,
+              "text": "Nullam",
+              "fontSize": 18.67
+            },
+            {
+              "index": 23,
+              "text": " pharetra ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 24,
+              "text": "mauris",
+              "fontSize": 18.67
+            },
+            {
+              "index": 25,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 26,
+              "text": "tortor",
+              "fontSize": 18.67
+            },
+            {
+              "index": 27,
+              "text": ". In hac ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 28,
+              "text": "habitasse",
+              "fontSize": 18.67
+            },
+            {
+              "index": 29,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 30,
+              "text": "platea",
+              "fontSize": 18.67
+            },
+            {
+              "index": 31,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 32,
+              "text": "dictumst",
+              "fontSize": 18.67
+            },
+            {
+              "index": 33,
+              "text": ". Proin ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 34,
+              "text": "mattis",
+              "fontSize": 18.67
+            },
+            {
+              "index": 35,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 36,
+              "text": "nibh",
+              "fontSize": 18.67
+            },
+            {
+              "index": 37,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 38,
+              "text": "risus",
+              "fontSize": 18.67
+            },
+            {
+              "index": 39,
+              "text": ". ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 40,
+              "text": "Nulla",
+              "fontSize": 18.67
+            },
+            {
+              "index": 41,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 42,
+              "text": "tempor",
+              "fontSize": 18.67
+            },
+            {
+              "index": 43,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 44,
+              "text": "ut",
+              "fontSize": 18.67
+            },
+            {
+              "index": 45,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 46,
+              "text": "massa",
+              "fontSize": 18.67
+            },
+            {
+              "index": 47,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 48,
+              "text": "elementum",
+              "fontSize": 18.67
+            },
+            {
+              "index": 49,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 50,
+              "text": "dapibus",
+              "fontSize": 18.67
+            },
+            {
+              "index": 51,
+              "text": ". Nam non ante quis ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 52,
+              "text": "enim",
+              "fontSize": 18.67
+            },
+            {
+              "index": 53,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 54,
+              "text": "fringilla",
+              "fontSize": 18.67
+            },
+            {
+              "index": 55,
+              "text": " tempus nec in ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 56,
+              "text": "lectus",
+              "fontSize": 18.67
+            },
+            {
+              "index": 57,
+              "text": ". In hac ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 58,
+              "text": "habitasse",
+              "fontSize": 18.67
+            },
+            {
+              "index": 59,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 60,
+              "text": "platea",
+              "fontSize": 18.67
+            },
+            {
+              "index": 61,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 62,
+              "text": "dictumst",
+              "fontSize": 18.67
+            },
+            {
+              "index": 63,
+              "text": ". ",
+              "fontSize": 18.67
+            }
+          ],
+          "bulletCharacter": "•",
+          "marginLeft": 228600,
+          "indent": -228600
+        },
+        {
+          "index": 2,
+          "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies quam ut massa luctus cursus. Nullam pharetra mauris tortor. In hac habitasse platea dictumst. Proin mattis nibh risus. ",
+          "lineSpacingPercent": 114000,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Lorem ipsum dolor sit ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 2,
+              "text": "amet",
+              "fontSize": 18.67
+            },
+            {
+              "index": 3,
+              "text": ", ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 4,
+              "text": "consectetur",
+              "fontSize": 18.67
+            },
+            {
+              "index": 5,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 6,
+              "text": "adipiscing",
+              "fontSize": 18.67
+            },
+            {
+              "index": 7,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 8,
+              "text": "elit",
+              "fontSize": 18.67
+            },
+            {
+              "index": 9,
+              "text": ". ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 10,
+              "text": "Pellentesque",
+              "fontSize": 18.67
+            },
+            {
+              "index": 11,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 12,
+              "text": "ultricies",
+              "fontSize": 18.67
+            },
+            {
+              "index": 13,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 14,
+              "text": "quam",
+              "fontSize": 18.67
+            },
+            {
+              "index": 15,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 16,
+              "text": "ut",
+              "fontSize": 18.67
+            },
+            {
+              "index": 17,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 18,
+              "text": "massa",
+              "fontSize": 18.67
+            },
+            {
+              "index": 19,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 20,
+              "text": "luctus",
+              "fontSize": 18.67
+            },
+            {
+              "index": 21,
+              "text": " cursus. ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 22,
+              "text": "Nullam",
+              "fontSize": 18.67
+            },
+            {
+              "index": 23,
+              "text": " pharetra ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 24,
+              "text": "mauris",
+              "fontSize": 18.67
+            },
+            {
+              "index": 25,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 26,
+              "text": "tortor",
+              "fontSize": 18.67
+            },
+            {
+              "index": 27,
+              "text": ". In hac ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 28,
+              "text": "habitasse",
+              "fontSize": 18.67
+            },
+            {
+              "index": 29,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 30,
+              "text": "platea",
+              "fontSize": 18.67
+            },
+            {
+              "index": 31,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 32,
+              "text": "dictumst",
+              "fontSize": 18.67
+            },
+            {
+              "index": 33,
+              "text": ". Proin ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 34,
+              "text": "mattis",
+              "fontSize": 18.67
+            },
+            {
+              "index": 35,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 36,
+              "text": "nibh",
+              "fontSize": 18.67
+            },
+            {
+              "index": 37,
+              "text": " ",
+              "fontSize": 18.67
+            },
+            {
+              "index": 38,
+              "text": "risus",
+              "fontSize": 18.67
+            },
+            {
+              "index": 39,
+              "text": ". ",
+              "fontSize": 18.67
+            }
+          ],
+          "bulletCharacter": "•",
+          "marginLeft": 228600,
+          "indent": -228600
+        }
+      ]
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/bih4na5w",
+      "id": "8",
+      "name": "Google Shape;534;p58",
+      "bbox": [
+        41.33,
+        164.29,
+        378.67,
+        123.71
+      ],
+      "geometry": "rect",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies.",
+      "textPreview": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies.",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "vertical": 1,
+        "fontSize": 32,
+        "typeface": "Roboto",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "useParagraphSpacing": true
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Lorem ipsum dolor sit amet,"
+          },
+          {
+            "index": 2,
+            "text": "consectetur adipiscing elit."
+          },
+          {
+            "index": 3,
+            "text": "Pellentesque ultricies."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque ultricies.",
+          "lineSpacingPercent": 114000,
+          "runs": [
+            {
+              "index": 1,
+              "text": "Lorem ipsum dolor sit ",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 2,
+              "text": "amet",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 3,
+              "text": ", ",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 4,
+              "text": "consectetur",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 5,
+              "text": " ",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 6,
+              "text": "adipiscing",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 7,
+              "text": " ",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 8,
+              "text": "elit",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 9,
+              "text": ". ",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 10,
+              "text": "Pellentesque",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 11,
+              "text": " ",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 12,
+              "text": "ultricies",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            },
+            {
+              "index": 13,
+              "text": ".",
+              "fontSize": 26.67,
+              "typeface": "Lora"
+            }
+          ],
+          "bulletCharacter": "•",
+          "marginLeft": 228600,
+          "indent": -228600
+        }
+      ]
+    }
+  ],
+  "composeRuns": []
+}

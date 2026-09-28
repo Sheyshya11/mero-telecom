@@ -29,6 +29,7 @@ vi.mock('../payments/stripe-checkout-button', () => ({
 const apiRequestMock = vi.mocked(apiRequest);
 const invoice: NonNullable<CustomerDashboard['latestInvoice']> = {
   id: 'invoice-1',
+  type: 'MANUAL',
   invoiceNumber: 'INV-2026-000001',
   issueDate: '2026-09-01T00:00:00.000Z',
   dueDate: '2026-09-15T00:00:00.000Z',

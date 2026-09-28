@@ -5,6 +5,7 @@ import {
   CancellationProviderStatus,
   CancellationStatus,
   CancellationType,
+  InvoiceType,
   InvoiceStatus,
   MockDisconnectionScenario,
   PlanChangeStatus,
@@ -14,7 +15,12 @@ import {
   ServiceRelocationStatus,
   SubscriptionStatus,
   SuspensionReason,
+  BillingMode,
+  PaymentProvider,
+  PaymentStatus,
+  RefundStatus,
 } from '@prisma/client';
+import type Stripe from 'stripe';
 
 import { buildPaginationMeta, dateRange } from '../../common/pagination';
 import type { AppConfig } from '../../config/configuration';
@@ -23,6 +29,9 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import { NotificationService } from '../notifications/notification.service';
 import { ProvisioningService } from '../subscriptions/provisioning.service';
+import { StripeClientService } from '../payments/stripe-client.service';
+import { BillingService } from '../billing/billing.service';
+import { RefundsService } from '../refunds/refunds.service';
 import { assertSubscriptionTransition } from '../subscriptions/subscription-lifecycle.policy';
 import { CancellationWorkflowPolicyService } from './cancellation-workflow-policy.service';
 import type { CancellationQueryDto, CreateCancellationDto } from './dto/cancellation.dto';
@@ -61,6 +70,38 @@ const cancellationInclude = {
     include: { author: { select: { id: true, displayName: true, email: true } } },
     orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
   },
+  refund: {
+    select: {
+      id: true,
+      status: true,
+      originalAmountCents: true,
+      refundAmountCents: true,
+      currency: true,
+      stripeRefundId: true,
+      requestedAt: true,
+      processedAt: true,
+      failedAt: true,
+      failureReason: true,
+      payment: {
+        select: {
+          id: true,
+          amountCents: true,
+          refundedCents: true,
+          status: true,
+          providerPaymentId: true,
+        },
+      },
+      invoice: {
+        select: {
+          id: true,
+          invoiceNumber: true,
+          status: true,
+          billingPeriodStart: true,
+          billingPeriodEnd: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.CancellationRequestInclude;
 
 type CancellationRecord = Prisma.CancellationRequestGetPayload<{
@@ -74,6 +115,21 @@ interface ClaimedCancellation {
   scenario: MockDisconnectionScenario;
 }
 
+interface CancellationRefundQuote {
+  amountPaidCents: number;
+  eligibleRecurringAmountCents: number;
+  calculatedProrationCents: number;
+  previousSuccessfulRefundCents: number;
+  reservedRefundCents: number;
+  remainingRefundableCents: number;
+  refundAmountCents: number;
+  paymentId: string | null;
+  invoiceId: string | null;
+  noRefundReason: string | null;
+  periodDurationMilliseconds: number;
+  remainingDurationMilliseconds: number;
+}
+
 @Injectable()
 export class CancellationsService {
   private readonly logger = new Logger(CancellationsService.name);
@@ -81,6 +137,7 @@ export class CancellationsService {
   private readonly configuredScenario: MockDisconnectionScenario;
   private readonly gracePeriodDays: number;
   private readonly terminationDays: number;
+  private readonly stripe?: Stripe;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -89,8 +146,12 @@ export class CancellationsService {
     private readonly notifications: NotificationService,
     private readonly dashboardCache: AdminDashboardCacheService,
     private readonly provisioning: ProvisioningService,
+    private readonly billing: BillingService,
+    private readonly refunds: RefundsService,
     configService: ConfigService<AppConfig, true>,
+    stripeClient?: StripeClientService,
   ) {
+    this.stripe = stripeClient?.client;
     const config = configService.getOrThrow('cancellation');
     const overdueLifecycle = configService.getOrThrow('overdueLifecycle');
     this.batchSize = config.batchSize;
@@ -111,7 +172,11 @@ export class CancellationsService {
         'A pending, past-due, or suspended service can only be cancelled as soon as possible.',
       );
     }
-    const outstanding = await this.outstandingBalance(subscription.customerId);
+    const calculatedAt = new Date();
+    const [outstanding, refund] = await Promise.all([
+      this.outstandingBalance(subscription.customerId),
+      this.calculateRefundQuote(this.prisma, subscription, type, calculatedAt),
+    ]);
     return {
       subscriptionId: subscription.id,
       type,
@@ -120,14 +185,25 @@ export class CancellationsService {
       currentPeriodEnd: subscription.currentPeriodEnd,
       nextBillingAt: subscription.currentPeriodEnd,
       proposedServiceEndAt:
-        type === CancellationType.END_OF_PERIOD ? subscription.currentPeriodEnd : new Date(),
+        type === CancellationType.END_OF_PERIOD ? subscription.currentPeriodEnd : calculatedAt,
       outstandingBalanceCents: outstanding,
       currency: 'AUD',
-      automaticRefundCents: null,
+      amountPaidCents: refund.amountPaidCents,
+      eligibleRecurringAmountCents: refund.eligibleRecurringAmountCents,
+      calculatedProrationCents: refund.calculatedProrationCents,
+      previousSuccessfulRefundCents: refund.previousSuccessfulRefundCents,
+      remainingRefundableCents: refund.remainingRefundableCents,
+      automaticRefundCents: refund.refundAmountCents,
+      refundAvailable: refund.refundAmountCents > 0,
+      noRefundReason: refund.noRefundReason,
+      refundDestination: refund.refundAmountCents > 0 ? 'Original payment method' : null,
       billingMessage:
         type === CancellationType.END_OF_PERIOD
           ? 'Your current billing period remains available until the scheduled service end. No new billing period will be opened after that date.'
-          : 'No refund is issued automatically. Any credit or refund must be reviewed through the existing billing and refund workflow.',
+          : refund.refundAmountCents > 0
+            ? 'This is an estimate. We recalculate the unused service after you confirm and automatically return the final amount to your original payment method once service termination succeeds.'
+            : (refund.noRefundReason ??
+              'There is no refundable recurring payment for the current billing period.'),
       providerSimulation: this.provider.simulated,
     };
   }
@@ -213,6 +289,12 @@ export class CancellationsService {
             );
           }
           const requestNumber = await this.nextRequestNumber(transaction, requestedAt);
+          const refundQuote = await this.calculateRefundQuote(
+            transaction,
+            subscription,
+            input.type,
+            requestedAt,
+          );
           const status =
             input.type === CancellationType.END_OF_PERIOD
               ? CancellationStatus.SCHEDULED
@@ -239,9 +321,39 @@ export class CancellationsService {
               providerName: this.provider.name,
               providerIdempotencyKey: `cancellation:${requestNumber}`,
               providerScenario: this.configuredScenario,
+              refundAmountCents: refundQuote.refundAmountCents,
+              refundCalculation: this.refundCalculationJson(
+                refundQuote,
+                subscription.currentPeriodStart,
+                subscription.currentPeriodEnd,
+                requestedAt,
+              ),
             },
             include: cancellationInclude,
           });
+          let finalRefundAmountCents = refundQuote.refundAmountCents;
+          if (refundQuote.refundAmountCents > 0 && refundQuote.paymentId) {
+            const refund = await this.refunds.createApprovedCancellationRefund(transaction, {
+              cancellationRequestId: request.id,
+              paymentId: refundQuote.paymentId,
+              subscriptionId: subscription.id,
+              requestedByUserId: actor.id,
+              amountCents: refundQuote.refundAmountCents,
+              metadata: this.refundCalculationJson(
+                refundQuote,
+                subscription.currentPeriodStart,
+                subscription.currentPeriodEnd,
+                requestedAt,
+              ),
+            });
+            finalRefundAmountCents = refund?.refundAmountCents ?? 0;
+            if (finalRefundAmountCents !== refundQuote.refundAmountCents) {
+              await transaction.cancellationRequest.update({
+                where: { id: request.id },
+                data: { refundAmountCents: finalRefundAmountCents },
+              });
+            }
+          }
           assertSubscriptionTransition(
             subscription.status,
             SubscriptionStatus.CANCELLATION_PENDING,
@@ -262,7 +374,19 @@ export class CancellationsService {
           if (status === CancellationStatus.SCHEDULED) {
             await this.audit(transaction, request, actor, 'CANCELLATION_SCHEDULED');
           }
-          return { request, reused: false };
+          await this.audit(transaction, request, actor, 'CANCELLATION_REFUND_CALCULATED', {
+            calculatedProrationCents: refundQuote.calculatedProrationCents,
+            previousSuccessfulRefundCents: refundQuote.previousSuccessfulRefundCents,
+            remainingRefundableCents: refundQuote.remainingRefundableCents,
+            refundAmountCents: finalRefundAmountCents,
+            invoiceId: refundQuote.invoiceId,
+            paymentId: refundQuote.paymentId,
+          });
+          const hydrated = await transaction.cancellationRequest.findUniqueOrThrow({
+            where: { id: request.id },
+            include: cancellationInclude,
+          });
+          return { request: hydrated, reused: false };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
@@ -278,7 +402,14 @@ export class CancellationsService {
       throw error;
     }
 
-    if (created.reused) return this.customerResponse(created.request, true);
+    await this.synchronizeStripeCancellation(created.request);
+    if (created.reused) {
+      if (created.request.status === CancellationStatus.REQUESTED) {
+        await this.process(created.request.id);
+        return this.customerResponse(await this.load(created.request.id), true);
+      }
+      return this.customerResponse(created.request, true);
+    }
     await this.notifyCustomer('REQUESTED', created.request);
     if (created.request.status === CancellationStatus.SCHEDULED) {
       await this.notifyCustomer('SCHEDULED', created.request);
@@ -314,6 +445,16 @@ export class CancellationsService {
         });
         if (!existing) throw new NotFoundException('Open cancellation request not found.');
         this.workflow.assertCanRevoke(existing, actor);
+        if (
+          existing.subscription.billingMode === BillingMode.STRIPE_RECURRING &&
+          existing.subscription.stripeSubscriptionId
+        ) {
+          await this.stripe!.subscriptions.update(
+            existing.subscription.stripeSubscriptionId,
+            { cancel_at_period_end: false },
+            { idempotencyKey: `revoke-cancellation-${existing.id}` },
+          );
+        }
         const changed = await transaction.cancellationRequest.updateMany({
           where: {
             id: existing.id,
@@ -567,7 +708,21 @@ export class CancellationsService {
       await this.provisioning.restoreService(claimed.request.subscriptionId, now);
     }
     if (applied?.status === CancellationStatus.COMPLETED) {
-      await this.notifyCustomer('COMPLETED', applied);
+      if (applied.refund?.status === RefundStatus.APPROVED) {
+        try {
+          await this.refunds.processAutomatic(applied.refund.id);
+        } catch (error: unknown) {
+          this.logger.error(
+            JSON.stringify({
+              event: 'cancellation_refund_processing_failed',
+              cancellationRequestId: applied.id,
+              refundId: applied.refund.id,
+              error: error instanceof Error ? error.name : 'UnknownError',
+            }),
+          );
+        }
+      }
+      await this.notifyCustomer('COMPLETED', await this.load(applied.id));
     } else if (applied?.status === CancellationStatus.FAILED) {
       await this.notifyFailure(applied);
     }
@@ -693,6 +848,18 @@ export class CancellationsService {
             providerOperation: claimed.request.providerOperation,
           });
         }
+        if (claimed.firstSubmission) {
+          await this.audit(
+            transaction,
+            claimed.request,
+            undefined,
+            'SERVICE_TERMINATION_REQUESTED',
+            {
+              providerReference: result.providerReference || null,
+              providerOperation: claimed.request.providerOperation,
+            },
+          );
+        }
 
         if (result.status === CancellationProviderStatus.COMPLETED) {
           await transaction.cancellationRequest.update({
@@ -730,6 +897,13 @@ export class CancellationsService {
           await this.audit(transaction, claimed.request, undefined, `${operationName}_CONFIRMED`, {
             providerReference: result.providerReference || null,
             simulated: this.provider.simulated,
+          });
+          await this.audit(transaction, claimed.request, undefined, 'SERVICE_TERMINATED', {
+            providerReference: result.providerReference || null,
+          });
+          await this.audit(transaction, claimed.request, undefined, 'SUBSCRIPTION_CANCELLED', {
+            oldStatus: current.subscriptionStatusBefore,
+            newStatus: SubscriptionStatus.CANCELLED,
           });
           await this.audit(transaction, claimed.request, undefined, 'CANCELLATION_COMPLETED', {
             oldStatus: current.status,
@@ -912,6 +1086,49 @@ export class CancellationsService {
     return needsProvisioningRestore;
   }
 
+  private async synchronizeStripeCancellation(request: CancellationRecord): Promise<void> {
+    const subscription = request.subscription;
+    if (
+      subscription.billingMode !== BillingMode.STRIPE_RECURRING ||
+      !subscription.stripeSubscriptionId
+    ) {
+      return;
+    }
+    const stripeSubscription =
+      request.type === CancellationType.END_OF_PERIOD
+        ? await this.stripe!.subscriptions.update(
+            subscription.stripeSubscriptionId,
+            { cancel_at_period_end: true },
+            { idempotencyKey: `cancel-at-period-end-${request.id}` },
+          )
+        : await this.stripe!.subscriptions.cancel(
+            subscription.stripeSubscriptionId,
+            { invoice_now: false, prorate: false },
+            { idempotencyKey: `cancel-immediately-${request.id}` },
+          );
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        stripeStatus: stripeSubscription.status,
+        cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+        nextBillingAt: null,
+      },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'STRIPE_SUBSCRIPTION_CANCELLATION_UPDATED',
+        entityType: 'CancellationRequest',
+        entityId: request.id,
+        metadata: {
+          subscriptionId: subscription.id,
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+          cancellationType: request.type,
+          cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+        },
+      },
+    });
+  }
+
   private async outstandingBalance(customerId: string): Promise<number> {
     const aggregate = await this.prisma.invoice.aggregate({
       where: { customerId, status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE] } },
@@ -971,6 +1188,9 @@ export class CancellationsService {
         effectiveAt: request.effectiveAt,
         providerOperation: request.providerOperation,
         providerSimulated: this.provider.simulated,
+        cancellationType: request.type,
+        refundAmountCents: request.refundAmountCents,
+        refundStatus: request.refund?.status ?? null,
       });
     } catch (error: unknown) {
       this.logger.error(
@@ -1017,6 +1237,18 @@ export class CancellationsService {
       status: request.status,
       completedAt: request.completedAt,
       revokedAt: request.revokedAt,
+      refundAmountCents: request.refundAmountCents,
+      refund: request.refund
+        ? {
+            id: request.refund.id,
+            status: request.refund.status,
+            amountCents: request.refund.refundAmountCents,
+            currency: request.refund.currency,
+            requestedAt: request.refund.requestedAt,
+            processedAt: request.refund.processedAt,
+            failedAt: request.refund.failedAt,
+          }
+        : null,
       plan: request.subscription.plan,
       canRevoke:
         request.status === CancellationStatus.SCHEDULED &&
@@ -1090,6 +1322,151 @@ export class CancellationsService {
       where: { id },
       include: cancellationInclude,
     });
+  }
+
+  private async calculateRefundQuote(
+    client: Pick<Prisma.TransactionClient, 'invoice' | 'refund'>,
+    subscription: {
+      id: string;
+      billingMode: BillingMode;
+      currentPeriodStart: Date;
+      currentPeriodEnd: Date;
+    },
+    type: CancellationType,
+    calculatedAt: Date,
+  ): Promise<CancellationRefundQuote> {
+    const empty = (noRefundReason: string): CancellationRefundQuote => ({
+      amountPaidCents: 0,
+      eligibleRecurringAmountCents: 0,
+      calculatedProrationCents: 0,
+      previousSuccessfulRefundCents: 0,
+      reservedRefundCents: 0,
+      remainingRefundableCents: 0,
+      refundAmountCents: 0,
+      paymentId: null,
+      invoiceId: null,
+      noRefundReason,
+      periodDurationMilliseconds: Math.max(
+        0,
+        subscription.currentPeriodEnd.getTime() - subscription.currentPeriodStart.getTime(),
+      ),
+      remainingDurationMilliseconds: Math.max(
+        0,
+        subscription.currentPeriodEnd.getTime() - calculatedAt.getTime(),
+      ),
+    });
+    if (type !== CancellationType.IMMEDIATE) {
+      return empty(
+        'No refund is needed because service continues through the paid billing period.',
+      );
+    }
+    if (subscription.billingMode !== BillingMode.STRIPE_RECURRING) {
+      return empty('This service does not have a refundable Stripe recurring payment.');
+    }
+    if (calculatedAt >= subscription.currentPeriodEnd) {
+      return empty('The current paid billing period has already ended.');
+    }
+    const periodStart = this.utcDate(subscription.currentPeriodStart);
+    const periodEnd = this.utcDate(new Date(subscription.currentPeriodEnd.getTime() - 1));
+    const invoice = await client.invoice.findFirst({
+      where: {
+        subscriptionId: subscription.id,
+        type: InvoiceType.STRIPE_RECURRING,
+        status: InvoiceStatus.PAID,
+        billingPeriodStart: periodStart,
+        billingPeriodEnd: periodEnd,
+      },
+      include: {
+        payments: {
+          where: {
+            provider: PaymentProvider.STRIPE,
+            providerPaymentId: { startsWith: 'pi_' },
+            status: { in: [PaymentStatus.SUCCEEDED, PaymentStatus.PARTIALLY_REFUNDED] },
+          },
+          orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
+          take: 1,
+        },
+      },
+      orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
+    });
+    const payment = invoice?.payments[0];
+    if (!invoice || !payment) {
+      return empty(
+        'No successful recurring card payment was found for the current billing period.',
+      );
+    }
+    const [successful, reserved] = await Promise.all([
+      client.refund.aggregate({
+        where: { paymentId: payment.id, status: RefundStatus.SUCCEEDED },
+        _sum: { refundAmountCents: true },
+      }),
+      client.refund.aggregate({
+        where: {
+          paymentId: payment.id,
+          status: { in: [RefundStatus.APPROVED, RefundStatus.PROCESSING] },
+        },
+        _sum: { refundAmountCents: true },
+      }),
+    ]);
+    const previousSuccessfulRefundCents = successful._sum.refundAmountCents ?? 0;
+    const reservedRefundCents = reserved._sum.refundAmountCents ?? 0;
+    const eligibleRecurringAmountCents = Math.min(invoice.totalCents, payment.amountCents);
+    const proration = this.billing.calculateCancellationProration({
+      paidAmountCents: eligibleRecurringAmountCents,
+      currentPeriodStart: subscription.currentPeriodStart,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      cancelledAt: calculatedAt,
+    });
+    const remainingRefundableCents = Math.max(
+      0,
+      payment.amountCents - previousSuccessfulRefundCents - reservedRefundCents,
+    );
+    const refundAmountCents = Math.min(proration.refundCents, remainingRefundableCents);
+    return {
+      amountPaidCents: payment.amountCents,
+      eligibleRecurringAmountCents,
+      calculatedProrationCents: proration.refundCents,
+      previousSuccessfulRefundCents,
+      reservedRefundCents,
+      remainingRefundableCents,
+      refundAmountCents,
+      paymentId: payment.id,
+      invoiceId: invoice.id,
+      noRefundReason:
+        refundAmountCents > 0
+          ? null
+          : remainingRefundableCents <= 0
+            ? 'The current recurring payment has already been fully refunded or reserved.'
+            : 'There is no unused paid service remaining in the current billing period.',
+      periodDurationMilliseconds: proration.periodDurationMilliseconds,
+      remainingDurationMilliseconds: proration.remainingDurationMilliseconds,
+    };
+  }
+
+  private refundCalculationJson(
+    quote: CancellationRefundQuote,
+    periodStart: Date,
+    periodEnd: Date,
+    calculatedAt: Date,
+  ): Prisma.InputJsonObject {
+    return {
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      calculatedAt: calculatedAt.toISOString(),
+      amountPaidCents: quote.amountPaidCents,
+      eligibleRecurringAmountCents: quote.eligibleRecurringAmountCents,
+      calculatedProrationCents: quote.calculatedProrationCents,
+      previousSuccessfulRefundCents: quote.previousSuccessfulRefundCents,
+      reservedRefundCents: quote.reservedRefundCents,
+      remainingRefundableCents: quote.remainingRefundableCents,
+      refundAmountCents: quote.refundAmountCents,
+      paymentId: quote.paymentId,
+      invoiceId: quote.invoiceId,
+      noRefundReason: quote.noRefundReason,
+      periodDurationMilliseconds: quote.periodDurationMilliseconds,
+      remainingDurationMilliseconds: quote.remainingDurationMilliseconds,
+      rounding: 'integer-half-up',
+    };
   }
 
   private lockSubscription(transaction: Prisma.TransactionClient, subscriptionId: string) {

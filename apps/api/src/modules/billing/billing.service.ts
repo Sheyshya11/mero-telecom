@@ -23,6 +23,12 @@ export interface PlanChangeProration {
   effectiveAt: Date;
 }
 
+export interface CancellationProration {
+  periodDurationMilliseconds: number;
+  remainingDurationMilliseconds: number;
+  refundCents: number;
+}
+
 @Injectable()
 export class BillingService {
   private static readonly gstDivisor = 11;
@@ -113,6 +119,35 @@ export class BillingService {
       amountPayableCents:
         type === 'UPGRADE' ? Math.max(0, proratedTargetCents - unusedCreditCents) : 0,
       effectiveAt: type === 'UPGRADE' ? input.calculatedAt : input.currentPeriodEnd,
+    };
+  }
+
+  calculateCancellationProration(input: {
+    paidAmountCents: number;
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+    cancelledAt: Date;
+  }): CancellationProration {
+    this.assertPositiveCents(input.paidAmountCents);
+    const periodStart = input.currentPeriodStart.getTime();
+    const periodEnd = input.currentPeriodEnd.getTime();
+    const cancelledAt = input.cancelledAt.getTime();
+    if (![periodStart, periodEnd, cancelledAt].every(Number.isFinite) || periodEnd <= periodStart) {
+      throw new BadRequestException('The subscription billing period is invalid.');
+    }
+    const periodDurationMilliseconds = periodEnd - periodStart;
+    const remainingDurationMilliseconds = Math.max(
+      0,
+      periodEnd - Math.max(periodStart, cancelledAt),
+    );
+    return {
+      periodDurationMilliseconds,
+      remainingDurationMilliseconds,
+      refundCents: this.proratedCents(
+        input.paidAmountCents,
+        remainingDurationMilliseconds,
+        periodDurationMilliseconds,
+      ),
     };
   }
 

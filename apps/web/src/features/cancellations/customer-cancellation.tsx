@@ -40,6 +40,16 @@ interface CustomerCancellationRecord {
   revokedAt: string | null;
   canRevoke: boolean;
   statusMessage: string;
+  refundAmountCents: number;
+  refund: {
+    id: string;
+    status: string;
+    amountCents: number;
+    currency: string;
+    requestedAt: string;
+    processedAt: string | null;
+    failedAt: string | null;
+  } | null;
 }
 
 interface CancellationPreview {
@@ -49,7 +59,15 @@ interface CancellationPreview {
   proposedServiceEndAt: string;
   outstandingBalanceCents: number;
   currency: string;
-  automaticRefundCents: null;
+  amountPaidCents: number;
+  eligibleRecurringAmountCents: number;
+  calculatedProrationCents: number;
+  previousSuccessfulRefundCents: number;
+  remainingRefundableCents: number;
+  automaticRefundCents: number;
+  refundAvailable: boolean;
+  noRefundReason: string | null;
+  refundDestination: string | null;
   billingMessage: string;
 }
 
@@ -166,7 +184,10 @@ export function CustomerCancellation({
   }
   if (cancellation.isError) {
     return (
-      <section className="mt-8 rounded-2xl border border-destructive-border bg-destructive-subtle p-6" role="alert">
+      <section
+        className="mt-8 rounded-2xl border border-destructive-border bg-destructive-subtle p-6"
+        role="alert"
+      >
         <h2 className="text-lg font-bold text-foreground">Cancellation options unavailable</h2>
         <p className="mt-2 text-sm text-foreground">
           We couldn&apos;t verify whether this service already has a cancellation in progress.
@@ -192,7 +213,13 @@ export function CustomerCancellation({
           Service ended
         </h2>
         <p className="mt-2 max-w-2xl text-foreground">{cancellation.data.statusMessage}</p>
-        <p className="mt-2 font-mono text-xs text-muted-foreground">{cancellation.data.requestNumber}</p>
+        <p className="mt-2 font-mono text-xs text-muted-foreground">
+          {cancellation.data.requestNumber}
+        </p>
+        <RefundSummary
+          amountCents={cancellation.data.refundAmountCents}
+          refund={cancellation.data.refund}
+        />
         <CancellationTimeline
           status={cancellation.data.status}
           requestedAt={cancellation.data.requestedAt}
@@ -212,7 +239,9 @@ export function CustomerCancellation({
         className="mt-8 rounded-2xl border border-warning-border bg-warning-subtle p-6"
         aria-labelledby="cancellation-status-title"
       >
-        <p className="text-sm font-semibold tracking-wide text-warning-foreground">MANAGE SERVICE</p>
+        <p className="text-sm font-semibold tracking-wide text-warning-foreground">
+          MANAGE SERVICE
+        </p>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-foreground" id="cancellation-status-title">
@@ -226,6 +255,10 @@ export function CustomerCancellation({
             <p className="mt-2 font-mono text-xs text-muted-foreground">
               {activeCancellation.requestNumber}
             </p>
+            <RefundSummary
+              amountCents={activeCancellation.refundAmountCents}
+              refund={activeCancellation.refund}
+            />
           </div>
           {activeCancellation.canRevoke ? (
             <button
@@ -353,7 +386,8 @@ export function CustomerCancellation({
               <span>
                 <strong>As soon as possible</strong>
                 <span className="mt-1 block text-sm text-muted-foreground">
-                  Processing starts now. Refunds or credits are not automatic.
+                  Processing starts now. Eligible unused recurring service is refunded automatically
+                  after termination succeeds.
                 </span>
               </span>
             </label>
@@ -441,7 +475,20 @@ export function CustomerCancellation({
                   label="Outstanding balance"
                   value={formatMoney(preview.data.outstandingBalanceCents)}
                 />
-                <Fact label="Automatic refund" value="Not calculated or issued automatically" />
+                <Fact
+                  label={
+                    preview.data.refundAvailable ? 'Estimated automatic refund' : 'Automatic refund'
+                  }
+                  value={
+                    preview.data.refundAvailable
+                      ? formatMoney(preview.data.automaticRefundCents)
+                      : 'No refund available'
+                  }
+                />
+                <Fact
+                  label="Refund destination"
+                  value={preview.data.refundDestination ?? 'Not applicable'}
+                />
               </dl>
               <p className="mt-4 rounded-xl bg-primary-subtle p-4 text-sm text-primary-hover">
                 {preview.data.billingMessage}
@@ -453,7 +500,10 @@ export function CustomerCancellation({
                   type="checkbox"
                 />
                 <span>
-                  I understand my internet service will stop after this cancellation is completed.
+                  I understand my internet service will stop after this cancellation is completed
+                  {preview.data.automaticRefundCents > 0
+                    ? ` and the final prorated refund may change slightly before it is returned to my original payment method.`
+                    : '.'}
                 </span>
               </label>
               {requestCancellation.error ? (
@@ -488,10 +538,40 @@ export function CustomerCancellation({
   );
 }
 
+function RefundSummary({
+  amountCents,
+  refund,
+}: Readonly<{
+  amountCents: number;
+  refund: CustomerCancellationRecord['refund'];
+}>) {
+  if (!amountCents && !refund) return null;
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-card p-4 text-sm text-foreground">
+      <p className="font-semibold">
+        Prorated refund · {formatMoney(refund?.amountCents ?? amountCents)}
+      </p>
+      <p className="mt-1 text-muted-foreground">
+        {refund
+          ? `${humanize(refund.status)} · Original payment method`
+          : 'Calculated · Original payment method'}
+      </p>
+      {refund?.status === 'FAILED' ? (
+        <p className="mt-2 text-destructive-foreground">
+          The refund needs attention. Your cancellation remains completed; support can safely retry
+          the same refund.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function Fact({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
       <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
     </div>
   );
@@ -499,7 +579,10 @@ function Fact({ label, value }: Readonly<{ label: string; value: string }>) {
 
 function ErrorMessage({ error, fallback }: Readonly<{ error: Error; fallback: string }>) {
   return (
-    <p className="mt-4 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
+    <p
+      className="mt-4 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground"
+      role="alert"
+    >
       {error instanceof ApiError ? error.message : fallback}
     </p>
   );
@@ -511,4 +594,11 @@ function formatMoney(cents: number): string {
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en-AU', { dateStyle: 'long' }).format(new Date(value));
+}
+
+function humanize(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll('_', ' ')
+    .replace(/^./, (letter) => letter.toUpperCase());
 }

@@ -46,4 +46,22 @@ describe('StripeRefundService', () => {
     });
     expect(create.mock.calls[0][0].reason).toBe('requested_by_customer');
   });
+
+  it('uses a stable cancellation idempotency key across processing retries', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 're_test' });
+    const service = new StripeRefundService({ client: { refunds: { create } } } as never);
+    await service.create({
+      refundId: 'refund-3',
+      paymentIntentId: 'pi_test',
+      amountCents: 2_500,
+      reason: RefundReason.CANCELLATION_PRORATION,
+      customerId: 'customer-1',
+      paymentId: 'payment-1',
+      processingAttempt: 4,
+      idempotencyKey: 'cancellation-refund-cancellation-1',
+    });
+    expect(create.mock.calls[0][1]).toEqual({
+      idempotencyKey: 'cancellation-refund-cancellation-1',
+    });
+  });
 });

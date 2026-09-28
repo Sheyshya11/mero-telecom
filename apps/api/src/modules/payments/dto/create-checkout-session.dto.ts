@@ -20,6 +20,17 @@ export class CreatePlanCheckoutSessionDto {
   planId!: string;
 }
 
+export class CreateRecurringSetupSessionDto {
+  @IsUUID()
+  subscriptionId!: string;
+}
+
+export class PaymentMethodParamsDto {
+  @IsString()
+  @Matches(/^pm_[A-Za-z0-9]+$/)
+  paymentMethodId!: string;
+}
+
 export class CreatePublicPlanCheckoutSessionDto {
   @IsUUID()
   planId!: string;

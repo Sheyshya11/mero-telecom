@@ -116,6 +116,7 @@ export interface SuperAdminDashboardSummary {
 
 export interface CustomerDashboardInvoice {
   id: string;
+  type: 'MANUAL' | 'STRIPE_RECURRING' | 'PLAN_PURCHASE' | 'PLAN_CHANGE';
   invoiceNumber: string;
   issueDate: string;
   dueDate: string;

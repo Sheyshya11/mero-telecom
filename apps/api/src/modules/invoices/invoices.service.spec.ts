@@ -1,4 +1,4 @@
-import { InvoiceStatus, Prisma, SubscriptionStatus } from '@prisma/client';
+import { BillingMode, InvoiceStatus, Prisma, SubscriptionStatus } from '@prisma/client';
 
 import type { PrismaService } from '../../database/prisma.service';
 import { BillingService } from '../billing/billing.service';
@@ -11,6 +11,7 @@ const subscription = {
   monthlyCents: 6900,
   plan: { name: 'Essential 50', monthlyCents: 7900 },
   customer: {},
+  billingMode: BillingMode.MANUAL,
 };
 
 const octoberPeriod = {
@@ -63,6 +64,31 @@ function successfulTransaction(created = invoice()) {
 }
 
 describe('InvoicesService billing-period idempotency', () => {
+  it('blocks manual invoice generation for a Stripe recurring subscription', async () => {
+    const transaction = {
+      $executeRaw: jest.fn().mockResolvedValue(undefined),
+      subscription: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ ...subscription, billingMode: BillingMode.STRIPE_RECURRING }),
+      },
+      invoice: { findFirst: jest.fn(), create: jest.fn() },
+    };
+    const prisma = {
+      $transaction: jest.fn(async (operation: (client: unknown) => unknown) =>
+        operation(transaction),
+      ),
+    };
+
+    await expect(
+      serviceWith(prisma).generate({
+        subscriptionId: subscription.id,
+        issueDate: '2026-10-19',
+      }),
+    ).rejects.toThrow('Stripe automatically creates recurring invoices');
+    expect(transaction.invoice.create).not.toHaveBeenCalled();
+  });
+
   it('generates the first standard invoice for a billing period', async () => {
     const createdInvoice = invoice();
     const transaction = successfulTransaction(createdInvoice);

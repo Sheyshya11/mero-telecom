@@ -118,6 +118,20 @@ The handler also processes `checkout.session.async_payment_failed` and
 `checkout.session.expired`. Stripe metadata contains internal identifiers only; personal details
 remain in the database. Neither session data nor webhook payloads are logged.
 
+## Saved payment methods
+
+Authenticated customers manage recurring cards through server-owned Stripe Customer references:
+
+- `GET /api/v1/payments/payment-methods` returns only card brand, last four digits, expiry, default/expired state, and the server-evaluated removal policy.
+- `POST /api/v1/payments/payment-methods/setup-session` opens Stripe Checkout in setup mode; raw card data never passes through Mero Telecom.
+- `POST /api/v1/payments/payment-methods/:paymentMethodId/default` verifies Stripe ownership, updates both Customer and current subscription defaults, and retries any existing open recurring invoice.
+- `DELETE /api/v1/payments/payment-methods/:paymentMethodId` verifies ownership and refuses to detach the only method, or the current default, from a protected recurring subscription.
+- `POST /api/v1/payments/customer-portal-session` creates a short-lived Stripe-hosted payment-method-update session for the authenticated Customer.
+
+Signed `customer.updated` and `payment_method.*` events synchronize masked local display fields and
+safe audit evidence. Detaching a payment method never invokes subscription cancellation. Successful
+recovery is authoritative only after Stripe emits `invoice.paid` for the original invoice.
+
 ## Refund webhook recovery
 
 Refunds are submitted with an idempotency key derived from the internal refund ID and processing

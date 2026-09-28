@@ -174,7 +174,10 @@ export function InvoiceManagement() {
   if (isLoading) return <Status message="Restoring your session…" />;
   if (!user || !canOperate) return <Status message="Staff or administrator access is required." />;
 
-  const activeSubscriptions = subscriptions.data?.data ?? [];
+  const activeSubscriptions =
+    subscriptions.data?.data.filter(
+      (subscription) => subscription.billingMode !== 'STRIPE_RECURRING',
+    ) ?? [];
   const selectSubscription = (subscription: InvoiceSubscription) => {
     setSelectedSubscription(subscription);
     setSubscriptionSearch(subscriptionLabel(subscription));
@@ -215,7 +218,8 @@ export function InvoiceManagement() {
       <section className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
         <h2 className="font-semibold">Generate monthly invoice</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Find the customer, select their active service, and choose the billing date.
+          Find a manual-billing customer, select their active service, and choose the billing date.
+          Stripe recurring subscriptions are invoiced automatically and cannot be selected here.
         </p>
         <form
           className="mt-6 grid gap-x-4 gap-y-5 lg:grid-cols-[minmax(22rem,1fr)_14rem_auto] lg:items-start"

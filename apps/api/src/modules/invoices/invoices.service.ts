@@ -4,7 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InvoiceStatus, Prisma, Role, SubscriptionStatus } from '@prisma/client';
+import {
+  BillingMode,
+  InvoiceStatus,
+  InvoiceType,
+  Prisma,
+  Role,
+  SubscriptionStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { amountRange, buildPaginationMeta, dateRange } from '../../common/pagination';
 import { BillingService } from '../billing/billing.service';
@@ -52,6 +59,11 @@ export class InvoicesService {
               'Invoices can only be generated for active subscriptions.',
             );
           }
+          if (subscription.billingMode === BillingMode.STRIPE_RECURRING) {
+            throw new ConflictException(
+              'Stripe automatically creates recurring invoices for this subscription. Manual recurring invoice generation is disabled.',
+            );
+          }
 
           const existing = await this.findExistingStandardInvoice(
             transaction,
@@ -71,6 +83,7 @@ export class InvoicesService {
               invoiceNumber,
               customerId: subscription.customerId,
               subscriptionId: subscription.id,
+              type: InvoiceType.MANUAL,
               issueDate,
               dueDate: this.billing.dueDateFor(issueDate),
               billingPeriodStart: period.start,

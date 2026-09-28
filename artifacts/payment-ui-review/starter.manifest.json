@@ -1,0 +1,67 @@
+{
+  "sourcePptx": "C:\\Users\\Subham\\.codex\\plugins\\cache\\openai-curated-remote\\openai-templates\\0.1.1\\skills\\artifact-template-business-review\\assets\\reference.pptx",
+  "mapPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\template-frame-map.json",
+  "output": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter.pptx",
+  "outputBytes": 1948331,
+  "sourceSlideCount": 14,
+  "slideCount": 5,
+  "previewDir": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-preview",
+  "layoutDir": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-layout",
+  "slides": [
+    {
+      "outputSlide": 1,
+      "sourceSlide": 1,
+      "narrativeRole": "Cover",
+      "reuseMode": "duplicate-slide",
+      "editTargetCount": 4,
+      "previewPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-preview\\starter-slide-01.png",
+      "previewRelativePath": "artifacts/payment-ui-review/starter-preview/starter-slide-01.png",
+      "layoutPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-layout\\starter-slide-01.layout.json",
+      "layoutRelativePath": "artifacts/payment-ui-review/starter-layout/starter-slide-01.layout.json"
+    },
+    {
+      "outputSlide": 2,
+      "sourceSlide": 3,
+      "narrativeRole": "Executive summary",
+      "reuseMode": "duplicate-slide",
+      "editTargetCount": 13,
+      "previewPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-preview\\starter-slide-02.png",
+      "previewRelativePath": "artifacts/payment-ui-review/starter-preview/starter-slide-02.png",
+      "layoutPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-layout\\starter-slide-02.layout.json",
+      "layoutRelativePath": "artifacts/payment-ui-review/starter-layout/starter-slide-02.layout.json"
+    },
+    {
+      "outputSlide": 3,
+      "sourceSlide": 7,
+      "narrativeRole": "Comparison analysis",
+      "reuseMode": "duplicate-slide",
+      "editTargetCount": 6,
+      "previewPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-preview\\starter-slide-03.png",
+      "previewRelativePath": "artifacts/payment-ui-review/starter-preview/starter-slide-03.png",
+      "layoutPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-layout\\starter-slide-03.layout.json",
+      "layoutRelativePath": "artifacts/payment-ui-review/starter-layout/starter-slide-03.layout.json"
+    },
+    {
+      "outputSlide": 4,
+      "sourceSlide": 10,
+      "narrativeRole": "Interface analysis",
+      "reuseMode": "duplicate-slide",
+      "editTargetCount": 10,
+      "previewPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-preview\\starter-slide-04.png",
+      "previewRelativePath": "artifacts/payment-ui-review/starter-preview/starter-slide-04.png",
+      "layoutPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-layout\\starter-slide-04.layout.json",
+      "layoutRelativePath": "artifacts/payment-ui-review/starter-layout/starter-slide-04.layout.json"
+    },
+    {
+      "outputSlide": 5,
+      "sourceSlide": 12,
+      "narrativeRole": "Timeline",
+      "reuseMode": "duplicate-slide",
+      "editTargetCount": 9,
+      "previewPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-preview\\starter-slide-05.png",
+      "previewRelativePath": "artifacts/payment-ui-review/starter-preview/starter-slide-05.png",
+      "layoutPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\starter-layout\\starter-slide-05.layout.json",
+      "layoutRelativePath": "artifacts/payment-ui-review/starter-layout/starter-slide-05.layout.json"
+    }
+  ]
+}

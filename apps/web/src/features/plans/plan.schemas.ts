@@ -23,6 +23,13 @@ export const planSchema = z
       .positive('Enter a price greater than zero.')
       .max(1_000_000)
       .multipleOf(0.01, 'Use no more than two decimal places.'),
+    stripePriceId: z
+      .string()
+      .trim()
+      .refine(
+        (value) => value === '' || /^price_[A-Za-z0-9]+$/.test(value),
+        'Enter a valid Stripe Price ID.',
+      ),
     tierRank: z.coerce.number().int().min(0, 'Tier rank cannot be negative.').max(1_000_000),
     isPublic: z.boolean(),
     isAvailable: z.boolean(),

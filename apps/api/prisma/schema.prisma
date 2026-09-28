@@ -162,6 +162,18 @@ enum BillingCycle {
   MONTHLY
 }
 
+enum BillingMode {
+  MANUAL
+  STRIPE_RECURRING
+}
+
+enum InvoiceType {
+  MANUAL
+  STRIPE_RECURRING
+  PLAN_PURCHASE
+  PLAN_CHANGE
+}
+
 enum PlanChangeType {
   UPGRADE
   DOWNGRADE
@@ -211,6 +223,7 @@ enum RefundReason {
   CANCELLED_BEFORE_ACTIVATION
   SERVICE_ISSUE
   GOODWILL
+  CANCELLATION_PRORATION
   OTHER
 }
 
@@ -702,6 +715,7 @@ model InternetPlan {
   downloadMbps         Int
   uploadMbps           Int
   monthlyCents         Int
+  stripePriceId        String?               @unique @db.VarChar(255)
   isActive             Boolean               @default(true)
   isPublic             Boolean               @default(false)
   isAvailable          Boolean               @default(false)
@@ -732,6 +746,17 @@ model Subscription {
   endDate                   DateTime?                    @db.Date
   endReason                 String?                      @db.VarChar(100)
   billingCycle              BillingCycle                 @default(MONTHLY)
+  billingMode               BillingMode                  @default(MANUAL)
+  stripeSubscriptionId      String?                      @unique @db.VarChar(255)
+  stripePriceId             String?                      @db.VarChar(255)
+  stripeStatus              String?                      @db.VarChar(50)
+  stripePaymentMethodId     String?                      @db.VarChar(255)
+  paymentMethodBrand        String?                      @db.VarChar(50)
+  paymentMethodLast4        String?                      @db.Char(4)
+  paymentMethodExpMonth     Int?
+  paymentMethodExpYear      Int?
+  cancelAtPeriodEnd         Boolean                      @default(false)
+  nextBillingAt             DateTime?
   billingAnchorDay          Int
   currentPeriodStart        DateTime
   currentPeriodEnd          DateTime
@@ -763,6 +788,8 @@ model Subscription {
   serviceRelocations        ServiceRelocation[]
 
   @@index([customerId, status])
+  @@index([billingMode, status])
+  @@index([nextBillingAt])
   @@index([status, gracePeriodEndsAt, id])
   @@index([status, eligibleForTerminationAt, id])
   @@index([planId])
@@ -904,6 +931,8 @@ model CancellationRequest {
   revokedByUserId          String?                       @db.Uuid
   attemptCount             Int                           @default(0)
   version                  Int                           @default(0)
+  refundAmountCents        Int                           @default(0)
+  refundCalculation        Json?
   createdAt                DateTime                      @default(now())
   updatedAt                DateTime                      @updatedAt
   subscription             Subscription                  @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
@@ -911,6 +940,7 @@ model CancellationRequest {
   requestedBy              User                          @relation("CancellationRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
   revokedBy                User?                         @relation("CancellationRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
   notes                    CancellationNote[]
+  refund                   Refund?
 
   @@index([customerId, createdAt, id])
   @@index([subscriptionId, createdAt])
@@ -940,6 +970,10 @@ model Invoice {
   customerId          String               @db.Uuid
   subscriptionId      String?              @db.Uuid
   purchasePlanId      String?              @db.Uuid
+  type                InvoiceType          @default(MANUAL)
+  stripeInvoiceId     String?              @unique @db.VarChar(255)
+  stripeHostedUrl     String?              @db.VarChar(2048)
+  stripePdfUrl        String?              @db.VarChar(2048)
   issueDate           DateTime             @db.Date
   dueDate             DateTime             @db.Date
   billingPeriodStart  DateTime?            @db.Date
@@ -973,6 +1007,7 @@ model Invoice {
   @@index([issuedAt, status])
   @@index([subscriptionId])
   @@index([purchasePlanId])
+  @@index([type, status])
 }
 
 model InvoiceItem {
@@ -1021,6 +1056,7 @@ model Refund {
   paymentId             String                @db.Uuid
   invoiceId             String?               @db.Uuid
   subscriptionId        String?               @db.Uuid
+  cancellationRequestId String?               @unique @db.Uuid
   stripePaymentIntentId String                @db.VarChar(255)
   stripeChargeId        String?               @db.VarChar(255)
   stripeRefundId        String?               @unique @db.VarChar(255)
@@ -1051,6 +1087,7 @@ model Refund {
   payment               Payment               @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   invoice               Invoice?              @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   subscription          Subscription?         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  cancellationRequest   CancellationRequest?  @relation(fields: [cancellationRequestId], references: [id], onDelete: Restrict)
   requestedBy           User?                 @relation("RefundRequester", fields: [requestedByUserId], references: [id], onDelete: SetNull)
   approvedBy            User?                 @relation("RefundApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   processedBy           User?                 @relation("RefundProcessor", fields: [processedByUserId], references: [id], onDelete: SetNull)
@@ -1105,6 +1142,7 @@ model CheckoutApplication {
   currency                String                    @default("AUD") @db.Char(3)
   stripeCheckoutSessionId String?                   @unique @db.VarChar(255)
   stripePaymentIntentId   String?                   @unique @db.VarChar(255)
+  stripeSubscriptionId    String?                   @unique @db.VarChar(255)
   stripeCustomerId        String?                   @db.VarChar(255)
   customerId              String?                   @unique @db.Uuid
   invoiceId               String?                   @unique @db.Uuid

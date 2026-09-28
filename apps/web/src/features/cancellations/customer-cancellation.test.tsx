@@ -29,8 +29,16 @@ describe('CustomerCancellation', () => {
           proposedServiceEndAt: '2026-09-14T00:00:00.000Z',
           outstandingBalanceCents: 9_900,
           currency: 'AUD',
-          automaticRefundCents: null,
-          billingMessage: 'Outstanding invoices remain payable.',
+          amountPaidCents: 9_900,
+          eligibleRecurringAmountCents: 9_900,
+          calculatedProrationCents: 5_610,
+          previousSuccessfulRefundCents: 0,
+          remainingRefundableCents: 9_900,
+          automaticRefundCents: 5_610,
+          refundAvailable: true,
+          noRefundReason: null,
+          refundDestination: 'Original payment method',
+          billingMessage: 'Outstanding invoices remain payable. The unused period is refunded.',
         } as never;
       }
       throw new Error(`Unexpected request: ${path}`);
@@ -77,6 +85,8 @@ describe('CustomerCancellation', () => {
         ),
       );
       expect(await screen.findByText('$99.00')).toBeInTheDocument();
+      expect(await screen.findByText('$56.10')).toBeInTheDocument();
+      expect(screen.getByText('Original payment method')).toBeInTheDocument();
     },
   );
 });

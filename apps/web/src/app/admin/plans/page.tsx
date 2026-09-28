@@ -179,6 +179,7 @@ export default function AdminPlansPage() {
       downloadMbps: plan.downloadMbps,
       uploadMbps: plan.uploadMbps,
       monthlyPrice: plan.monthlyCents / 100,
+      stripePriceId: plan.stripePriceId ?? '',
       tierRank: plan.tierRank,
       isPublic: plan.isPublic,
       isAvailable: plan.isAvailable,
@@ -224,12 +225,18 @@ export default function AdminPlansPage() {
       </header>
 
       {notice ? (
-        <p className="mb-6 rounded-md bg-success-subtle p-3 text-sm text-success-foreground" role="status">
+        <p
+          className="mb-6 rounded-md bg-success-subtle p-3 text-sm text-success-foreground"
+          role="status"
+        >
           {notice}
         </p>
       ) : null}
       {errorMessage ? (
-        <p className="mb-6 rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground" role="alert">
+        <p
+          className="mb-6 rounded-md bg-destructive-subtle p-3 text-sm text-destructive-foreground"
+          role="alert"
+        >
           {errorMessage}
         </p>
       ) : null}
@@ -266,10 +273,14 @@ export default function AdminPlansPage() {
               </div>
             ) : null}
             {form.formState.errors.isAvailable?.message ? (
-              <p className="text-sm text-destructive-foreground">{form.formState.errors.isAvailable.message}</p>
+              <p className="text-sm text-destructive-foreground">
+                {form.formState.errors.isAvailable.message}
+              </p>
             ) : null}
             {form.formState.errors.isFeatured?.message ? (
-              <p className="text-sm text-destructive-foreground">{form.formState.errors.isFeatured.message}</p>
+              <p className="text-sm text-destructive-foreground">
+                {form.formState.errors.isFeatured.message}
+              </p>
             ) : null}
             <FormField
               label="Description (optional)"
@@ -317,6 +328,20 @@ export default function AdminPlansPage() {
                 {...form.register('monthlyPrice')}
               />
             </FormField>
+            <FormField
+              label="Stripe recurring Price ID"
+              error={form.formState.errors.stripePriceId?.message}
+            >
+              <input
+                className="field mt-1"
+                placeholder="price_..."
+                {...form.register('stripePriceId')}
+              />
+            </FormField>
+            <p className="text-xs text-muted-foreground">
+              Required before publishing. Reuse the monthly recurring Price created for this plan in
+              Stripe test mode.
+            </p>
             <div className="flex flex-wrap gap-3">
               {editingPlan ? (
                 <button
@@ -369,7 +394,9 @@ export default function AdminPlansPage() {
               </select>
             </div>
           </div>
-          {plansQuery.isPending ? <p className="p-6 text-muted-foreground">Loading plans…</p> : null}
+          {plansQuery.isPending ? (
+            <p className="p-6 text-muted-foreground">Loading plans…</p>
+          ) : null}
           {plansQuery.isError ? (
             <div className="flex items-center gap-3 p-6 text-destructive-foreground">
               <p>Unable to load plans.</p>
@@ -421,6 +448,7 @@ function emptyPlanForm(): PlanFormInput {
     downloadMbps: 50,
     uploadMbps: 20,
     monthlyPrice: 59,
+    stripePriceId: '',
     tierRank: 1,
     isPublic: false,
     isAvailable: false,
@@ -436,6 +464,7 @@ function planPayload(values: PlanFormValues, includeLifecycle: boolean) {
     downloadMbps: values.downloadMbps,
     uploadMbps: values.uploadMbps,
     monthlyCents: Math.round(values.monthlyPrice * 100),
+    stripePriceId: values.stripePriceId || null,
     tierRank: values.tierRank,
     ...(includeLifecycle
       ? {
@@ -649,7 +678,9 @@ function FormField({
     <label className="block text-sm font-medium text-foreground">
       {label}
       {children}
-      {error ? <span className="mt-1 block text-sm text-destructive-foreground">{error}</span> : null}
+      {error ? (
+        <span className="mt-1 block text-sm text-destructive-foreground">{error}</span>
+      ) : null}
     </label>
   );
 }

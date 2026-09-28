@@ -381,8 +381,15 @@ export function CustomerDashboardView() {
                   </p>
                 ) : null}
                 <div className={styles.invoiceActions}>
-                  {['ISSUED', 'OVERDUE'].includes(dashboard.latestInvoice.status) ? (
+                  {['ISSUED', 'OVERDUE'].includes(dashboard.latestInvoice.status) &&
+                  dashboard.latestInvoice.type !== 'STRIPE_RECURRING' ? (
                     <StripeCheckoutButton invoiceId={dashboard.latestInvoice.id} />
+                  ) : null}
+                  {['ISSUED', 'OVERDUE'].includes(dashboard.latestInvoice.status) &&
+                  dashboard.latestInvoice.type === 'STRIPE_RECURRING' ? (
+                    <Link className="button-primary" href="/customer/subscription">
+                      Manage automatic payment
+                    </Link>
                   ) : null}
                   <Link className="button-secondary" href="/customer/invoices">
                     View all invoices

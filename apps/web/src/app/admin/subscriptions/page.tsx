@@ -29,6 +29,14 @@ type Subscription = {
     | 'TERMINATED';
   startDate: string;
   currentPeriodEnd: string;
+  billingMode: 'MANUAL' | 'STRIPE_RECURRING';
+  stripeStatus: string | null;
+  nextBillingAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  paymentMethodBrand: string | null;
+  paymentMethodLast4: string | null;
+  paymentMethodExpMonth: number | null;
+  paymentMethodExpYear: number | null;
   pastDueAt: string | null;
   gracePeriodEndsAt: string | null;
   suspendedAt: string | null;
@@ -291,6 +299,17 @@ export default function AdminSubscriptionsPage() {
                     Current period ends {formatDateTime(subscription.currentPeriodEnd)}
                   </p>
                 ) : null}
+                {user.role !== 'STAFF' ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {subscription.billingMode === 'STRIPE_RECURRING'
+                      ? `Automatic recurring payment · Stripe ${subscription.stripeStatus ?? 'synchronizing'} · ${adminPaymentMethod(subscription)} · ${
+                          subscription.cancelAtPeriodEnd
+                            ? 'cancels after current period'
+                            : `next charge ${formatDateTime(subscription.nextBillingAt ?? subscription.currentPeriodEnd)}`
+                        }`
+                      : 'Manual billing · customer must enable automatic payments'}
+                  </p>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 {subscription.status === 'ACTIVE' ? (
@@ -461,7 +480,9 @@ export default function AdminSubscriptionsPage() {
             { key: 'type', label: 'Type', options: ['UPGRADE', 'DOWNGRADE'] },
           ]}
         />
-        {planChanges.isPending ? <p className="p-6 text-muted-foreground">Loading plan changes…</p> : null}
+        {planChanges.isPending ? (
+          <p className="p-6 text-muted-foreground">Loading plan changes…</p>
+        ) : null}
         {planChanges.data?.data.length === 0 ? (
           <p className="p-6 text-muted-foreground">No plan changes match these filters.</p>
         ) : null}
@@ -567,7 +588,9 @@ export default function AdminSubscriptionsPage() {
 
 function StatusBadge({ status }: Readonly<{ status: string }>) {
   return (
-    <span className={`ml-2 rounded-full px-2 py-1 text-xs font-semibold ${statusToneClass(status)}`}>
+    <span
+      className={`ml-2 rounded-full px-2 py-1 text-xs font-semibold ${statusToneClass(status)}`}
+    >
       {status.replaceAll('_', ' ')}
     </span>
   );
@@ -583,4 +606,10 @@ function formatDate(value: string): string {
 
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function adminPaymentMethod(subscription: Subscription): string {
+  if (!subscription.paymentMethodLast4) return 'payment method managed by Stripe';
+  const brand = subscription.paymentMethodBrand ?? 'card';
+  return `${brand} •••• ${subscription.paymentMethodLast4}`;
 }

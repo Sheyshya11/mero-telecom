@@ -714,6 +714,7 @@ export class DashboardService {
         where: { customerId: customer.id },
         select: {
           id: true,
+          type: true,
           invoiceNumber: true,
           issueDate: true,
           dueDate: true,
@@ -839,6 +840,7 @@ export class DashboardService {
       const payment = invoice.payments[0] ?? null;
       return {
         id: invoice.id,
+        type: invoice.type,
         invoiceNumber: invoice.invoiceNumber,
         issueDate: invoice.issueDate.toISOString(),
         dueDate: invoice.dueDate.toISOString(),

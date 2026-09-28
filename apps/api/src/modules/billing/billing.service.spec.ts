@@ -68,6 +68,56 @@ describe('BillingService', () => {
     );
   });
 
+  it.each([
+    [
+      '31-day month',
+      '2026-08-01T00:00:00.000Z',
+      '2026-09-01T00:00:00.000Z',
+      '2026-08-16T12:00:00.000Z',
+      3450,
+    ],
+    [
+      '30-day month',
+      '2026-09-01T00:00:00.000Z',
+      '2026-10-01T00:00:00.000Z',
+      '2026-09-16T00:00:00.000Z',
+      3450,
+    ],
+    [
+      'leap February',
+      '2028-02-01T00:00:00.000Z',
+      '2028-03-01T00:00:00.000Z',
+      '2028-02-15T12:00:00.000Z',
+      3450,
+    ],
+    [
+      'period start',
+      '2026-08-01T00:00:00.000Z',
+      '2026-09-01T00:00:00.000Z',
+      '2026-08-01T00:00:00.000Z',
+      6900,
+    ],
+    [
+      'period end',
+      '2026-08-01T00:00:00.000Z',
+      '2026-09-01T00:00:00.000Z',
+      '2026-09-01T00:00:00.000Z',
+      0,
+    ],
+  ])(
+    'calculates an exact cancellation refund for a %s',
+    (_label, currentPeriodStart, currentPeriodEnd, cancelledAt, refundCents) => {
+      expect(
+        service.calculateCancellationProration({
+          paidAmountCents: 6900,
+          currentPeriodStart: new Date(currentPeriodStart),
+          currentPeriodEnd: new Date(currentPeriodEnd),
+          cancelledAt: new Date(cancelledAt),
+        }).refundCents,
+      ).toBe(refundCents);
+    },
+  );
+
   it('keeps a 31st anchor across short months and leap years', () => {
     const february = service.nextMonthlyBoundary(new Date('2028-01-31T08:30:00.000Z'), 31);
     const march = service.nextMonthlyBoundary(february, 31);

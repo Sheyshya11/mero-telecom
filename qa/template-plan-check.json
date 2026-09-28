@@ -1,0 +1,10 @@
+{
+  "status": "pass",
+  "checkedAt": "2026-09-27T07:45:11.886Z",
+  "workspace": "D:\\MeroTelecom",
+  "mapPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\template-frame-map.json",
+  "inspectPath": "D:\\MeroTelecom\\artifacts\\payment-ui-review\\reference\\inspect.ndjson",
+  "sourceSlideCount": 14,
+  "issueCount": 0,
+  "issues": []
+}

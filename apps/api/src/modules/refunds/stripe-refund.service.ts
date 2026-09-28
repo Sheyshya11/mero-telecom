@@ -21,6 +21,7 @@ export class StripeRefundService {
     paymentId: string;
     invoiceId?: string | null;
     processingAttempt: number;
+    idempotencyKey?: string;
   }): Promise<Stripe.Response<Stripe.Refund>> {
     return this.stripe.refunds.create(
       {
@@ -34,7 +35,10 @@ export class StripeRefundService {
           ...(input.invoiceId ? { invoiceId: input.invoiceId } : {}),
         },
       },
-      { idempotencyKey: `mero-refund-${input.refundId}-${input.processingAttempt}` },
+      {
+        idempotencyKey:
+          input.idempotencyKey ?? `mero-refund-${input.refundId}-${input.processingAttempt}`,
+      },
     );
   }
 

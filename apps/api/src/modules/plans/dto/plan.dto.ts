@@ -10,8 +10,10 @@ import {
   IsString,
   Max,
   MaxLength,
+  Matches,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 const MAX_PLAN_SPEED_MBPS = 100_000;
@@ -51,6 +53,12 @@ export class CreatePlanDto {
   @Type(() => Number) @IsInt() @Min(1) @Max(MAX_PLAN_SPEED_MBPS) downloadMbps!: number;
   @Type(() => Number) @IsInt() @Min(1) @Max(MAX_PLAN_SPEED_MBPS) uploadMbps!: number;
   @Type(() => Number) @IsInt() @Min(1) @Max(MAX_MONTHLY_CENTS) monthlyCents!: number;
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : trim(value)))
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @Matches(/^price_[A-Za-z0-9]+$/, { message: 'Enter a valid Stripe Price ID.' })
+  stripePriceId?: string | null;
   @IsOptional() @IsBoolean() isPublic?: boolean;
   @IsOptional() @IsBoolean() isAvailable?: boolean;
   @IsOptional() @IsBoolean() isFeatured?: boolean;
@@ -88,6 +96,12 @@ export class UpdatePlanDto {
   downloadMbps?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(MAX_PLAN_SPEED_MBPS) uploadMbps?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(MAX_MONTHLY_CENTS) monthlyCents?: number;
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : trim(value)))
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @Matches(/^price_[A-Za-z0-9]+$/, { message: 'Enter a valid Stripe Price ID.' })
+  stripePriceId?: string | null;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @IsBoolean() isPublic?: boolean;
   @IsOptional() @IsBoolean() isAvailable?: boolean;

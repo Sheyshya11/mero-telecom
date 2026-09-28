@@ -35,6 +35,34 @@ interface CancellationRecord {
   effectiveAt: string;
   status: string;
   providerOperation: string;
+  refundAmountCents: number;
+  refundCalculation: Record<string, unknown> | null;
+  refund: {
+    id: string;
+    status: string;
+    originalAmountCents: number;
+    refundAmountCents: number;
+    currency: string;
+    stripeRefundId: string | null;
+    requestedAt: string;
+    processedAt: string | null;
+    failedAt: string | null;
+    failureReason: string | null;
+    payment: {
+      id: string;
+      amountCents: number;
+      refundedCents: number;
+      status: string;
+      providerPaymentId: string | null;
+    };
+    invoice: {
+      id: string;
+      invoiceNumber: string;
+      status: string;
+      billingPeriodStart: string | null;
+      billingPeriodEnd: string | null;
+    } | null;
+  } | null;
   requestedByRole: string;
   customer: {
     id: string;
@@ -86,6 +114,12 @@ export function CancellationManagement() {
   );
   const authorised = Boolean(user && ['STAFF', 'ADMIN', 'SUPER_ADMIN'].includes(user.role));
   const canManage = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const refundBasePath =
+    user?.role === 'SUPER_ADMIN'
+      ? '/control-centre/refunds'
+      : user?.role === 'ADMIN'
+        ? '/admin/refunds'
+        : '/staff/refunds';
   const list = useQuery({
     queryKey: ['cancellations', table.query],
     placeholderData: keepPreviousData,
@@ -218,7 +252,10 @@ export function CancellationManagement() {
       </section>
 
       {actionError ? (
-        <p className="mt-6 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
+        <p
+          className="mt-6 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground"
+          role="alert"
+        >
           {actionError instanceof ApiError
             ? actionError.message
             : 'The cancellation action could not be completed.'}
@@ -353,7 +390,10 @@ export function CancellationManagement() {
             <p className="mt-5 text-muted-foreground">Loading cancellation details…</p>
           ) : null}
           {detail.isError ? (
-            <div className="mt-5 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
+            <div
+              className="mt-5 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground"
+              role="alert"
+            >
               <p>Unable to load this cancellation request.</p>
               <button
                 className="mt-2 font-semibold underline"
@@ -386,6 +426,52 @@ export function CancellationManagement() {
                   <p className="mt-3 rounded-xl border border-border p-4 text-sm text-foreground">
                     {detail.data.reasonDetails}
                   </p>
+                ) : null}
+                <h3 className="mt-6 font-semibold">Prorated refund</h3>
+                <dl className="mt-3 grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
+                  <Fact
+                    label="Final amount"
+                    value={
+                      detail.data.refundAmountCents > 0
+                        ? formatMoney(detail.data.refundAmountCents)
+                        : 'No automatic refund'
+                    }
+                  />
+                  <Fact
+                    label="Refund status"
+                    value={detail.data.refund ? humanize(detail.data.refund.status) : 'Not created'}
+                  />
+                  <Fact
+                    label="Destination"
+                    value={detail.data.refund ? 'Original payment method' : 'Not applicable'}
+                  />
+                  <Fact
+                    label="Invoice"
+                    value={
+                      detail.data.refund?.invoice?.invoiceNumber ?? 'No eligible recurring invoice'
+                    }
+                  />
+                  <Fact
+                    label="Payment"
+                    value={detail.data.refund?.payment.providerPaymentId ?? 'Not applicable'}
+                  />
+                  <Fact
+                    label="Stripe refund"
+                    value={detail.data.refund?.stripeRefundId ?? 'Not submitted'}
+                  />
+                </dl>
+                {detail.data.refund?.failureReason ? (
+                  <p className="mt-3 rounded-xl bg-destructive-subtle p-4 text-sm text-destructive-foreground">
+                    Refund failure: {detail.data.refund.failureReason}
+                  </p>
+                ) : null}
+                {detail.data.refund ? (
+                  <Link
+                    className="button-secondary mt-3 inline-flex"
+                    href={`${refundBasePath}/${detail.data.refund.id}`}
+                  >
+                    Open refund record
+                  </Link>
                 ) : null}
                 <h3 className="mt-6 font-semibold">Provider / network</h3>
                 <dl className="mt-3 grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
@@ -550,7 +636,9 @@ function Metric({ label, value }: Readonly<{ label: string; value?: number }>) {
 function Fact({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
       <dd className="mt-1 break-words text-sm font-medium text-foreground">{value}</dd>
     </div>
   );

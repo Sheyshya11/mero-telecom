@@ -9,7 +9,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   BillingCycle,
+  BillingMode,
   InvoiceStatus,
+  InvoiceType,
   PaymentProvider,
   PaymentStatus,
   PlanChangeStatus,
@@ -130,7 +132,7 @@ export class PlanChangesService {
           await this.lockSubscription(transaction, subscriptionId);
           const sourceOwner = await transaction.subscription.findFirst({
             where: { id: subscriptionId, customer: { userId: actor.id } },
-            select: { customerId: true },
+            select: { customerId: true, billingMode: true, stripeSubscriptionId: true },
           });
           if (!sourceOwner) throw new NotFoundException('Subscription not found.');
           const existing = await transaction.planChangeRequest.findFirst({
@@ -160,7 +162,11 @@ export class PlanChangesService {
             false,
           );
           let invoiceId: string | undefined;
-          if (preview.type === PlanChangeType.UPGRADE && preview.amountPayableCents > 0) {
+          if (
+            preview.type === PlanChangeType.UPGRADE &&
+            preview.amountPayableCents > 0 &&
+            sourceOwner.billingMode !== BillingMode.STRIPE_RECURRING
+          ) {
             const amounts = this.billing.calculateGstInclusiveAmounts(preview.amountPayableCents);
             const issueDate = this.utcDate(requestedAt);
             await transaction.$executeRaw`SELECT pg_advisory_xact_lock(${PlanChangesService.invoiceSequenceLock})`;
@@ -170,6 +176,7 @@ export class PlanChangesService {
                 invoiceNumber,
                 customerId: sourceOwner.customerId,
                 purchasePlanId: preview.targetPlan.id,
+                type: InvoiceType.PLAN_CHANGE,
                 issueDate,
                 dueDate: this.billing.dueDateFor(issueDate),
                 ...amounts,
@@ -235,6 +242,24 @@ export class PlanChangesService {
         throw new ConflictException('Another plan change is already pending. Please retry.');
       }
       throw error;
+    }
+
+    if (result.request.sourceSubscription.billingMode === BillingMode.STRIPE_RECURRING) {
+      if (!result.request.targetPlan.stripePriceId) {
+        throw new BadRequestException('Automatic billing is not configured for the target plan.');
+      }
+      if (result.request.type === PlanChangeType.DOWNGRADE) {
+        await this.scheduleStripeRecurringDowngrade(result.request);
+        if (!result.reused) await this.notify('SCHEDULED', result.request);
+        await this.dashboardCache.invalidate();
+        return { planChange: this.toResponse(result.request), checkoutUrl: null };
+      }
+      const applied = await this.applyStripeRecurringUpgrade(result.request);
+      if (applied.request.status === PlanChangeStatus.APPLIED) {
+        await this.notify('APPLIED', applied.request);
+      }
+      await this.dashboardCache.invalidate();
+      return { planChange: this.toResponse(applied.request), checkoutUrl: null };
     }
 
     if (result.request.type === PlanChangeType.DOWNGRADE) {
@@ -391,6 +416,26 @@ export class PlanChangesService {
       if (!existing) throw new NotFoundException('Plan change request not found.');
       if (existing.status !== PlanChangeStatus.SCHEDULED || existing.effectiveAt <= cancelledAt) {
         throw new ConflictException('This scheduled downgrade can no longer be cancelled.');
+      }
+      if (
+        existing.sourceSubscription.billingMode === BillingMode.STRIPE_RECURRING &&
+        existing.sourceSubscription.stripeSubscriptionId &&
+        existing.sourcePlan.stripePriceId
+      ) {
+        const stripeSubscription = await this.stripe.subscriptions.retrieve(
+          existing.sourceSubscription.stripeSubscriptionId,
+        );
+        const item = stripeSubscription.items.data[0];
+        if (!item)
+          throw new BadRequestException('Stripe subscription has no recurring price item.');
+        await this.stripe.subscriptions.update(
+          stripeSubscription.id,
+          {
+            items: [{ id: item.id, price: existing.sourcePlan.stripePriceId }],
+            proration_behavior: 'none',
+          },
+          { idempotencyKey: `cancel-recurring-downgrade-${existing.id}` },
+        );
       }
       const updated = await transaction.planChangeRequest.update({
         where: { id },
@@ -1148,10 +1193,124 @@ export class PlanChangesService {
     );
   }
 
+  private async applyStripeRecurringUpgrade(
+    request: PlanChangeRecord,
+  ): Promise<ChangeApplicationResult> {
+    const stripeSubscriptionId = request.sourceSubscription.stripeSubscriptionId;
+    const stripePriceId = request.targetPlan.stripePriceId;
+    if (!stripeSubscriptionId || !stripePriceId) {
+      throw new BadRequestException('The recurring subscription is not configured in Stripe.');
+    }
+    const current = await this.stripe.subscriptions.retrieve(stripeSubscriptionId);
+    const item = current.items.data[0];
+    if (!item) throw new BadRequestException('Stripe subscription has no recurring price item.');
+    let updated: Stripe.Subscription;
+    try {
+      updated = await this.stripe.subscriptions.update(
+        stripeSubscriptionId,
+        {
+          items: [{ id: item.id, price: stripePriceId }],
+          proration_behavior: 'always_invoice',
+          payment_behavior: 'pending_if_incomplete',
+          metadata: {
+            ...current.metadata,
+            meroSubscriptionId: request.sourceSubscriptionId,
+            planChangeRequestId: request.id,
+            planId: request.targetPlanId,
+          },
+        },
+        { idempotencyKey: `recurring-plan-upgrade-${request.id}` },
+      );
+    } catch {
+      await this.prisma.planChangeRequest.update({
+        where: { id: request.id },
+        data: {
+          status: PlanChangeStatus.FAILED,
+          failureReason: 'STRIPE_SUBSCRIPTION_UPDATE_FAILED',
+        },
+      });
+      throw new ServiceUnavailableException(
+        'Stripe could not apply the recurring plan upgrade. Your current plan remains active.',
+      );
+    }
+    const appliedImmediately =
+      !updated.pending_update && updated.items.data[0]?.price.id === stripePriceId;
+    const appliedAt = new Date();
+    const result = await this.prisma.$transaction(async (transaction) => {
+      if (appliedImmediately) {
+        await transaction.subscription.update({
+          where: { id: request.sourceSubscriptionId },
+          data: {
+            planId: request.targetPlanId,
+            monthlyCents: request.targetPlanPriceCents,
+            stripePriceId,
+            stripeStatus: updated.status,
+          },
+        });
+      }
+      const changed = await transaction.planChangeRequest.update({
+        where: { id: request.id },
+        data: appliedImmediately
+          ? { status: PlanChangeStatus.APPLIED, appliedAt, effectiveAt: appliedAt }
+          : { status: PlanChangeStatus.PROCESSING },
+        include: planChangeInclude,
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: request.customer.userId,
+          action: appliedImmediately
+            ? 'STRIPE_PLAN_UPGRADE_APPLIED'
+            : 'STRIPE_PLAN_UPGRADE_PROCESSING',
+          entityType: 'PlanChangeRequest',
+          entityId: request.id,
+          metadata: this.auditMetadata(changed),
+        },
+      });
+      return changed;
+    });
+    return { request: result, outcome: 'APPLIED' };
+  }
+
+  private async scheduleStripeRecurringDowngrade(request: PlanChangeRecord): Promise<void> {
+    const stripeSubscriptionId = request.sourceSubscription.stripeSubscriptionId;
+    const stripePriceId = request.targetPlan.stripePriceId;
+    if (!stripeSubscriptionId || !stripePriceId) {
+      throw new BadRequestException('The recurring target price is not configured in Stripe.');
+    }
+    const current = await this.stripe.subscriptions.retrieve(stripeSubscriptionId);
+    const item = current.items.data[0];
+    if (!item) throw new BadRequestException('Stripe subscription has no recurring price item.');
+    if (item.price.id === stripePriceId) return;
+    await this.stripe.subscriptions.update(
+      stripeSubscriptionId,
+      {
+        items: [{ id: item.id, price: stripePriceId }],
+        proration_behavior: 'none',
+        metadata: {
+          ...current.metadata,
+          meroSubscriptionId: request.sourceSubscriptionId,
+          planChangeRequestId: request.id,
+          pendingPlanId: request.targetPlanId,
+        },
+      },
+      { idempotencyKey: `schedule-recurring-downgrade-${request.id}` },
+    );
+  }
+
   private async applyScheduledDowngrade(
     requestId: string,
     now: Date,
   ): Promise<ChangeApplicationResult | null> {
+    const recurringRequest = await this.prisma.planChangeRequest.findUnique({
+      where: { id: requestId },
+      include: planChangeInclude,
+    });
+    if (
+      recurringRequest?.status === PlanChangeStatus.SCHEDULED &&
+      recurringRequest.sourceSubscription.billingMode === BillingMode.STRIPE_RECURRING
+    ) {
+      return this.applyStripeRecurringDowngrade(recurringRequest, now);
+    }
     return this.prisma.$transaction(
       async (transaction) => {
         const request = await transaction.planChangeRequest.findUnique({
@@ -1215,6 +1374,77 @@ export class PlanChangesService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+  }
+
+  private async applyStripeRecurringDowngrade(
+    request: PlanChangeRecord,
+    now: Date,
+  ): Promise<ChangeApplicationResult> {
+    const stripeSubscriptionId = request.sourceSubscription.stripeSubscriptionId;
+    const stripePriceId = request.targetPlan.stripePriceId;
+    if (!stripeSubscriptionId || !stripePriceId) {
+      const failed = await this.prisma.planChangeRequest.update({
+        where: { id: request.id },
+        data: { status: PlanChangeStatus.FAILED, failureReason: 'STRIPE_PRICE_NOT_CONFIGURED' },
+        include: planChangeInclude,
+      });
+      return { request: failed, outcome: 'FAILED' };
+    }
+    const current = await this.stripe.subscriptions.retrieve(stripeSubscriptionId);
+    const item = current.items.data[0];
+    if (!item) throw new BadRequestException('Stripe subscription has no recurring price item.');
+    let updated: Stripe.Subscription;
+    try {
+      updated = await this.stripe.subscriptions.update(
+        stripeSubscriptionId,
+        {
+          items: [{ id: item.id, price: stripePriceId }],
+          proration_behavior: 'none',
+          metadata: {
+            ...current.metadata,
+            meroSubscriptionId: request.sourceSubscriptionId,
+            planChangeRequestId: request.id,
+            planId: request.targetPlanId,
+          },
+        },
+        { idempotencyKey: `recurring-plan-downgrade-${request.id}` },
+      );
+    } catch {
+      const failed = await this.prisma.planChangeRequest.update({
+        where: { id: request.id },
+        data: {
+          status: PlanChangeStatus.FAILED,
+          failureReason: 'STRIPE_SUBSCRIPTION_UPDATE_FAILED',
+        },
+        include: planChangeInclude,
+      });
+      return { request: failed, outcome: 'FAILED' };
+    }
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.subscription.update({
+        where: { id: request.sourceSubscriptionId },
+        data: {
+          planId: request.targetPlanId,
+          monthlyCents: request.targetPlanPriceCents,
+          stripePriceId,
+          stripeStatus: updated.status,
+        },
+      });
+      const applied = await transaction.planChangeRequest.update({
+        where: { id: request.id },
+        data: { status: PlanChangeStatus.APPLIED, appliedAt: now },
+        include: planChangeInclude,
+      });
+      await transaction.auditLog.create({
+        data: {
+          action: 'STRIPE_PLAN_DOWNGRADE_APPLIED',
+          entityType: 'PlanChangeRequest',
+          entityId: request.id,
+          metadata: this.auditMetadata(applied),
+        },
+      });
+      return { request: applied, outcome: 'APPLIED' as const };
+    });
   }
 
   private async applicationFailureReason(

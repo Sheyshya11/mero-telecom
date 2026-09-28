@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
+  Param,
   Post,
   Query,
   Req,
@@ -26,6 +28,8 @@ import {
   CreateCheckoutSessionDto,
   CreatePlanCheckoutSessionDto,
   CreatePublicPlanCheckoutSessionDto,
+  CreateRecurringSetupSessionDto,
+  PaymentMethodParamsDto,
   PreparePublicCheckoutContextDto,
   PublicCheckoutStatusQueryDto,
 } from './dto/create-checkout-session.dto';
@@ -141,6 +145,63 @@ export class PaymentsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.payments.createPlanCheckoutSession(input.planId, asCustomerContext(user));
+  }
+
+  @Post('recurring-setup-session')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  createRecurringSetupSession(
+    @Body() input: CreateRecurringSetupSessionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.payments.createRecurringSetupSession(input.subscriptionId, asCustomerContext(user));
+  }
+
+  @Post('customer-portal-session')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  createCustomerPortalSession(@CurrentUser() user: AuthenticatedUser) {
+    return this.payments.createCustomerPortalSession(asCustomerContext(user));
+  }
+
+  @Get('payment-methods')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  getPaymentMethods(@CurrentUser() user: AuthenticatedUser) {
+    return this.payments.getPaymentMethods(asCustomerContext(user));
+  }
+
+  @Post('payment-methods/setup-session')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  createPaymentMethodSetupSession(@CurrentUser() user: AuthenticatedUser) {
+    return this.payments.createPaymentMethodSetupSession(asCustomerContext(user));
+  }
+
+  @Post('payment-methods/:paymentMethodId/default')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  setDefaultPaymentMethod(
+    @Param() input: PaymentMethodParamsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.payments.setDefaultPaymentMethod(input.paymentMethodId, asCustomerContext(user));
+  }
+
+  @Delete('payment-methods/:paymentMethodId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  removePaymentMethod(
+    @Param() input: PaymentMethodParamsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.payments.removePaymentMethod(input.paymentMethodId, asCustomerContext(user));
   }
 
   private checkoutContextToken(request: Request): string | undefined {

@@ -108,6 +108,22 @@ export const validationSchema = Joi.object({
   STRIPE_WEBHOOK_SECRET: Joi.string()
     .pattern(/^whsec_/)
     .required(),
+  STRIPE_PORTAL_CONFIGURATION_ID: Joi.string()
+    .pattern(/^bpc_[A-Za-z0-9]+$/)
+    .allow('')
+    .default(''),
+  STRIPE_PRICE_ESSENTIAL_50: Joi.string()
+    .pattern(/^price_[A-Za-z0-9]+$/)
+    .allow('')
+    .default(''),
+  STRIPE_PRICE_FAMILY_100: Joi.string()
+    .pattern(/^price_[A-Za-z0-9]+$/)
+    .allow('')
+    .default(''),
+  STRIPE_PRICE_BUSINESS_250: Joi.string()
+    .pattern(/^price_[A-Za-z0-9]+$/)
+    .allow('')
+    .default(''),
   EMAIL_FROM: Joi.string().max(320).required(),
   EMAIL_DELIVERY_MODE: Joi.when('NODE_ENV', {
     is: 'production',

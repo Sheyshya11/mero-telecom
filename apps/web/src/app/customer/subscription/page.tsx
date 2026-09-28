@@ -4,6 +4,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../../components/ui/alert-dialog';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { hasRole } from '../../../features/auth/auth-navigation';
 import { CustomerCancellation } from '../../../features/cancellations/customer-cancellation';
@@ -28,6 +38,14 @@ type Subscription = {
   currentPeriodStart: string;
   currentPeriodEnd: string;
   monthlyCents: number;
+  billingMode: 'MANUAL' | 'STRIPE_RECURRING';
+  stripeStatus?: string | null;
+  nextBillingAt?: string | null;
+  cancelAtPeriodEnd: boolean;
+  paymentMethodBrand?: string | null;
+  paymentMethodLast4?: string | null;
+  paymentMethodExpMonth?: number | null;
+  paymentMethodExpYear?: number | null;
   pastDueAt?: string | null;
   gracePeriodEndsAt?: string | null;
   suspendedAt?: string | null;
@@ -83,6 +101,25 @@ type CheckoutStatus = {
   subscription: { id: string; status: string; plan: { name: string } } | null;
 };
 
+type PaymentMethod = {
+  id: string;
+  type: string;
+  brand: string | null;
+  last4: string | null;
+  expMonth: number | null;
+  expYear: number | null;
+  createdAt: string | null;
+  isDefault: boolean;
+  isExpired: boolean;
+  canRemove: boolean;
+  removalBlockedReason: string | null;
+};
+
+type PaymentMethodsResult = {
+  paymentMethods: PaymentMethod[];
+  hasProtectedRecurringSubscription: boolean;
+};
+
 const activeChangeStatuses: PlanChangeStatus[] = [
   'PENDING',
   'CHECKOUT_CREATED',
@@ -99,6 +136,12 @@ export default function CustomerSubscriptionPage() {
   const [paymentReturn, setPaymentReturn] = useState<'success' | 'cancelled' | null>(null);
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
   const [planChangeRequestId, setPlanChangeRequestId] = useState<string | null>(null);
+  const [recurringReturn, setRecurringReturn] = useState<'enabled' | 'cancelled' | null>(null);
+  const [paymentMethodReturn, setPaymentMethodReturn] = useState<
+    'added' | 'updated' | 'cancelled' | null
+  >(null);
+  const [paymentMethodStatus, setPaymentMethodStatus] = useState<string | null>(null);
+  const [paymentMethodToRemove, setPaymentMethodToRemove] = useState<PaymentMethod | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -109,6 +152,14 @@ export default function CustomerSubscriptionPage() {
     setPaymentReturn(payment === 'success' || payment === 'cancelled' ? payment : null);
     setCheckoutSessionId(params.get('sessionId'));
     setPlanChangeRequestId(params.get('requestId'));
+    const recurring = params.get('recurring');
+    setRecurringReturn(recurring === 'enabled' || recurring === 'cancelled' ? recurring : null);
+    const paymentMethod = params.get('paymentMethod');
+    setPaymentMethodReturn(
+      paymentMethod === 'added' || paymentMethod === 'updated' || paymentMethod === 'cancelled'
+        ? paymentMethod
+        : null,
+    );
   }, []);
 
   const subscriptions = useQuery({
@@ -120,6 +171,24 @@ export default function CustomerSubscriptionPage() {
     queryKey: ['public-plans'],
     queryFn: () => apiRequest<Plan[]>('/plans/public', {}, accessToken),
     enabled: Boolean(accessToken && user && hasRole(user, 'CUSTOMER')),
+  });
+  const enableRecurring = useMutation({
+    mutationFn: (subscriptionId: string) =>
+      apiRequest<{ checkoutUrl: string }>(
+        '/payments/recurring-setup-session',
+        { method: 'POST', body: JSON.stringify({ subscriptionId }) },
+        accessToken,
+      ),
+    onSuccess: ({ checkoutUrl }) => window.location.assign(checkoutUrl),
+  });
+  const openPortal = useMutation({
+    mutationFn: () =>
+      apiRequest<{ portalUrl: string }>(
+        '/payments/customer-portal-session',
+        { method: 'POST' },
+        accessToken,
+      ),
+    onSuccess: ({ portalUrl }) => window.location.assign(portalUrl),
   });
   const currentSubscription = useMemo(
     () =>
@@ -134,6 +203,85 @@ export default function CustomerSubscriptionPage() {
       ),
     [subscriptions.data],
   );
+  const paymentMethods = useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: () => apiRequest<PaymentMethodsResult>('/payments/payment-methods', {}, accessToken),
+    enabled: Boolean(
+      accessToken &&
+      user &&
+      hasRole(user, 'CUSTOMER') &&
+      currentSubscription?.billingMode === 'STRIPE_RECURRING',
+    ),
+  });
+  const defaultPaymentMethod = paymentMethods.data?.paymentMethods.find(
+    (paymentMethod) => paymentMethod.isDefault,
+  );
+  const orderedPaymentMethods = useMemo(
+    () =>
+      [...(paymentMethods.data?.paymentMethods ?? [])].sort((left, right) => {
+        if (left.isDefault !== right.isDefault) return left.isDefault ? -1 : 1;
+        const leftCreated = left.createdAt ? Date.parse(left.createdAt) : 0;
+        const rightCreated = right.createdAt ? Date.parse(right.createdAt) : 0;
+        return rightCreated - leftCreated;
+      }),
+    [paymentMethods.data?.paymentMethods],
+  );
+  const addPaymentMethod = useMutation({
+    mutationFn: () =>
+      apiRequest<{ checkoutUrl: string }>(
+        '/payments/payment-methods/setup-session',
+        { method: 'POST' },
+        accessToken,
+      ),
+    onSuccess: ({ checkoutUrl }) => window.location.assign(checkoutUrl),
+  });
+  const setDefaultPaymentMethod = useMutation({
+    mutationFn: (paymentMethodId: string) =>
+      apiRequest<{ updated: true }>(
+        `/payments/payment-methods/${encodeURIComponent(paymentMethodId)}/default`,
+        { method: 'POST' },
+        accessToken,
+      ),
+    onMutate: () => setPaymentMethodStatus(null),
+    onSuccess: async (_result, paymentMethodId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['payment-methods'] }),
+        queryClient.invalidateQueries({ queryKey: ['my-subscriptions'] }),
+      ]);
+      const method = paymentMethods.data?.paymentMethods.find(
+        (paymentMethod) => paymentMethod.id === paymentMethodId,
+      );
+      setPaymentMethodStatus(
+        `${method ? paymentMethodDisplayLabel(method) : 'Payment method'} is now the default for automatic payments.`,
+      );
+    },
+  });
+  const removePaymentMethod = useMutation({
+    mutationFn: (paymentMethodId: string) =>
+      apiRequest<{ removed: true }>(
+        `/payments/payment-methods/${encodeURIComponent(paymentMethodId)}`,
+        { method: 'DELETE' },
+        accessToken,
+      ),
+    onMutate: () => setPaymentMethodStatus(null),
+    onSuccess: async (_result, paymentMethodId) => {
+      const method = paymentMethods.data?.paymentMethods.find(
+        (paymentMethod) => paymentMethod.id === paymentMethodId,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['payment-methods'] }),
+        queryClient.invalidateQueries({ queryKey: ['my-subscriptions'] }),
+      ]);
+      setPaymentMethodStatus(
+        `${method ? paymentMethodDisplayLabel(method) : 'Payment method'} was removed.`,
+      );
+    },
+  });
+  const paymentMethodActionPending =
+    addPaymentMethod.isPending ||
+    setDefaultPaymentMethod.isPending ||
+    removePaymentMethod.isPending ||
+    openPortal.isPending;
   const cancellationSubscription = useMemo(
     () =>
       currentSubscription ??
@@ -216,6 +364,14 @@ export default function CustomerSubscriptionPage() {
       queryClient.invalidateQueries({ queryKey: ['plan-change'] }),
     ]);
   }, [checkoutReconciliation.data, planChangeReconciliation.data, queryClient]);
+
+  useEffect(() => {
+    if (paymentMethodReturn !== 'added' && paymentMethodReturn !== 'updated') return;
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['payment-methods'] }),
+      queryClient.invalidateQueries({ queryKey: ['my-subscriptions'] }),
+    ]);
+  }, [paymentMethodReturn, queryClient]);
 
   const preview = useMutation({
     mutationFn: () =>
@@ -325,6 +481,273 @@ export default function CustomerSubscriptionPage() {
           </article>
         ))}
       </div>
+
+      {recurringReturn ? (
+        <p
+          className={`mt-6 rounded-md p-3 text-sm ${
+            recurringReturn === 'enabled'
+              ? 'bg-success-subtle text-success-foreground'
+              : 'bg-warning-subtle text-warning-foreground'
+          }`}
+          role="status"
+        >
+          {recurringReturn === 'enabled'
+            ? 'Your payment method was saved. Automatic billing is being activated.'
+            : 'Automatic payment setup was cancelled; your existing billing arrangement is unchanged.'}
+        </p>
+      ) : null}
+
+      {paymentMethodReturn ? (
+        <p
+          className={`mt-6 rounded-md p-3 text-sm ${
+            paymentMethodReturn === 'cancelled'
+              ? 'bg-warning-subtle text-warning-foreground'
+              : 'bg-success-subtle text-success-foreground'
+          }`}
+          role="status"
+        >
+          {paymentMethodReturn === 'cancelled'
+            ? 'Payment method setup was cancelled. Your existing automatic payment settings are unchanged.'
+            : paymentMethodReturn === 'added'
+              ? 'Your payment method was added and set as the default for future automatic payments. If a payment previously failed, Stripe is retrying that same invoice.'
+              : 'Your payment method was updated securely. If a payment previously failed, Stripe is retrying that same invoice.'}
+        </p>
+      ) : null}
+
+      {currentSubscription ? (
+        <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <p className="text-sm font-semibold tracking-wide text-primary">BILLING</p>
+          <h2 className="mt-2 text-2xl font-bold text-foreground">Automatic payments</h2>
+          {currentSubscription.billingMode === 'STRIPE_RECURRING' ? (
+            <>
+              <p className="mt-2 text-muted-foreground">
+                Your saved payment method will be automatically charged on your billing date.
+              </p>
+              <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+                <BillingDetail label="Automatic payments" value="On" />
+                <BillingDetail label="Billing cycle" value="Monthly" />
+                <BillingDetail
+                  label="Subscription"
+                  value={subscriptionStatusLabel(currentSubscription.status)}
+                />
+                <BillingDetail
+                  label="Next payment date"
+                  value={
+                    currentSubscription.cancelAtPeriodEnd
+                      ? 'No further charge scheduled'
+                      : currentSubscription.nextBillingAt
+                        ? formatDate(currentSubscription.nextBillingAt)
+                        : formatDate(currentSubscription.currentPeriodEnd)
+                  }
+                />
+                <BillingDetail
+                  label="Next automatic payment"
+                  value={
+                    currentSubscription.cancelAtPeriodEnd
+                      ? 'No further charge scheduled'
+                      : `${formatMoney(currentSubscription.monthlyCents)} AUD`
+                  }
+                />
+                <BillingDetail
+                  label="Payment method"
+                  value={
+                    defaultPaymentMethod
+                      ? paymentMethodDisplayLabel(defaultPaymentMethod)
+                      : paymentMethodLabel(currentSubscription)
+                  }
+                />
+                <BillingDetail
+                  label="Billing status"
+                  value={stripeBillingStatusLabel(currentSubscription.stripeStatus)}
+                />
+                <BillingDetail
+                  label="Cancellation"
+                  value={
+                    currentSubscription.cancelAtPeriodEnd
+                      ? 'Ends after paid period'
+                      : 'Not scheduled'
+                  }
+                />
+              </dl>
+              {currentSubscription.status === 'PAST_DUE' ||
+              (currentSubscription.status === 'SUSPENDED' &&
+                currentSubscription.suspensionReason === 'NON_PAYMENT') ? (
+                <div className="mt-5 rounded-xl border border-destructive-border bg-destructive-subtle p-4 text-destructive-foreground">
+                  <p className="font-semibold">Automatic payment failed</p>
+                  <p className="mt-1 text-sm">
+                    Add or choose a working payment method. Stripe will retry the existing unpaid
+                    invoice; a duplicate invoice will not be created.
+                  </p>
+                  <button
+                    className="button-primary mt-4"
+                    disabled={paymentMethodActionPending}
+                    onClick={() => addPaymentMethod.mutate()}
+                    type="button"
+                  >
+                    {addPaymentMethod.isPending ? 'Opening Stripe…' : 'Update payment method'}
+                  </button>
+                </div>
+              ) : null}
+              <div className="mt-6 border-t border-border pt-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-foreground">Saved payment methods</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Payment details are stored securely by Stripe. A new method becomes the
+                      default for future automatic payments.
+                    </p>
+                  </div>
+                  <button
+                    className="button-primary"
+                    disabled={paymentMethodActionPending}
+                    onClick={() => {
+                      setPaymentMethodStatus(null);
+                      addPaymentMethod.mutate();
+                    }}
+                    type="button"
+                  >
+                    {addPaymentMethod.isPending ? 'Opening Stripe…' : 'Add payment method'}
+                  </button>
+                </div>
+                {paymentMethods.isPending ? (
+                  <p className="mt-4 text-sm text-muted-foreground">Loading payment methods…</p>
+                ) : null}
+                {paymentMethods.isError ? (
+                  <ErrorPanel
+                    message="Unable to load saved payment methods."
+                    retry={() => paymentMethods.refetch()}
+                  />
+                ) : null}
+                {paymentMethodStatus ? (
+                  <p
+                    className="mt-4 rounded-lg border border-success-border bg-success-subtle px-4 py-3 text-sm text-success-foreground"
+                    role="status"
+                  >
+                    {paymentMethodStatus}
+                  </p>
+                ) : null}
+                {defaultPaymentMethod?.isExpired ? (
+                  <div
+                    className="mt-4 rounded-xl border border-warning-border bg-warning-subtle p-4 text-warning-foreground"
+                    role="alert"
+                  >
+                    <p className="font-semibold">Your default payment method has expired</p>
+                    <p className="mt-1 text-sm">
+                      Add a current payment method before your next billing date to avoid a failed
+                      automatic payment.
+                    </p>
+                  </div>
+                ) : null}
+                <div aria-busy={paymentMethodActionPending} className="mt-4 space-y-3">
+                  {orderedPaymentMethods.map((method) => (
+                    <PaymentMethodCard
+                      actionsDisabled={paymentMethodActionPending}
+                      defaulting={
+                        setDefaultPaymentMethod.isPending &&
+                        setDefaultPaymentMethod.variables === method.id
+                      }
+                      key={method.id}
+                      method={method}
+                      onRemove={() => setPaymentMethodToRemove(method)}
+                      onSetDefault={() => {
+                        setPaymentMethodStatus(null);
+                        setDefaultPaymentMethod.mutate(method.id);
+                      }}
+                      removing={
+                        removePaymentMethod.isPending && removePaymentMethod.variables === method.id
+                      }
+                    />
+                  ))}
+                </div>
+                {paymentMethods.data?.paymentMethods.length === 0 ? (
+                  <div className="mt-4 rounded-xl border border-warning-border bg-warning-subtle p-4 text-warning-foreground">
+                    <p className="font-semibold">No payment method saved</p>
+                    <p className="mt-1 text-sm">
+                      Add one before your next billing date to keep automatic payments working.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                  className="button-secondary"
+                  disabled={paymentMethodActionPending}
+                  onClick={() => openPortal.mutate()}
+                  type="button"
+                >
+                  {openPortal.isPending ? 'Opening Stripe…' : 'Update payment method in Stripe'}
+                </button>
+                <Link className="button-secondary" href="/customer/invoices">
+                  View invoices
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-muted-foreground">
+                This is an existing manual-payment subscription. Add a payment method to enable
+                automatic monthly charges from your next billing date.
+              </p>
+              <button
+                className="button-primary mt-5"
+                disabled={enableRecurring.isPending}
+                onClick={() => enableRecurring.mutate(currentSubscription.id)}
+                type="button"
+              >
+                {enableRecurring.isPending ? 'Opening Stripe…' : 'Enable automatic payments'}
+              </button>
+            </>
+          )}
+          {enableRecurring.error ||
+          openPortal.error ||
+          addPaymentMethod.error ||
+          setDefaultPaymentMethod.error ||
+          removePaymentMethod.error ? (
+            <p className="mt-3 text-sm text-destructive-foreground" role="alert">
+              {errorText(
+                enableRecurring.error ??
+                  openPortal.error ??
+                  addPaymentMethod.error ??
+                  setDefaultPaymentMethod.error ??
+                  removePaymentMethod.error,
+              )}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !removePaymentMethod.isPending) setPaymentMethodToRemove(null);
+        }}
+        open={Boolean(paymentMethodToRemove)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this payment method?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {paymentMethodToRemove
+                ? `${paymentMethodDisplayLabel(paymentMethodToRemove)} will no longer be available for future payments. This does not cancel your subscription.`
+                : 'This payment method will no longer be available for future payments.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removePaymentMethod.isPending}>
+              Keep method
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removePaymentMethod.isPending}
+              onClick={() => {
+                if (!paymentMethodToRemove) return;
+                removePaymentMethod.mutate(paymentMethodToRemove.id);
+                setPaymentMethodToRemove(null);
+              }}
+            >
+              Remove payment method
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {currentSubscription?.status === 'ACTIVE' ? (
         <section className="mt-6 rounded-2xl border border-primary/20 bg-primary-subtle p-6">
@@ -770,6 +1193,144 @@ function ErrorPanel({ message, retry }: Readonly<{ message: string; retry: () =>
       </button>
     </div>
   );
+}
+
+function PaymentMethodCard({
+  method,
+  actionsDisabled,
+  defaulting,
+  removing,
+  onSetDefault,
+  onRemove,
+}: Readonly<{
+  method: PaymentMethod;
+  actionsDisabled: boolean;
+  defaulting: boolean;
+  removing: boolean;
+  onSetDefault: () => void;
+  onRemove: () => void;
+}>) {
+  const isCard = method.type === 'card';
+  const expiry =
+    method.expMonth && method.expYear
+      ? `${String(method.expMonth).padStart(2, '0')}/${String(method.expYear).slice(-2)}`
+      : null;
+  const label = paymentMethodDisplayLabel(method);
+  return (
+    <article
+      aria-label={label}
+      className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border p-4"
+    >
+      <div>
+        <p className="font-medium text-foreground">
+          {label}
+          {method.isDefault ? (
+            <span className="ml-2 rounded-full bg-success-subtle px-2 py-0.5 text-xs font-semibold text-success-foreground">
+              Default
+            </span>
+          ) : null}
+        </p>
+        {isCard ? (
+          <p
+            className={`mt-1 text-sm ${method.isExpired ? 'text-destructive-foreground' : 'text-muted-foreground'}`}
+          >
+            {method.isExpired ? 'Expired' : expiry ? 'Expires' : 'Expiry unavailable'}{' '}
+            {expiry ?? ''}
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">Managed securely by Stripe</p>
+        )}
+        {method.isExpired ? (
+          <p className="mt-1 text-xs text-destructive-foreground">
+            This card can’t be used for future payments. Add a current payment method.
+          </p>
+        ) : null}
+        {!method.canRemove && method.removalBlockedReason ? (
+          <p className="mt-1 max-w-xl text-xs text-muted-foreground">
+            {method.removalBlockedReason}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {!method.isDefault && !method.isExpired ? (
+          <button
+            aria-label={`Set ${label} as default`}
+            className="button-secondary"
+            disabled={actionsDisabled}
+            onClick={onSetDefault}
+            type="button"
+          >
+            {defaulting ? 'Updating…' : 'Set as default'}
+          </button>
+        ) : null}
+        <button
+          aria-label={`Remove ${label}`}
+          className="button-secondary text-destructive-foreground"
+          disabled={!method.canRemove || actionsDisabled}
+          onClick={onRemove}
+          type="button"
+        >
+          {removing ? 'Removing…' : 'Remove'}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function paymentMethodDisplayLabel(method: PaymentMethod): string {
+  if (method.type === 'card') {
+    const brand = method.brand
+      ? `${method.brand.slice(0, 1).toUpperCase()}${method.brand.slice(1)}`
+      : 'Card';
+    return `${brand} •••• ${method.last4 ?? '••••'}`;
+  }
+  if (method.type === 'link') return 'Link';
+  return method.type
+    .split('_')
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
+function BillingDetail({ label, value }: Readonly<{ label: string; value: string }>) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-1 font-medium text-foreground">{value}</dd>
+    </div>
+  );
+}
+
+function paymentMethodLabel(subscription: Subscription): string {
+  if (!subscription.paymentMethodLast4) return 'Managed securely by Stripe';
+  const brand = subscription.paymentMethodBrand
+    ? `${subscription.paymentMethodBrand.slice(0, 1).toUpperCase()}${subscription.paymentMethodBrand.slice(1)}`
+    : 'Card';
+  const expiry =
+    subscription.paymentMethodExpMonth && subscription.paymentMethodExpYear
+      ? ` · expires ${String(subscription.paymentMethodExpMonth).padStart(2, '0')}/${String(subscription.paymentMethodExpYear).slice(-2)}`
+      : '';
+  return `${brand} •••• ${subscription.paymentMethodLast4}${expiry}`;
+}
+
+function stripeBillingStatusLabel(status: string | null | undefined): string {
+  if (!status) return 'Synchronizing';
+  const labels: Record<string, string> = {
+    active: 'Active',
+    canceled: 'Cancelled',
+    incomplete: 'Setup incomplete',
+    incomplete_expired: 'Setup expired',
+    past_due: 'Payment overdue',
+    paused: 'Paused',
+    trialing: 'Trial period',
+    unpaid: 'Payment required',
+  };
+  return labels[status] ?? status.replaceAll('_', ' ');
+}
+
+function errorText(error: unknown): string {
+  return error instanceof ApiError ? error.message : 'The billing action could not be completed.';
 }
 
 function formatMoney(cents: number): string {

@@ -95,6 +95,7 @@ export interface AppConfig {
   stripe: {
     secretKey: string;
     webhookSecret: string;
+    portalConfigurationId: string;
   };
   email: {
     from: string;
@@ -253,6 +254,7 @@ export default (): AppConfig => ({
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY ?? '',
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+    portalConfigurationId: process.env.STRIPE_PORTAL_CONFIGURATION_ID ?? '',
   },
   email: {
     from: process.env.EMAIL_FROM ?? '',

@@ -23,6 +23,7 @@ const plan = {
   downloadMbps: 50,
   uploadMbps: 20,
   monthlyCents: 6900,
+  stripePriceId: 'price_test_essential50',
   isActive: true,
   isPublic: false,
   isAvailable: false,
