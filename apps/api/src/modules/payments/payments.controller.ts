@@ -7,6 +7,7 @@ import {
   Headers,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -30,8 +31,10 @@ import {
   CreatePublicPlanCheckoutSessionDto,
   CreateRecurringSetupSessionDto,
   PaymentMethodParamsDto,
+  PaymentMethodSelectionDto,
   PreparePublicCheckoutContextDto,
   PublicCheckoutStatusQueryDto,
+  UpdatePaymentMethodDto,
 } from './dto/create-checkout-session.dto';
 import { PaymentsService } from './payments.service';
 import { PublicCheckoutContextService } from './public-checkout-context.service';
@@ -125,6 +128,18 @@ export class PaymentsController {
     return this.payments.getAuthenticatedCheckoutStatus(query.sessionId, asCustomerContext(user));
   }
 
+  @Get('recurring-setup-status')
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  getRecurringSetupStatus(
+    @Query() query: PublicCheckoutStatusQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.payments.getRecurringSetupStatus(query.sessionId, asCustomerContext(user));
+  }
+
   @Post('checkout-session')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -155,7 +170,11 @@ export class PaymentsController {
     @Body() input: CreateRecurringSetupSessionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.payments.createRecurringSetupSession(input.subscriptionId, asCustomerContext(user));
+    return this.payments.createRecurringSetupSession(
+      input.subscriptionId,
+      asCustomerContext(user),
+      input.paymentMethodType,
+    );
   }
 
   @Post('customer-portal-session')
@@ -178,8 +197,27 @@ export class PaymentsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CUSTOMER)
-  createPaymentMethodSetupSession(@CurrentUser() user: AuthenticatedUser) {
-    return this.payments.createPaymentMethodSetupSession(asCustomerContext(user));
+  createPaymentMethodSetupSession(
+    @Body() input: PaymentMethodSelectionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.payments.createPaymentMethodSetupSession(asCustomerContext(user), input);
+  }
+
+  @Patch('payment-methods/:paymentMethodId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  updatePaymentMethod(
+    @Param() params: PaymentMethodParamsDto,
+    @Body() input: UpdatePaymentMethodDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.payments.updatePaymentMethod(
+      params.paymentMethodId,
+      input,
+      asCustomerContext(user),
+    );
   }
 
   @Post('payment-methods/:paymentMethodId/default')

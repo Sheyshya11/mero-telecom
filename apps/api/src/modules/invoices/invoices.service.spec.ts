@@ -43,12 +43,20 @@ function invoice(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function serviceWith(prisma: object) {
+function serviceWith(
+  prisma: object,
+  accountLedger: object = {
+    applyManualInvoiceAdjustments: jest
+      .fn()
+      .mockResolvedValue({ creditAppliedCents: 0, debitAppliedCents: 0 }),
+  },
+) {
   return new InvoicesService(
     prisma as PrismaService,
     new BillingService(),
     {} as never,
     { invalidate: jest.fn().mockResolvedValue(true) } as never,
+    accountLedger as never,
   );
 }
 
@@ -115,6 +123,58 @@ describe('InvoicesService billing-period idempotency', () => {
           taxCents: 627,
           totalCents: 6900,
           status: InvoiceStatus.ISSUED,
+        }),
+      }),
+    );
+  });
+
+  it('applies ledger adjustments and reconciles the manual invoice total and GST', async () => {
+    const createdInvoice = invoice();
+    const adjustedInvoice = invoice({
+      subtotalCents: 5_364,
+      taxCents: 536,
+      totalCents: 5_900,
+    });
+    const transaction = successfulTransaction(createdInvoice);
+    transaction.invoice.update = jest.fn().mockResolvedValue(adjustedInvoice);
+    const prisma = {
+      $transaction: jest.fn(async (operation: (client: unknown) => unknown) =>
+        operation(transaction),
+      ),
+    };
+    const accountLedger = {
+      applyManualInvoiceAdjustments: jest.fn().mockResolvedValue({
+        creditAppliedCents: 2_000,
+        debitAppliedCents: 1_000,
+      }),
+    };
+
+    await expect(
+      serviceWith(prisma, accountLedger).generate({
+        subscriptionId: subscription.id,
+        issueDate: '2026-10-19',
+      }),
+    ).resolves.toEqual({ ...adjustedInvoice, generationResult: 'CREATED' });
+
+    expect(accountLedger.applyManualInvoiceAdjustments).toHaveBeenCalledWith(transaction, {
+      customerId: subscription.customerId,
+      subscriptionId: subscription.id,
+      invoiceId: createdInvoice.id,
+      baseAmountCents: 6_900,
+    });
+    expect(transaction.invoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: createdInvoice.id },
+        data: expect.objectContaining({
+          subtotalCents: 5_364,
+          taxCents: 536,
+          totalCents: 5_900,
+          items: {
+            create: [
+              expect.objectContaining({ amountCents: 1_000 }),
+              expect.objectContaining({ amountCents: -2_000 }),
+            ],
+          },
         }),
       }),
     );
@@ -332,5 +392,13 @@ describe('InvoicesService billing-period idempotency', () => {
         where: expect.objectContaining({ subscriptionId: subscription.id }),
       }),
     );
+  });
+
+  it('returns null when the billing period has no existing invoice', async () => {
+    const prisma = { invoice: { findFirst: jest.fn().mockResolvedValue(null) } };
+
+    await expect(
+      serviceWith(prisma).findForBillingPeriod(subscription.id, '2025-05-28'),
+    ).resolves.toBeNull();
   });
 });

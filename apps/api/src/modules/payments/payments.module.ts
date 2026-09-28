@@ -12,6 +12,7 @@ import { StripeModule } from './stripe.module';
 import { PlanChangesModule } from '../plan-changes/plan-changes.module';
 import { RefundsModule } from '../refunds/refunds.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { AccountLedgerModule } from '../account-ledger/account-ledger.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     PlanChangesModule,
     RefundsModule,
     SubscriptionsModule,
+    AccountLedgerModule,
   ],
   controllers: [PaymentsController],
   providers: [PaymentsService, PublicCheckoutContextService],

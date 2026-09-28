@@ -33,6 +33,7 @@ type Subscription = {
   stripeStatus: string | null;
   nextBillingAt: string | null;
   cancelAtPeriodEnd: boolean;
+  paymentMethodType: 'CARD' | 'AU_BECS_DEBIT' | null;
   paymentMethodBrand: string | null;
   paymentMethodLast4: string | null;
   paymentMethodExpMonth: number | null;
@@ -610,6 +611,9 @@ function formatDateTime(value: string): string {
 
 function adminPaymentMethod(subscription: Subscription): string {
   if (!subscription.paymentMethodLast4) return 'payment method managed by Stripe';
+  if (subscription.paymentMethodType === 'AU_BECS_DEBIT') {
+    return `Direct Debit •••• ${subscription.paymentMethodLast4}`;
+  }
   const brand = subscription.paymentMethodBrand ?? 'card';
   return `${brand} •••• ${subscription.paymentMethodLast4}`;
 }

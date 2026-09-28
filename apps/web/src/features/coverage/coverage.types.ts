@@ -8,10 +8,14 @@ export type CoverageResultStatus =
 export interface AddressSuggestion {
   selectionToken: string;
   formattedAddress: string;
+  unit?: string | null;
+  houseNumber?: string | null;
+  street?: string | null;
   suburb: string | null;
   state: string | null;
   stateCode: string | null;
   postcode: string | null;
+  countryCode?: string | null;
 }
 
 export interface CoveragePlan {

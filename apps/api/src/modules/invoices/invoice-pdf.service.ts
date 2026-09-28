@@ -11,6 +11,7 @@ export interface InvoicePdfData {
   taxCents: number;
   totalCents: number;
   currency: string;
+  status: string;
   customer: {
     customerNumber: string;
     firstName: string;
@@ -22,12 +23,20 @@ export interface InvoicePdfData {
     state: string;
     postcode: string;
   };
-  subscription: { plan: { name: string } } | null;
+  subscription: {
+    billingMode?: 'MANUAL' | 'STRIPE_RECURRING';
+    plan: { name: string };
+  } | null;
   items: Array<{
     description: string;
     quantity: number;
     unitPriceCents: number;
     amountCents: number;
+  }>;
+  payments?: Array<{
+    paymentMethodType: 'CARD' | 'AU_BECS_DEBIT' | null;
+    paymentMethodBrand: string | null;
+    paymentMethodLast4: string | null;
   }>;
 }
 
@@ -157,13 +166,24 @@ export class InvoicePdfService {
       .font('Helvetica-Bold')
       .fontSize(11)
       .fillColor('#ffffff')
-      .text('TOTAL DUE', 367, top + 64);
+      .text('AMOUNT PAYABLE', 367, top + 64);
     document
       .fontSize(15)
       .text(this.formatMoney(invoice.totalCents, invoice.currency), 455, top + 61, {
         width: 77,
         align: 'right',
       });
+    const payment = invoice.payments?.[0];
+    document.font('Helvetica-Bold').fontSize(9).fillColor('#475569');
+    document.text('PAYMENT METHOD', 355, top + 108);
+    document.font('Helvetica').fontSize(10).fillColor('#0f172a');
+    document.text(this.paymentMethodLabel(payment, invoice), 355, top + 124, { width: 190 });
+    document.font('Helvetica-Bold').fontSize(9).fillColor('#475569');
+    document.text('STATUS', 355, top + 149);
+    document.font('Helvetica').fontSize(10).fillColor('#0f172a');
+    document.text((invoice.status || 'ISSUED').replaceAll('_', ' '), 355, top + 165, {
+      width: 190,
+    });
     document.fillColor('#0f172a');
   }
 
@@ -188,5 +208,35 @@ export class InvoicePdfService {
 
   private formatMoney(cents: number, currency: string): string {
     return new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(cents / 100);
+  }
+
+  private paymentMethodLabel(
+    payment:
+      | {
+          paymentMethodType: 'CARD' | 'AU_BECS_DEBIT' | null;
+          paymentMethodBrand: string | null;
+          paymentMethodLast4: string | null;
+        }
+      | undefined,
+    invoice: InvoicePdfData,
+  ): string {
+    if (!payment?.paymentMethodLast4) {
+      if (
+        invoice.totalCents === 0 &&
+        invoice.items.some((item) => item.description.includes('Account credit'))
+      ) {
+        return 'Settled by account credit';
+      }
+      return invoice.subscription?.billingMode === 'MANUAL'
+        ? 'Manual billing'
+        : 'Managed securely by Stripe';
+    }
+    if (payment.paymentMethodType === 'AU_BECS_DEBIT') {
+      return `Direct Debit •••• ${payment.paymentMethodLast4}`;
+    }
+    const brand = payment.paymentMethodBrand
+      ? `${payment.paymentMethodBrand.slice(0, 1).toUpperCase()}${payment.paymentMethodBrand.slice(1)}`
+      : 'Card';
+    return `${brand} •••• ${payment.paymentMethodLast4}`;
   }
 }

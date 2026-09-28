@@ -1,14 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import { InvoiceStatus, PaymentProvider, RefundStatus } from '@prisma/client';
+import {
+  AccountTransactionType,
+  AccountTransactionStatus,
+  InvoiceStatus,
+  PaymentProvider,
+  RefundStatus,
+  StripeSyncStatus,
+} from '@prisma/client';
+import type Stripe from 'stripe';
 
 import { PrismaService } from '../../../database/prisma.service';
+import { StripeClientService } from '../../payments/stripe-client.service';
 import type { ReconciliationStatus, ResolvedReportPeriod } from '../billing-report.types';
 import type { BillingReportQueryDto } from '../dto/billing-report-query.dto';
 import { SETTLED_PAYMENT_STATUSES } from './financial-metrics.service';
 
 @Injectable()
 export class ReconciliationReportService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly stripe: Stripe;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    stripeClient: StripeClientService,
+  ) {
+    this.stripe = stripeClient.client;
+  }
 
   async report(query: BillingReportQueryDto, period: ResolvedReportPeriod) {
     const payments = await this.prisma.payment.findMany({
@@ -54,6 +70,13 @@ export class ReconciliationReportService {
       }
       if (
         SETTLED_PAYMENT_STATUSES.includes(payment.status) &&
+        payment.amountCents !== payment.invoice.totalCents
+      ) {
+        result = 'MISMATCH';
+        issues.push('Stripe payment amount and local invoice amount differ.');
+      }
+      if (
+        SETTLED_PAYMENT_STATUSES.includes(payment.status) &&
         payment.invoice.status !== InvoiceStatus.PAID
       ) {
         result = 'MISMATCH';
@@ -88,12 +111,112 @@ export class ReconciliationReportService {
         issues,
       };
     });
+    const accountTransactions = this.prisma.accountTransaction
+      ? await this.prisma.accountTransaction.findMany({
+          where: {
+            createdAt: { gte: period.from, lt: period.to },
+            ...(query.customerId ? { customerId: query.customerId } : {}),
+          },
+          include: {
+            applications: { select: { amountCents: true } },
+            customer: { select: { stripeCustomerId: true } },
+          },
+          orderBy: { createdAt: query.sortDirection },
+        })
+      : [];
+    const ledgerChecks = await Promise.all(
+      accountTransactions.map(async (transaction) => {
+        const issues: string[] = [];
+        const appliedCents = transaction.applications.reduce(
+          (sum, application) => sum + application.amountCents,
+          0,
+        );
+        if (
+          transaction.stripeSyncStatus === StripeSyncStatus.SYNCED &&
+          !transaction.stripeBalanceTransactionId
+        ) {
+          issues.push('Synced adjustment has no recorded Stripe balance transaction.');
+        }
+        if (transaction.stripeSyncStatus === StripeSyncStatus.FAILED) {
+          issues.push('Adjustment synchronization with Stripe failed.');
+        }
+        if (
+          transaction.stripeSyncStatus === StripeSyncStatus.SYNCED &&
+          transaction.stripeBalanceTransactionId
+        ) {
+          if (!transaction.customer.stripeCustomerId) {
+            issues.push('Synced adjustment has no Stripe customer reference.');
+          } else {
+            try {
+              const remote = await this.stripe.customers.retrieveBalanceTransaction(
+                transaction.customer.stripeCustomerId,
+                transaction.stripeBalanceTransactionId,
+              );
+              const expectedAmount =
+                transaction.type === AccountTransactionType.CREDIT
+                  ? -transaction.amountCents
+                  : transaction.amountCents;
+              if (
+                remote.amount !== expectedAmount ||
+                remote.currency.toUpperCase() !== transaction.currency
+              ) {
+                issues.push('Stripe adjustment amount or currency differs from the local ledger.');
+              }
+            } catch {
+              issues.push('Recorded Stripe balance transaction could not be verified.');
+            }
+          }
+        }
+        if (
+          transaction.remainingAmountCents < 0 ||
+          transaction.remainingAmountCents > transaction.amountCents
+        ) {
+          issues.push('Remaining adjustment amount is outside its valid range.');
+        }
+        if (appliedCents > transaction.amountCents) {
+          issues.push('Applied adjustment amount exceeds the original adjustment.');
+        }
+        if (
+          transaction.status === AccountTransactionStatus.REFUNDED &&
+          transaction.remainingAmountCents > 0
+        ) {
+          issues.push('Refunded credit still has an available amount.');
+        }
+        if (
+          transaction.status === AccountTransactionStatus.USED &&
+          transaction.remainingAmountCents !== 0
+        ) {
+          issues.push('Used adjustment has a non-zero remaining amount.');
+        }
+        return issues.length
+          ? {
+              accountTransactionId: transaction.id,
+              customerId: transaction.customerId,
+              type: transaction.type,
+              reason: transaction.reason,
+              amountCents: transaction.amountCents,
+              remainingAmountCents: transaction.remainingAmountCents,
+              appliedCents,
+              stripeSyncStatus: transaction.stripeSyncStatus,
+              stripeBalanceTransactionId: transaction.stripeBalanceTransactionId,
+              result: 'NEEDS_REVIEW' as const,
+              issues,
+            }
+          : null;
+      }),
+    );
+    const ledgerExceptions = ledgerChecks.filter(
+      (row): row is NonNullable<(typeof ledgerChecks)[number]> => row !== null,
+    );
     const start = (query.page - 1) * query.pageSize;
     const latestEvidence = data
       .map((row) => row.lastEvidenceAt)
       .filter((value): value is Date => Boolean(value))
       .sort((left, right) => right.getTime() - left.getTime())[0];
-    const matchedCount = data.filter((row) => row.result === 'MATCHED').length;
+    const matchedCount =
+      data.filter((row) => row.result === 'MATCHED').length +
+      accountTransactions.length -
+      ledgerExceptions.length;
     return {
       data: data.slice(start, start + query.pageSize),
       meta: {
@@ -104,11 +227,12 @@ export class ReconciliationReportService {
       },
       summary: {
         matchedCount,
-        exceptionCount: data.length - matchedCount,
-        totalChecked: data.length,
+        exceptionCount: data.length - matchedCount + ledgerExceptions.length,
+        totalChecked: data.length + accountTransactions.length,
         lastReconciledAt: latestEvidence?.toISOString() ?? null,
       },
-      scope: 'RECORDED_STRIPE_EVIDENCE',
+      ledgerExceptions,
+      scope: 'LIVE_STRIPE_AND_RECORDED_EVIDENCE',
     };
   }
 }

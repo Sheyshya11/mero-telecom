@@ -108,7 +108,10 @@ export class SubscriptionLifecycleService {
           },
           orderBy: { createdAt: 'desc' },
         });
-        if (payment?.status === PaymentStatus.PENDING) {
+        if (
+          payment?.status === PaymentStatus.PENDING ||
+          payment?.status === PaymentStatus.PROCESSING
+        ) {
           await transaction.payment.update({
             where: { id: payment.id },
             data: { status: PaymentStatus.FAILED },

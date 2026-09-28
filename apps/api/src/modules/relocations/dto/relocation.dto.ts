@@ -20,6 +20,7 @@ import {
   Min,
   MinLength,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
@@ -43,6 +44,15 @@ export class CreateRelocationDto {
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   requestedMoveDate!: string;
+
+  @IsBoolean()
+  billingSameAsService!: boolean;
+
+  @ValidateIf((input: CreateRelocationDto) => !input.billingSameAsService)
+  @IsString()
+  @Length(40, 100)
+  @Matches(/^[A-Za-z0-9_-]+$/)
+  billingAddressSelectionToken?: string;
 
   @IsOptional()
   @IsString()

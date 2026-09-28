@@ -81,6 +81,15 @@ type AgeingBucket = {
 };
 type PaginatedReport = {
   data?: Array<Record<string, unknown>>;
+  ledgerExceptions?: Array<{
+    accountTransactionId: string;
+    type: string;
+    reason: string;
+    amountCents: number;
+    remainingAmountCents: number;
+    stripeSyncStatus: string;
+    issues: string[];
+  }>;
   trend?: TrendPoint[];
   buckets?: AgeingBucket[];
   summary?: Record<string, unknown>;
@@ -341,7 +350,10 @@ export function BillingReports() {
       </header>
 
       {exportError ? (
-        <p role="alert" className="mt-4 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground">
+        <p
+          role="alert"
+          className="mt-4 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground"
+        >
           {exportError}
         </p>
       ) : null}
@@ -851,7 +863,9 @@ function ReportTable({
             </p>
           ) : null}
           {tab === 'subscriptions' && report?.wholesaleCostStatus === 'NOT_CONFIGURED' ? (
-            <p className="mt-1 text-xs text-warning-foreground">Wholesale cost data not configured.</p>
+            <p className="mt-1 text-xs text-warning-foreground">
+              Wholesale cost data not configured.
+            </p>
           ) : null}
         </div>
         {tab === 'receivables' && report?.buckets ? (
@@ -872,6 +886,37 @@ function ReportTable({
           </select>
         ) : null}
       </div>
+      {tab === 'reconciliation' && report?.ledgerExceptions?.length ? (
+        <div className="border-b border-border bg-warning-subtle px-5 py-4">
+          <h3 className="text-sm font-semibold text-warning-foreground">
+            Account ledger exceptions requiring review
+          </h3>
+          <div className="mt-3 grid gap-3">
+            {report.ledgerExceptions.map((exception) => (
+              <div
+                key={exception.accountTransactionId}
+                className="rounded-lg border border-warning-border bg-card p-3 text-sm"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">
+                    {friendlyLabel(exception.type)} · {friendlyLabel(exception.reason)}
+                  </span>
+                  <span>{money(exception.amountCents)}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Remaining {money(exception.remainingAmountCents)} · Stripe sync{' '}
+                  {friendlyLabel(exception.stripeSyncStatus)}
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-warning-foreground">
+                  {exception.issues.map((issue) => (
+                    <li key={issue}>{issue}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {rows.length ? (
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">

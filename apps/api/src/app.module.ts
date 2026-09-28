@@ -32,6 +32,7 @@ import { SupportModule } from './modules/support/support.module';
 import { InternalRequestsModule } from './modules/internal-requests/internal-requests.module';
 import { CancellationsModule } from './modules/cancellations/cancellations.module';
 import { RelocationsModule } from './modules/relocations/relocations.module';
+import { AccountLedgerModule } from './modules/account-ledger/account-ledger.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { RelocationsModule } from './modules/relocations/relocations.module';
     InternalRequestsModule,
     CancellationsModule,
     RelocationsModule,
+    AccountLedgerModule,
     HealthModule,
   ],
   providers: [

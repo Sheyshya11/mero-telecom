@@ -17,6 +17,7 @@ import { amountRange, buildPaginationMeta, dateRange } from '../../common/pagina
 import { BillingService } from '../billing/billing.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
+import { AccountLedgerService } from '../account-ledger/account-ledger.service';
 import { GenerateInvoiceDto, InvoiceQueryDto, UpdateInvoiceStatusDto } from './dto/invoice.dto';
 import { InvoiceDocumentService, type StoredInvoicePdfData } from './invoice-document.service';
 
@@ -36,6 +37,7 @@ export class InvoicesService {
     private readonly billing: BillingService,
     private readonly invoiceDocuments: InvoiceDocumentService,
     private readonly dashboardCache: AdminDashboardCacheService,
+    private readonly accountLedger: AccountLedgerService,
   ) {}
 
   async generate(input: GenerateInvoiceDto) {
@@ -102,7 +104,55 @@ export class InvoicesService {
             },
             include: invoiceInclude,
           });
-          return { ...created, generationResult: 'CREATED' as const };
+          const applied = await this.accountLedger.applyManualInvoiceAdjustments(transaction, {
+            customerId: subscription.customerId,
+            subscriptionId: subscription.id,
+            invoiceId: created.id,
+            baseAmountCents: amounts.totalCents,
+          });
+          if (applied.creditAppliedCents === 0 && applied.debitAppliedCents === 0) {
+            return { ...created, generationResult: 'CREATED' as const };
+          }
+          const adjustedTotalCents =
+            amounts.totalCents + applied.debitAppliedCents - applied.creditAppliedCents;
+          const adjustedAmounts =
+            adjustedTotalCents === 0
+              ? { subtotalCents: 0, taxCents: 0, totalCents: 0 }
+              : this.billing.calculateGstInclusiveAmounts(adjustedTotalCents);
+          const adjusted = await transaction.invoice.update({
+            where: { id: created.id },
+            data: {
+              ...adjustedAmounts,
+              status: adjustedTotalCents === 0 ? InvoiceStatus.PAID : InvoiceStatus.ISSUED,
+              paidAt: adjustedTotalCents === 0 ? new Date() : null,
+              items: {
+                create: [
+                  ...(applied.debitAppliedCents > 0
+                    ? [
+                        {
+                          description: 'Account debit adjustments',
+                          quantity: 1,
+                          unitPriceCents: applied.debitAppliedCents,
+                          amountCents: applied.debitAppliedCents,
+                        },
+                      ]
+                    : []),
+                  ...(applied.creditAppliedCents > 0
+                    ? [
+                        {
+                          description: 'Account credits applied',
+                          quantity: 1,
+                          unitPriceCents: -applied.creditAppliedCents,
+                          amountCents: -applied.creditAppliedCents,
+                        },
+                      ]
+                    : []),
+                ],
+              },
+            },
+            include: invoiceInclude,
+          });
+          return { ...adjusted, generationResult: 'CREATED' as const };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
       );

@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import {
   AccessTechnology,
   CancellationProviderStatus,
@@ -118,6 +118,7 @@ function makeService(input?: {
         ),
       update: jest.fn().mockResolvedValue({}),
     },
+    customer: { update: jest.fn().mockResolvedValue({}) },
     internetPlan: { findUnique: jest.fn().mockResolvedValue(plan) },
     serviceAddress: { create: jest.fn().mockResolvedValue(newAddress) },
     serviceRelocation: {
@@ -146,6 +147,22 @@ function makeService(input?: {
   };
   const coverage = {
     check: jest.fn().mockResolvedValue(input?.coverageResult ?? coverageResult()),
+    consumeTrustedAddress: jest.fn().mockResolvedValue({
+      provider: 'geoapify',
+      providerAddressId: 'billing-address-id',
+      formattedAddress: 'Unit 4, 40 Billing Road, Norwood SA 5067',
+      unit: '4',
+      houseNumber: '40',
+      street: 'Billing Road',
+      suburb: 'Norwood',
+      city: 'Norwood',
+      state: 'South Australia',
+      stateCode: 'SA',
+      postcode: '5067',
+      countryCode: 'au',
+      latitude: -34.92,
+      longitude: 138.63,
+    }),
     consumeQualificationForPlan: jest.fn().mockResolvedValue({
       address: {
         provider: 'geoapify',
@@ -240,6 +257,7 @@ describe('RelocationsService', () => {
         qualificationToken: 'q'.repeat(43),
         requestedPlanId: plan.id,
         requestedMoveDate: futureDate(),
+        billingSameAsService: true,
       },
       actor,
     );
@@ -253,6 +271,84 @@ describe('RelocationsService', () => {
     expect(transaction.serviceAddress.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ countryCode: 'AU' }) }),
     );
+    expect(transaction.customer.update).toHaveBeenCalledWith({
+      where: { id: subscription.customerId },
+      data: expect.objectContaining({
+        addressLine1: '25 Example Street',
+        addressLine2: null,
+        suburb: 'Adelaide',
+        state: 'SA',
+        postcode: '5000',
+      }),
+    });
+    expect(transaction.customerAddress.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ type: 'BILLING', addressLine1: '25 Example Street' }),
+      }),
+    );
+  });
+
+  it('stores a separately selected complete billing address including its unit', async () => {
+    const { service, transaction, coverage } = makeService();
+
+    await service.create(
+      subscription.id,
+      {
+        qualificationToken: 'q'.repeat(43),
+        requestedPlanId: plan.id,
+        requestedMoveDate: futureDate(),
+        billingSameAsService: false,
+        billingAddressSelectionToken: 'b'.repeat(43),
+      },
+      actor,
+    );
+
+    expect(coverage.consumeTrustedAddress).toHaveBeenCalledWith('b'.repeat(43));
+    expect(transaction.customer.update).toHaveBeenCalledWith({
+      where: { id: subscription.customerId },
+      data: {
+        addressLine1: '40 Billing Road',
+        addressLine2: '4',
+        suburb: 'Norwood',
+        state: 'SA',
+        postcode: '5067',
+      },
+    });
+  });
+
+  it('rejects a billing selection without a house number', async () => {
+    const { service, transaction, coverage } = makeService();
+    coverage.consumeTrustedAddress.mockResolvedValueOnce({
+      provider: 'geoapify',
+      providerAddressId: 'incomplete-address-id',
+      formattedAddress: 'Billing Road, Norwood SA 5067',
+      unit: null,
+      houseNumber: null,
+      street: 'Billing Road',
+      suburb: 'Norwood',
+      city: 'Norwood',
+      state: 'South Australia',
+      stateCode: 'SA',
+      postcode: '5067',
+      countryCode: 'au',
+      latitude: -34.92,
+      longitude: 138.63,
+    });
+
+    await expect(
+      service.create(
+        subscription.id,
+        {
+          qualificationToken: 'q'.repeat(43),
+          requestedPlanId: plan.id,
+          requestedMoveDate: futureDate(),
+          billingSameAsService: false,
+          billingAddressSelectionToken: 'b'.repeat(43),
+        },
+        actor,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction.customer.update).not.toHaveBeenCalled();
   });
 
   it('prevents a duplicate active relocation', async () => {
@@ -264,6 +360,7 @@ describe('RelocationsService', () => {
           qualificationToken: 'q'.repeat(43),
           requestedPlanId: plan.id,
           requestedMoveDate: futureDate(),
+          billingSameAsService: true,
         },
         actor,
       ),
@@ -444,7 +541,9 @@ describe('RelocationsService', () => {
     };
     transaction.serviceRelocation.findUnique.mockResolvedValue(failed);
     transaction.serviceRelocation.update.mockResolvedValue(failed);
-    const retry = jest.spyOn(service, 'retryProvisioning').mockResolvedValue({ id: record.id } as never);
+    const retry = jest
+      .spyOn(service, 'retryProvisioning')
+      .mockResolvedValue({ id: record.id } as never);
 
     await service.configureDemoOutcome(
       record.id,
@@ -628,6 +727,7 @@ function createRelocation(service: RelocationsService) {
       qualificationToken: 'q'.repeat(43),
       requestedPlanId: plan.id,
       requestedMoveDate: futureDate(),
+      billingSameAsService: true,
     },
     actor,
   );

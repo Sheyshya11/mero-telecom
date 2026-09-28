@@ -26,6 +26,7 @@ const checkoutSchema = z
     lastName: z.string().min(1, 'Last name is required.').max(100),
     email: z.email('Enter a valid email address.').max(320),
     phone: z.string().regex(/^(?:\+61|0)4\d{8}$/, 'Enter an Australian mobile number.'),
+    paymentMethodType: z.enum(['CARD', 'AU_BECS_DEBIT']),
     residentialSameAsService: z.boolean(),
     residentialAddressToken: z.string().optional(),
     billingSameAsResidential: z.boolean(),
@@ -81,6 +82,7 @@ function CheckoutContent() {
       lastName: '',
       email: '',
       phone: '',
+      paymentMethodType: 'CARD',
       residentialSameAsService: true,
       residentialAddressToken: undefined,
       billingSameAsResidential: true,
@@ -119,6 +121,7 @@ function CheckoutContent() {
           lastName: values.lastName,
           email: values.email,
           phone: values.phone,
+          paymentMethodType: values.paymentMethodType,
           residentialSameAsService: values.residentialSameAsService,
           residentialAddressToken: values.residentialSameAsService
             ? undefined
@@ -144,7 +147,9 @@ function CheckoutContent() {
     return (
       <main className="mx-auto min-h-screen max-w-2xl px-6 py-12">
         <h1 className="text-3xl font-bold">Plan unavailable</h1>
-        <p className="mt-3 text-muted-foreground">Choose an available plan before starting checkout.</p>
+        <p className="mt-3 text-muted-foreground">
+          Choose an available plan before starting checkout.
+        </p>
         <Link className="button-primary mt-6 inline-flex" href="/plans">
           View plans
         </Link>
@@ -293,6 +298,50 @@ function CheckoutContent() {
                 }
               />
             ) : null}
+          </FormSection>
+
+          <FormSection title="Payment details">
+            <fieldset>
+              <legend className="font-semibold text-foreground">How would you like to pay?</legend>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="flex cursor-pointer gap-3 rounded-xl border border-border p-4">
+                  <input
+                    className="mt-1"
+                    type="radio"
+                    value="CARD"
+                    {...form.register('paymentMethodType')}
+                  />
+                  <span>
+                    <span className="block font-medium text-foreground">Credit / Debit Card</span>
+                    <span className="mt-1 block text-sm text-muted-foreground">
+                      Stripe securely collects your card and manages automatic monthly payments.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer gap-3 rounded-xl border border-border p-4">
+                  <input
+                    className="mt-1"
+                    type="radio"
+                    value="AU_BECS_DEBIT"
+                    {...form.register('paymentMethodType')}
+                  />
+                  <span>
+                    <span className="block font-medium text-foreground">Direct Debit</span>
+                    <span className="mt-1 block text-sm text-muted-foreground">
+                      Stripe securely collects your Australian bank account and Direct Debit Request
+                      authorisation.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+            <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">Automatic payment</p>
+              <p className="mt-1">
+                Your selected payment method is securely managed by Stripe for recurring payments.
+                Mero Telecom never stores full card or bank account numbers.
+              </p>
+            </div>
           </FormSection>
 
           <FormSection title="Review and consent">
@@ -523,7 +572,10 @@ function ServiceAddressSection({
         </p>
       ) : null}
       {prepare.isError ? (
-        <p className="rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground" role="alert">
+        <p
+          className="rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground"
+          role="alert"
+        >
           {prepare.error instanceof ApiError
             ? prepare.error.message
             : 'Service availability could not be confirmed.'}
@@ -563,7 +615,9 @@ function Field({
     <label className="grid gap-1.5 text-sm font-medium text-foreground">
       {label}
       {children}
-      {error ? <span className="text-xs font-normal text-destructive-foreground">{error}</span> : null}
+      {error ? (
+        <span className="text-xs font-normal text-destructive-foreground">{error}</span>
+      ) : null}
     </label>
   );
 }
@@ -593,7 +647,9 @@ function Checkbox({
       />
       <span>
         {label}
-        {error ? <span className="mt-1 block text-xs text-destructive-foreground">{error}</span> : null}
+        {error ? (
+          <span className="mt-1 block text-xs text-destructive-foreground">{error}</span>
+        ) : null}
       </span>
     </label>
   );

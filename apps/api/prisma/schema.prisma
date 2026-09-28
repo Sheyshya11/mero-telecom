@@ -205,10 +205,59 @@ enum PaymentProvider {
 
 enum PaymentStatus {
   PENDING
+  PROCESSING
   SUCCEEDED
   FAILED
   PARTIALLY_REFUNDED
   REFUNDED
+}
+
+enum PaymentMethodType {
+  CARD
+  AU_BECS_DEBIT
+}
+
+enum AccountTransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum AccountTransactionReason {
+  BILLING_CORRECTION
+  SERVICE_OUTAGE
+  CANCELLATION_UNUSED_SERVICE
+  RELOCATION_SERVICE_GAP
+  OVERPAYMENT
+  PLAN_CHANGE_ADJUSTMENT
+  GOODWILL
+  UNDERCHARGE_CORRECTION
+  INSTALLATION_CHARGE
+  EQUIPMENT_CHARGE
+  OTHER
+  REVERSAL
+}
+
+enum AccountTransactionStatus {
+  PENDING
+  APPROVED
+  AVAILABLE
+  PARTIALLY_USED
+  USED
+  REFUNDED
+  VOIDED
+  REVERSED
+}
+
+enum AccountCreditClassification {
+  REFUNDABLE
+  SERVICE_ONLY
+}
+
+enum StripeSyncStatus {
+  NOT_REQUIRED
+  PENDING
+  SYNCED
+  FAILED
 }
 
 enum RefundType {
@@ -409,6 +458,8 @@ model User {
   relocationRequestsMade        ServiceRelocation[]      @relation("RelocationRequester")
   relocationRequestsCancelled   ServiceRelocation[]      @relation("RelocationCanceller")
   relocationNotesAuthored       ServiceRelocationNote[]
+  accountTransactionsCreated    AccountTransaction[]     @relation("AccountTransactionCreator")
+  accountTransactionsApproved   AccountTransaction[]     @relation("AccountTransactionApprover")
 
   @@index([createdAt, id])
 }
@@ -455,6 +506,7 @@ model Customer {
   cancellationRequests CancellationRequest[]
   serviceAddresses     ServiceAddress[]
   serviceRelocations   ServiceRelocation[]
+  accountTransactions  AccountTransaction[]
 
   @@index([lastName, firstName])
   @@index([firstName, id])
@@ -751,6 +803,7 @@ model Subscription {
   stripePriceId             String?                      @db.VarChar(255)
   stripeStatus              String?                      @db.VarChar(50)
   stripePaymentMethodId     String?                      @db.VarChar(255)
+  paymentMethodType         PaymentMethodType?
   paymentMethodBrand        String?                      @db.VarChar(50)
   paymentMethodLast4        String?                      @db.Char(4)
   paymentMethodExpMonth     Int?
@@ -786,6 +839,7 @@ model Subscription {
   provisioningRequests      ServiceProvisioningRequest[]
   currentServiceAddress     ServiceAddress?              @relation("CurrentServiceAddress", fields: [currentServiceAddressId], references: [id], onDelete: Restrict)
   serviceRelocations        ServiceRelocation[]
+  accountTransactions       AccountTransaction[]
 
   @@index([customerId, status])
   @@index([billingMode, status])
@@ -999,6 +1053,8 @@ model Invoice {
   planChangeRequest   PlanChangeRequest?
   refunds             Refund[]
   internalRequests    InternalRequest[]
+  accountTransactions AccountTransaction[]
+  creditApplications  CreditApplication[]
 
   @@unique([subscriptionId, billingPeriodStart, billingPeriodEnd])
   @@index([createdAt, id])
@@ -1032,6 +1088,9 @@ model Payment {
   amountCents         Int
   currency            String                @default("AUD") @db.Char(3)
   status              PaymentStatus         @default(PENDING)
+  paymentMethodType   PaymentMethodType?
+  paymentMethodBrand  String?               @db.VarChar(50)
+  paymentMethodLast4  String?               @db.Char(4)
   refundedCents       Int                   @default(0)
   paidAt              DateTime?
   createdAt           DateTime              @default(now())
@@ -1048,6 +1107,70 @@ model Payment {
   @@index([customerId])
   @@index([status, paidAt])
   @@index([createdAt, id])
+}
+
+model AccountTransaction {
+  id                         String                       @id @default(uuid()) @db.Uuid
+  customerId                 String                       @db.Uuid
+  subscriptionId             String?                      @db.Uuid
+  invoiceId                  String?                      @db.Uuid
+  type                       AccountTransactionType
+  reason                     AccountTransactionReason
+  status                     AccountTransactionStatus     @default(PENDING)
+  creditClassification       AccountCreditClassification?
+  suggestedAmountCents       Int?
+  amountCents                Int
+  remainingAmountCents       Int
+  currency                   String                       @default("AUD") @db.Char(3)
+  description                String                       @db.VarChar(500)
+  internalNote               String?                      @db.VarChar(2000)
+  approvalNote               String?                      @db.VarChar(2000)
+  calculation                Json?
+  sourceType                 String?                      @db.VarChar(80)
+  sourceId                   String?                      @db.VarChar(255)
+  deduplicationKey           String?                      @unique @db.VarChar(255)
+  stripeSyncStatus           StripeSyncStatus             @default(NOT_REQUIRED)
+  stripeBalanceTransactionId String?                      @unique @db.VarChar(255)
+  stripeSyncFailureReason    String?                      @db.VarChar(500)
+  stripeSyncAttempts         Int                          @default(0)
+  stripeLastSyncAttemptAt    DateTime?
+  stripeSyncedAt             DateTime?
+  createdByUserId            String?                      @db.Uuid
+  approvedByUserId           String?                      @db.Uuid
+  approvedAt                 DateTime?
+  voidedAt                   DateTime?
+  reversesTransactionId      String?                      @unique @db.Uuid
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  customer                   Customer                     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  subscription               Subscription?                @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  invoice                    Invoice?                     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  createdBy                  User?                        @relation("AccountTransactionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy                 User?                        @relation("AccountTransactionApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  reversesTransaction        AccountTransaction?          @relation("AccountTransactionReversal", fields: [reversesTransactionId], references: [id], onDelete: Restrict)
+  reversedByTransaction      AccountTransaction?          @relation("AccountTransactionReversal")
+  applications               CreditApplication[]
+
+  @@index([customerId, createdAt, id])
+  @@index([customerId, status, type, createdAt])
+  @@index([subscriptionId, createdAt])
+  @@index([invoiceId])
+  @@index([stripeSyncStatus, updatedAt])
+  @@index([sourceType, sourceId])
+}
+
+model CreditApplication {
+  id                   String             @id @default(uuid()) @db.Uuid
+  accountTransactionId String             @db.Uuid
+  invoiceId            String             @db.Uuid
+  amountCents          Int
+  stripeInvoiceId      String?            @db.VarChar(255)
+  createdAt            DateTime           @default(now())
+  accountTransaction   AccountTransaction @relation(fields: [accountTransactionId], references: [id], onDelete: Restrict)
+  invoice              Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([accountTransactionId, invoiceId])
+  @@index([invoiceId, createdAt])
 }
 
 model Refund {

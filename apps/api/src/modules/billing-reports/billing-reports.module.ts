@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { AuthorizationModule } from '../../common/authorization.module';
 import { AuthModule } from '../auth/auth.module';
+import { StripeModule } from '../payments/stripe.module';
 import { BillingReportsController } from './billing-reports.controller';
 import { BillingReportsService } from './billing-reports.service';
 import { BillingReportCalculationsService } from './services/billing-report-calculations.service';
@@ -13,7 +14,7 @@ import { ReconciliationReportService } from './services/reconciliation-report.se
 import { ReportPeriodService } from './services/report-period.service';
 
 @Module({
-  imports: [AuthModule, AuthorizationModule],
+  imports: [AuthModule, AuthorizationModule, StripeModule],
   controllers: [BillingReportsController],
   providers: [
     BillingReportsService,

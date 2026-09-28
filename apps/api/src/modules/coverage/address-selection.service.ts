@@ -38,7 +38,12 @@ export class AddressSelectionService {
       await this.redis.setWithExpiry(cacheKey, JSON.stringify(suggestions), this.cacheTtlSeconds);
     }
 
-    return Promise.all(suggestions.slice(0, 5).map((suggestion) => this.trust(suggestion)));
+    return Promise.all(
+      suggestions
+        .filter((suggestion) => this.isCompleteAustralianStreetAddress(suggestion))
+        .slice(0, 5)
+        .map((suggestion) => this.trust(suggestion)),
+    );
   }
 
   async consume(selectionToken: string): Promise<NormalizedAddressSuggestion> {
@@ -74,11 +79,26 @@ export class AddressSelectionService {
     return {
       selectionToken,
       formattedAddress: suggestion.formattedAddress,
-      suburb: suggestion.suburb,
+      unit: suggestion.unit,
+      houseNumber: suggestion.houseNumber!,
+      street: suggestion.street!,
+      suburb: suggestion.suburb ?? suggestion.city!,
       state: suggestion.state,
-      stateCode: suggestion.stateCode,
-      postcode: suggestion.postcode,
+      stateCode: suggestion.stateCode!,
+      postcode: suggestion.postcode!,
+      countryCode: suggestion.countryCode!.toUpperCase(),
     };
+  }
+
+  private isCompleteAustralianStreetAddress(suggestion: NormalizedAddressSuggestion): boolean {
+    return Boolean(
+      suggestion.houseNumber?.trim() &&
+      suggestion.street?.trim() &&
+      (suggestion.suburb?.trim() || suggestion.city?.trim()) &&
+      suggestion.stateCode?.trim() &&
+      suggestion.postcode?.trim() &&
+      suggestion.countryCode?.trim().toUpperCase() === 'AU',
+    );
   }
 
   private selectionKey(token: string): string {

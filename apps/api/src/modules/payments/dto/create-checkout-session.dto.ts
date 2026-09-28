@@ -2,13 +2,19 @@ import {
   Equals,
   IsBoolean,
   IsEmail,
+  IsEnum,
+  IsInt,
+  IsOptional,
   IsPhoneNumber,
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
+  Min,
   ValidateIf,
 } from 'class-validator';
+import { PaymentMethodType } from '@prisma/client';
 
 export class CreateCheckoutSessionDto {
   @IsUUID()
@@ -23,6 +29,16 @@ export class CreatePlanCheckoutSessionDto {
 export class CreateRecurringSetupSessionDto {
   @IsUUID()
   subscriptionId!: string;
+
+  @IsOptional()
+  @IsEnum(PaymentMethodType)
+  paymentMethodType?: PaymentMethodType;
+}
+
+export class PaymentMethodSelectionDto {
+  @IsOptional()
+  @IsEnum(PaymentMethodType)
+  paymentMethodType?: PaymentMethodType;
 }
 
 export class PaymentMethodParamsDto {
@@ -31,9 +47,75 @@ export class PaymentMethodParamsDto {
   paymentMethodId!: string;
 }
 
+export class UpdatePaymentMethodDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  billingName?: string;
+
+  @ValidateIf(
+    (input: UpdatePaymentMethodDto) =>
+      input.billingEmail !== undefined && input.billingEmail !== '',
+  )
+  @IsEmail()
+  @MaxLength(320)
+  billingEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  billingPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  billingAddressLine1?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  billingAddressLine2?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  billingCity?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  billingState?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  billingPostalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^$|^[A-Za-z]{2}$/, { message: 'billingCountry must be a two-letter country code.' })
+  billingCountry?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  cardExpMonth?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(2000)
+  @Max(2200)
+  cardExpYear?: number;
+}
+
 export class CreatePublicPlanCheckoutSessionDto {
   @IsUUID()
   planId!: string;
+
+  @IsOptional()
+  @IsEnum(PaymentMethodType)
+  paymentMethodType?: PaymentMethodType;
 
   @IsString()
   @MaxLength(100)

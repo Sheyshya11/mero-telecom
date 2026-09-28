@@ -90,15 +90,17 @@ export function InvoiceManagement() {
   });
   const existingInvoice = useQuery({
     queryKey: ['invoices', 'billing-period', selectedSubscription?.id ?? '', billingDate],
-    queryFn: () => {
+    queryFn: async () => {
       const params = new URLSearchParams({
         subscriptionId: selectedSubscription!.id,
         billingDate,
       });
-      return apiRequest<Invoice | null>(
-        `/invoices/billing-period?${params.toString()}`,
-        {},
-        accessToken,
+      return (
+        (await apiRequest<Invoice | null | undefined>(
+          `/invoices/billing-period?${params.toString()}`,
+          {},
+          accessToken,
+        )) ?? null
       );
     },
     enabled: Boolean(

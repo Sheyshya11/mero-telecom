@@ -41,13 +41,37 @@ describe('AddressSelectionService', () => {
     expect(result).toEqual([
       expect.objectContaining({
         formattedAddress: address.formattedAddress,
+        houseNumber: '1',
+        street: 'North Terrace',
+        suburb: 'Adelaide',
         stateCode: 'SA',
+        postcode: '5000',
+        countryCode: 'AU',
         selectionToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
       }),
     ]);
     expect(result[0]).not.toHaveProperty('latitude');
     expect(result[0]).not.toHaveProperty('providerAddressId');
     expect(redis.setWithExpiry).toHaveBeenCalledTimes(2);
+  });
+
+  it('omits suggestions that do not contain a complete Australian street address', async () => {
+    provider.search.mockResolvedValueOnce([
+      { ...address, providerAddressId: 'missing-house', houseNumber: null },
+      { ...address, providerAddressId: 'missing-suburb', suburb: null, city: null },
+      address,
+    ]);
+    const redis = {
+      get: jest.fn().mockResolvedValue(null),
+      setWithExpiry: jest.fn().mockResolvedValue(true),
+      getAndDelete: jest.fn(),
+    };
+    const service = new AddressSelectionService(provider, redis as never, config as never);
+
+    const result = await service.suggestions('North Terrace');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(expect.objectContaining({ houseNumber: '1', suburb: 'Adelaide' }));
   });
 
   it('rejects an expired or already-consumed selection token', async () => {
@@ -139,6 +163,11 @@ describe('CoverageService', () => {
         }),
       }),
     );
+  });
+
+  it('consumes a trusted address for non-coverage address workflows', async () => {
+    await expect(service.consumeTrustedAddress('b'.repeat(43))).resolves.toEqual(address);
+    expect(selections.consume).toHaveBeenCalledWith('b'.repeat(43));
   });
 
   it('issues and consumes a one-use qualification token bound to compatible plans', async () => {

@@ -56,8 +56,11 @@ const existingInvoice: Invoice = {
   payments: [],
 };
 
+let billingPeriodResult: Invoice | null | undefined;
+
 describe('InvoiceManagement', () => {
   beforeEach(() => {
+    billingPeriodResult = existingInvoice;
     window.history.replaceState(null, '', '/admin/invoices');
     vi.mocked(apiRequest).mockReset();
     vi.mocked(apiRequest).mockImplementation(async (path) => {
@@ -67,7 +70,7 @@ describe('InvoiceManagement', () => {
           meta: { page: 1, limit: 50, total: 1, totalPages: 1 },
         } as never;
       }
-      if (path.startsWith('/invoices/billing-period?')) return existingInvoice as never;
+      if (path.startsWith('/invoices/billing-period?')) return billingPeriodResult as never;
       if (path.startsWith('/invoices?')) {
         return {
           data: [],
@@ -95,5 +98,23 @@ describe('InvoiceManagement', () => {
     expect(screen.getByText('INV-2026-000001', { exact: false })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View invoice' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Generate invoice' })).not.toBeInTheDocument();
+  });
+
+  it('treats an empty successful billing-period response as no existing invoice', async () => {
+    billingPeriodResult = undefined;
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <InvoiceManagement />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole('combobox', { name: 'Active subscription' }));
+    await user.click(await screen.findByRole('option', { name: /Alex Example/i }));
+
+    expect(await screen.findByRole('button', { name: 'Generate invoice' })).toBeEnabled();
+    expect(screen.queryByText(/invoice already exists/i)).not.toBeInTheDocument();
   });
 });

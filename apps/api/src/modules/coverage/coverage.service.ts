@@ -69,6 +69,10 @@ export class CoverageService {
     };
   }
 
+  async consumeTrustedAddress(selectionToken: string): Promise<NormalizedAddressSuggestion> {
+    return this.selections.consume(selectionToken);
+  }
+
   async consumeQualificationForPlan(
     qualificationToken: string,
     planId: string,

@@ -15,6 +15,7 @@ import {
   InvoiceStatus,
   InvoiceType,
   PaymentProvider,
+  PaymentMethodType,
   PaymentStatus,
   Prisma,
   Role,
@@ -39,11 +40,14 @@ import { CoverageService } from '../coverage/coverage.service';
 import type { NormalizedAddressSuggestion } from '../coverage/coverage.types';
 import { NotificationService } from '../notifications/notification.service';
 import type { CreatePublicPlanCheckoutSessionDto } from './dto/create-checkout-session.dto';
+import type { PaymentMethodSelectionDto } from './dto/create-checkout-session.dto';
+import type { UpdatePaymentMethodDto } from './dto/create-checkout-session.dto';
 import { StripeClientService } from './stripe-client.service';
 import { PlanChangesService } from '../plan-changes/plan-changes.service';
 import { PublicCheckoutContextService } from './public-checkout-context.service';
 import { RefundsService } from '../refunds/refunds.service';
 import { SubscriptionLifecycleService } from '../subscriptions/subscription-lifecycle.service';
+import { AccountLedgerService } from '../account-ledger/account-ledger.service';
 
 const planPurchaseInclude = {
   customer: true,
@@ -85,6 +89,7 @@ interface RecurringCheckoutDetails {
   cancelAtPeriodEnd: boolean;
   paymentIntentId?: string;
   paymentMethodId: string;
+  paymentMethodType?: PaymentMethodType;
   paymentMethodBrand?: string;
   paymentMethodLast4?: string;
   paymentMethodExpMonth?: number;
@@ -121,6 +126,7 @@ export class PaymentsService {
     private readonly planChanges: PlanChangesService,
     private readonly refunds: RefundsService,
     private readonly subscriptionLifecycle: SubscriptionLifecycleService,
+    private readonly accountLedger: AccountLedgerService,
   ) {
     this.stripe = stripeClient.client;
   }
@@ -232,12 +238,14 @@ export class PaymentsService {
       checkoutKind: 'public_subscription',
       checkoutApplicationId: application.id,
       planId: plan.id,
+      paymentMethodType: input.paymentMethodType ?? PaymentMethodType.CARD,
     };
     try {
       const session = await this.stripe.checkout.sessions.create(
         {
           mode: 'subscription',
           integration_identifier: `mero_telecom_public_${this.randomLetters(8)}`,
+          ...this.paymentMethodConfiguration(input.paymentMethodType ?? PaymentMethodType.CARD),
           customer_email: applicantEmail,
           client_reference_id: application.id,
           metadata,
@@ -364,6 +372,69 @@ export class PaymentsService {
       paymentStatus: payment.status,
       invoiceStatus: payment.invoice.status,
       subscription: payment.invoice.subscription,
+    };
+  }
+
+  async getRecurringSetupStatus(sessionId: string, actor: AuthenticatedUser) {
+    if (!/^cs_(?:test|live)_/.test(sessionId)) {
+      throw new BadRequestException('A valid Stripe Checkout Session ID is required.');
+    }
+
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    if (session.metadata?.checkoutKind !== 'enable_recurring') {
+      throw new NotFoundException('Recurring setup status not found.');
+    }
+
+    const subscriptionId = session.metadata.existingSubscriptionId ?? session.client_reference_id;
+    if (!subscriptionId) throw new NotFoundException('Recurring setup status not found.');
+
+    const ownedSubscription = await this.prisma.subscription.findFirst({
+      where: { id: subscriptionId, customer: { userId: actor.id } },
+      select: {
+        id: true,
+        customer: { select: { stripeCustomerId: true } },
+      },
+    });
+    if (
+      !ownedSubscription?.customer.stripeCustomerId ||
+      this.stripeId(session.customer) !== ownedSubscription.customer.stripeCustomerId
+    ) {
+      throw new NotFoundException('Recurring setup status not found.');
+    }
+
+    if (session.status === 'complete') {
+      await this.processRecurringSetupEvent(
+        {
+          id: this.reconciliationEventId(session.id),
+          type: 'checkout.session.completed',
+        } as Stripe.Event,
+        session,
+      );
+    }
+
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { id: ownedSubscription.id },
+      select: {
+        id: true,
+        billingMode: true,
+        paymentMethodType: true,
+        paymentMethodBrand: true,
+        paymentMethodLast4: true,
+        paymentMethodExpMonth: true,
+        paymentMethodExpYear: true,
+      },
+    });
+    if (!subscription) throw new NotFoundException('Recurring setup status not found.');
+
+    return {
+      checkoutStatus: session.status,
+      setupStatus:
+        subscription.billingMode === BillingMode.STRIPE_RECURRING
+          ? 'enabled'
+          : session.status === 'expired'
+            ? 'expired'
+            : 'processing',
+      subscription,
     };
   }
 
@@ -500,7 +571,11 @@ export class PaymentsService {
     return checkout;
   }
 
-  async createRecurringSetupSession(subscriptionId: string, actor: AuthenticatedUser) {
+  async createRecurringSetupSession(
+    subscriptionId: string,
+    actor: AuthenticatedUser,
+    paymentMethodType: PaymentMethodType = PaymentMethodType.CARD,
+  ) {
     const subscription = await this.prisma.subscription.findFirst({
       where: { id: subscriptionId, customer: { userId: actor.id } },
       include: { customer: true, plan: true },
@@ -549,12 +624,14 @@ export class PaymentsService {
       existingSubscriptionId: subscription.id,
       customerId: subscription.customerId,
       planId: subscription.planId,
+      paymentMethodType,
     };
     const session = await this.stripe.checkout.sessions.create(
       {
         mode: 'setup',
         currency: 'aud',
         integration_identifier: `mero_telecom_recurring_${this.stableLetters(subscription.id)}`,
+        ...this.paymentMethodConfiguration(paymentMethodType),
         customer: stripeCustomerId,
         client_reference_id: subscription.id,
         metadata,
@@ -629,9 +706,23 @@ export class PaymentsService {
           id: method.id,
           type: method.type,
           brand: method.card?.brand ?? null,
-          last4: method.card?.last4 ?? null,
+          last4: method.card?.last4 ?? method.au_becs_debit?.last4 ?? null,
           expMonth: method.card?.exp_month ?? null,
           expYear: method.card?.exp_year ?? null,
+          billingDetails: {
+            name: method.billing_details?.name ?? null,
+            email: method.billing_details?.email ?? null,
+            phone: method.billing_details?.phone ?? null,
+            address: {
+              line1: method.billing_details?.address?.line1 ?? null,
+              line2: method.billing_details?.address?.line2 ?? null,
+              city: method.billing_details?.address?.city ?? null,
+              state: method.billing_details?.address?.state ?? null,
+              postalCode: method.billing_details?.address?.postal_code ?? null,
+              country: method.billing_details?.address?.country ?? null,
+            },
+          },
+          createdAt: method.created ? new Date(method.created * 1_000).toISOString() : null,
           isDefault,
           isExpired,
           canRemove,
@@ -646,7 +737,10 @@ export class PaymentsService {
     };
   }
 
-  async createPaymentMethodSetupSession(actor: AuthenticatedUser) {
+  async createPaymentMethodSetupSession(
+    actor: AuthenticatedUser,
+    input: PaymentMethodSelectionDto,
+  ) {
     const customer = await this.ensureStripeCustomerForActor(actor);
     const operationId = randomUUID();
     const metadata = {
@@ -654,11 +748,13 @@ export class PaymentsService {
       customerId: customer.id,
       actorUserId: actor.id,
       operationId,
+      paymentMethodType: input.paymentMethodType ?? PaymentMethodType.CARD,
     };
     const session = await this.stripe.checkout.sessions.create(
       {
         mode: 'setup',
         currency: 'aud',
+        ...this.paymentMethodConfiguration(input.paymentMethodType ?? PaymentMethodType.CARD),
         customer: customer.stripeCustomerId!,
         client_reference_id: customer.id,
         metadata,
@@ -670,6 +766,103 @@ export class PaymentsService {
     );
     if (!session.url) throw new BadRequestException('Stripe did not return a Checkout URL.');
     return { checkoutUrl: session.url };
+  }
+
+  async updatePaymentMethod(
+    paymentMethodId: string,
+    input: UpdatePaymentMethodDto,
+    actor: AuthenticatedUser,
+  ) {
+    const customer = await this.customerForActor(actor);
+    if (!customer.stripeCustomerId) {
+      throw new BadRequestException('No Stripe payment methods are configured for this account.');
+    }
+    const receivedFields = Object.entries(input)
+      .filter(([, value]) => value !== undefined)
+      .map(([field]) => field);
+    if (receivedFields.length === 0) {
+      throw new BadRequestException('Provide at least one payment method detail to update.');
+    }
+
+    const paymentMethod = await this.ownedPaymentMethod(paymentMethodId, customer.stripeCustomerId);
+    const update: Stripe.PaymentMethodUpdateParams = {};
+    const billingDetails: NonNullable<Stripe.PaymentMethodUpdateParams['billing_details']> = {};
+    const address: NonNullable<
+      NonNullable<Stripe.PaymentMethodUpdateParams['billing_details']>['address']
+    > = {};
+    const clean = (value: string) => value.trim();
+
+    if (input.billingName !== undefined) billingDetails.name = clean(input.billingName);
+    if (input.billingEmail !== undefined) billingDetails.email = clean(input.billingEmail);
+    if (input.billingPhone !== undefined) billingDetails.phone = clean(input.billingPhone);
+    if (input.billingAddressLine1 !== undefined) {
+      address.line1 = clean(input.billingAddressLine1);
+    }
+    if (input.billingAddressLine2 !== undefined) {
+      address.line2 = clean(input.billingAddressLine2);
+    }
+    if (input.billingCity !== undefined) address.city = clean(input.billingCity);
+    if (input.billingState !== undefined) address.state = clean(input.billingState);
+    if (input.billingPostalCode !== undefined) {
+      address.postal_code = clean(input.billingPostalCode);
+    }
+    if (input.billingCountry !== undefined) {
+      address.country = clean(input.billingCountry).toUpperCase();
+    }
+    if (Object.keys(address).length > 0) billingDetails.address = address;
+    if (Object.keys(billingDetails).length > 0) update.billing_details = billingDetails;
+
+    if (input.cardExpMonth !== undefined || input.cardExpYear !== undefined) {
+      if (!paymentMethod.card) {
+        throw new BadRequestException('Expiry can only be updated for a card payment method.');
+      }
+      const expMonth = input.cardExpMonth ?? paymentMethod.card.exp_month;
+      const expYear = input.cardExpYear ?? paymentMethod.card.exp_year;
+      const now = new Date();
+      if (
+        expYear < now.getUTCFullYear() ||
+        (expYear === now.getUTCFullYear() && expMonth < now.getUTCMonth() + 1)
+      ) {
+        throw new BadRequestException('Card expiry must be in the future.');
+      }
+      if (expYear > now.getUTCFullYear() + 50) {
+        throw new BadRequestException('Card expiry year is too far in the future.');
+      }
+      update.card = { exp_month: expMonth, exp_year: expYear };
+    }
+
+    const operationId = randomUUID();
+    const updatedPaymentMethod = await this.stripe.paymentMethods.update(paymentMethod.id, update, {
+      idempotencyKey: `payment-method-details-${customer.id}-${operationId}`,
+    });
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.subscription.updateMany({
+        where: { customerId: customer.id, stripePaymentMethodId: paymentMethod.id },
+        data: {
+          paymentMethodBrand: updatedPaymentMethod.card?.brand ?? null,
+          paymentMethodLast4: this.paymentMethodLast4(updatedPaymentMethod),
+          paymentMethodExpMonth: updatedPaymentMethod.card?.exp_month ?? null,
+          paymentMethodExpYear: updatedPaymentMethod.card?.exp_year ?? null,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          action: 'PAYMENT_METHOD_DETAILS_UPDATED',
+          entityType: 'Customer',
+          entityId: customer.id,
+          metadata: {
+            type: this.localPaymentMethodType(updatedPaymentMethod),
+            brand: updatedPaymentMethod.card?.brand ?? null,
+            last4: this.paymentMethodLast4(updatedPaymentMethod),
+            fields: receivedFields,
+            operationId,
+          },
+        },
+      });
+    });
+    await this.dashboardCache.invalidate();
+    return { updated: true };
   }
 
   async setDefaultPaymentMethod(paymentMethodId: string, actor: AuthenticatedUser) {
@@ -759,6 +952,7 @@ export class PaymentsService {
         where: { customerId: customer.id, stripePaymentMethodId: paymentMethod.id },
         data: {
           stripePaymentMethodId: null,
+          paymentMethodType: null,
           paymentMethodBrand: null,
           paymentMethodLast4: null,
           paymentMethodExpMonth: null,
@@ -772,8 +966,9 @@ export class PaymentsService {
           entityType: 'Customer',
           entityId: customer.id,
           metadata: {
+            type: this.localPaymentMethodType(paymentMethod),
             brand: paymentMethod.card?.brand ?? null,
-            last4: paymentMethod.card?.last4 ?? null,
+            last4: this.paymentMethodLast4(paymentMethod),
             operationId,
           },
         },
@@ -803,6 +998,17 @@ export class PaymentsService {
       event.type === 'refund.failed'
     ) {
       await this.refunds.processStripeEvent(event);
+      return;
+    }
+    if (event.type === 'invoice.finalized') {
+      await this.ensureStripeRecurringInvoice(event.data.object, InvoiceStatus.ISSUED);
+      return;
+    }
+    if (
+      event.type === 'payment_intent.processing' ||
+      event.type === 'payment_intent.payment_failed'
+    ) {
+      await this.processStripePaymentIntentState(event);
       return;
     }
     if (event.type === 'invoice.payment_failed') {
@@ -986,6 +1192,7 @@ export class PaymentsService {
                 stripePriceId: recurring?.stripePriceId,
                 stripeStatus: recurring?.stripeStatus,
                 stripePaymentMethodId: recurring?.paymentMethodId,
+                paymentMethodType: recurring?.paymentMethodType,
                 paymentMethodBrand: recurring?.paymentMethodBrand,
                 paymentMethodLast4: recurring?.paymentMethodLast4,
                 paymentMethodExpMonth: recurring?.paymentMethodExpMonth,
@@ -1100,7 +1307,18 @@ export class PaymentsService {
           ) {
             return;
           }
-          const invoice = await transaction.invoice.findUnique({ where: { id: invoiceId } });
+          const invoice = await transaction.invoice.findUnique({
+            where: { id: invoiceId },
+            include: {
+              subscription: {
+                select: {
+                  paymentMethodType: true,
+                  paymentMethodBrand: true,
+                  paymentMethodLast4: true,
+                },
+              },
+            },
+          });
           if (
             !invoice ||
             !invoice.subscriptionId ||
@@ -1111,27 +1329,38 @@ export class PaymentsService {
             );
           }
           await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoice.subscriptionId}))`;
-          const providerPaymentId =
-            this.invoicePaymentIntentId(stripeInvoice) ?? `stripe-invoice:${stripeInvoice.id}`;
-          const payment = await transaction.payment.upsert({
-            where: {
-              provider_providerPaymentId: {
-                provider: PaymentProvider.STRIPE,
-                providerPaymentId,
-              },
-            },
-            create: {
-              invoiceId: invoice.id,
-              customerId: invoice.customerId,
-              provider: PaymentProvider.STRIPE,
-              providerPaymentId,
-              amountCents: stripeInvoice.amount_paid,
-              currency: invoice.currency,
-              status: PaymentStatus.SUCCEEDED,
-              paidAt: new Date(event.created * 1_000),
-            },
-            update: { status: PaymentStatus.SUCCEEDED, paidAt: new Date(event.created * 1_000) },
-          });
+          const payment =
+            stripeInvoice.amount_paid > 0
+              ? await transaction.payment.upsert({
+                  where: {
+                    provider_providerPaymentId: {
+                      provider: PaymentProvider.STRIPE,
+                      providerPaymentId:
+                        this.invoicePaymentIntentId(stripeInvoice) ??
+                        `stripe-invoice:${stripeInvoice.id}`,
+                    },
+                  },
+                  create: {
+                    invoiceId: invoice.id,
+                    customerId: invoice.customerId,
+                    provider: PaymentProvider.STRIPE,
+                    providerPaymentId:
+                      this.invoicePaymentIntentId(stripeInvoice) ??
+                      `stripe-invoice:${stripeInvoice.id}`,
+                    amountCents: stripeInvoice.amount_paid,
+                    currency: invoice.currency,
+                    status: PaymentStatus.SUCCEEDED,
+                    paymentMethodType: invoice.subscription?.paymentMethodType,
+                    paymentMethodBrand: invoice.subscription?.paymentMethodBrand,
+                    paymentMethodLast4: invoice.subscription?.paymentMethodLast4,
+                    paidAt: new Date(event.created * 1_000),
+                  },
+                  update: {
+                    status: PaymentStatus.SUCCEEDED,
+                    paidAt: new Date(event.created * 1_000),
+                  },
+                })
+              : null;
           await transaction.invoice.update({
             where: { id: invoice.id },
             data: {
@@ -1143,9 +1372,9 @@ export class PaymentsService {
           });
           await transaction.auditLog.create({
             data: {
-              action: 'AUTOMATIC_PAYMENT_SUCCEEDED',
-              entityType: 'Payment',
-              entityId: payment.id,
+              action: payment ? 'AUTOMATIC_PAYMENT_SUCCEEDED' : 'INVOICE_SETTLED_BY_ACCOUNT_CREDIT',
+              entityType: payment ? 'Payment' : 'Invoice',
+              entityId: payment?.id ?? invoice.id,
               metadata: {
                 invoiceId: invoice.id,
                 stripeInvoiceId: stripeInvoice.id,
@@ -1158,7 +1387,7 @@ export class PaymentsService {
               provider: PaymentProvider.STRIPE,
               providerEventId: event.id,
               eventType: event.type,
-              paymentId: payment.id,
+              paymentId: payment?.id,
             },
           });
         },
@@ -1206,9 +1435,14 @@ export class PaymentsService {
     const periodStart = this.utcDate(new Date(stripeInvoice.period_start * 1_000));
     const periodEnd = this.utcDate(new Date(stripeInvoice.period_end * 1_000 - 1));
     const isPlanChangeInvoice = stripeInvoice.billing_reason === 'subscription_update';
-    const totalCents = Math.max(stripeInvoice.amount_due, stripeInvoice.amount_paid);
-    if (totalCents <= 0) return null;
-    const amounts = this.billing.calculateGstInclusiveAmounts(totalCents);
+    const stripeInvoiceTotalCents = Math.max(0, stripeInvoice.total);
+    const totalCents = Math.max(0, stripeInvoice.amount_due);
+    const creditAppliedCents = Math.max(0, stripeInvoiceTotalCents - totalCents);
+    const debitAppliedCents = Math.max(0, totalCents - stripeInvoiceTotalCents);
+    const amounts =
+      totalCents === 0
+        ? { subtotalCents: 0, taxCents: 0, totalCents: 0 }
+        : this.billing.calculateGstInclusiveAmounts(totalCents);
     try {
       const created = await this.prisma.$transaction(
         async (transaction) => {
@@ -1221,6 +1455,37 @@ export class PaymentsService {
           if (alreadyExists) return alreadyExists;
           const issueDate = this.utcDate(issueAt);
           const invoiceNumber = await this.nextInvoiceNumber(transaction, issueDate);
+          const baseDescription = isPlanChangeInvoice
+            ? `${subscription.plan.name} Stripe plan-change adjustment`
+            : `${subscription.plan.name} automatic monthly internet service`;
+          const items = [
+            {
+              description: baseDescription,
+              quantity: 1,
+              unitPriceCents: stripeInvoiceTotalCents,
+              amountCents: stripeInvoiceTotalCents,
+            },
+            ...(creditAppliedCents > 0
+              ? [
+                  {
+                    description: 'Account credit applied by Stripe',
+                    quantity: 1,
+                    unitPriceCents: -creditAppliedCents,
+                    amountCents: -creditAppliedCents,
+                  },
+                ]
+              : []),
+            ...(debitAppliedCents > 0
+              ? [
+                  {
+                    description: 'Account debit adjustment applied by Stripe',
+                    quantity: 1,
+                    unitPriceCents: debitAppliedCents,
+                    amountCents: debitAppliedCents,
+                  },
+                ]
+              : []),
+          ];
           const invoice = await transaction.invoice.create({
             data: {
               invoiceNumber,
@@ -1242,42 +1507,90 @@ export class PaymentsService {
               issuedAt: issueAt,
               paidAt: status === InvoiceStatus.PAID ? issueAt : null,
               items: {
-                create: {
-                  description: isPlanChangeInvoice
-                    ? `${subscription.plan.name} Stripe plan-change adjustment`
-                    : `${subscription.plan.name} automatic monthly internet service`,
-                  quantity: 1,
-                  unitPriceCents: amounts.totalCents,
-                  amountCents: amounts.totalCents,
+                create: items,
+              },
+            },
+          });
+          if (creditAppliedCents > 0) {
+            const application = await this.accountLedger.recordStripeInvoiceApplication(
+              transaction,
+              {
+                customerId: subscription.customerId,
+                invoiceId: invoice.id,
+                stripeInvoiceId: stripeInvoice.id,
+                creditAppliedCents,
+              },
+            );
+            if (application.unallocatedCents > 0) {
+              await transaction.auditLog.create({
+                data: {
+                  action: 'STRIPE_CREDIT_APPLICATION_REQUIRES_REVIEW',
+                  entityType: 'Invoice',
+                  entityId: invoice.id,
+                  metadata: {
+                    stripeInvoiceId: stripeInvoice.id,
+                    stripeCreditAppliedCents: creditAppliedCents,
+                    unallocatedCents: application.unallocatedCents,
+                  },
+                },
+              });
+            }
+          }
+          if (debitAppliedCents > 0) {
+            const application = await this.accountLedger.recordStripeInvoiceDebitApplication(
+              transaction,
+              {
+                customerId: subscription.customerId,
+                invoiceId: invoice.id,
+                stripeInvoiceId: stripeInvoice.id,
+                debitAppliedCents,
+              },
+            );
+            if (application.unallocatedCents > 0) {
+              await transaction.auditLog.create({
+                data: {
+                  action: 'STRIPE_DEBIT_APPLICATION_REQUIRES_REVIEW',
+                  entityType: 'Invoice',
+                  entityId: invoice.id,
+                  metadata: {
+                    stripeInvoiceId: stripeInvoice.id,
+                    stripeDebitAppliedCents: debitAppliedCents,
+                    unallocatedCents: application.unallocatedCents,
+                  },
+                },
+              });
+            }
+          }
+          if (totalCents > 0) {
+            const providerPaymentId =
+              this.invoicePaymentIntentId(stripeInvoice) ?? `stripe-invoice:${stripeInvoice.id}`;
+            await transaction.payment.upsert({
+              where: {
+                provider_providerPaymentId: {
+                  provider: PaymentProvider.STRIPE,
+                  providerPaymentId,
                 },
               },
-            },
-          });
-          const providerPaymentId =
-            this.invoicePaymentIntentId(stripeInvoice) ?? `stripe-invoice:${stripeInvoice.id}`;
-          await transaction.payment.upsert({
-            where: {
-              provider_providerPaymentId: {
+              create: {
+                invoiceId: invoice.id,
+                customerId: subscription.customerId,
                 provider: PaymentProvider.STRIPE,
                 providerPaymentId,
+                amountCents:
+                  status === InvoiceStatus.PAID
+                    ? stripeInvoice.amount_paid
+                    : stripeInvoice.amount_due,
+                currency: stripeInvoice.currency.toUpperCase(),
+                status:
+                  status === InvoiceStatus.PAID ? PaymentStatus.SUCCEEDED : PaymentStatus.PENDING,
+                paymentMethodType: subscription.paymentMethodType,
+                paymentMethodBrand: subscription.paymentMethodBrand,
+                paymentMethodLast4: subscription.paymentMethodLast4,
+                paidAt: status === InvoiceStatus.PAID ? issueAt : null,
               },
-            },
-            create: {
-              invoiceId: invoice.id,
-              customerId: subscription.customerId,
-              provider: PaymentProvider.STRIPE,
-              providerPaymentId,
-              amountCents:
-                status === InvoiceStatus.PAID
-                  ? stripeInvoice.amount_paid
-                  : stripeInvoice.amount_due,
-              currency: stripeInvoice.currency.toUpperCase(),
-              status:
-                status === InvoiceStatus.PAID ? PaymentStatus.SUCCEEDED : PaymentStatus.PENDING,
-              paidAt: status === InvoiceStatus.PAID ? issueAt : null,
-            },
-            update: {},
-          });
+              update: {},
+            });
+          }
           return { id: invoice.id };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -1356,8 +1669,9 @@ export class PaymentsService {
           stripeStatus: stripeSubscription.status,
           stripePriceId: item.price.id,
           stripePaymentMethodId: paymentMethod?.id,
+          paymentMethodType: paymentMethod ? this.localPaymentMethodType(paymentMethod) : null,
           paymentMethodBrand: paymentMethod?.card?.brand,
-          paymentMethodLast4: paymentMethod?.card?.last4,
+          paymentMethodLast4: paymentMethod ? this.paymentMethodLast4(paymentMethod) : null,
           paymentMethodExpMonth: paymentMethod?.card?.exp_month,
           paymentMethodExpYear: paymentMethod?.card?.exp_year,
           cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
@@ -1458,6 +1772,7 @@ export class PaymentsService {
           },
           data: {
             stripePaymentMethodId: null,
+            paymentMethodType: null,
             paymentMethodBrand: null,
             paymentMethodLast4: null,
             paymentMethodExpMonth: null,
@@ -1468,8 +1783,9 @@ export class PaymentsService {
         await transaction.subscription.updateMany({
           where: { customerId: customer.id, stripePaymentMethodId: paymentMethod.id },
           data: {
+            paymentMethodType: this.localPaymentMethodType(paymentMethod),
             paymentMethodBrand: paymentMethod.card?.brand,
-            paymentMethodLast4: paymentMethod.card?.last4,
+            paymentMethodLast4: this.paymentMethodLast4(paymentMethod),
             paymentMethodExpMonth: paymentMethod.card?.exp_month,
             paymentMethodExpYear: paymentMethod.card?.exp_year,
           },
@@ -1494,8 +1810,9 @@ export class PaymentsService {
           entityId: customer.id,
           metadata: {
             eventType: event.type,
+            type: this.localPaymentMethodType(paymentMethod),
             brand: paymentMethod.card?.brand ?? null,
-            last4: paymentMethod.card?.last4 ?? null,
+            last4: this.paymentMethodLast4(paymentMethod),
           },
         },
       });
@@ -1551,13 +1868,15 @@ export class PaymentsService {
         data: paymentMethod
           ? {
               stripePaymentMethodId: paymentMethod.id,
+              paymentMethodType: this.localPaymentMethodType(paymentMethod),
               paymentMethodBrand: paymentMethod.card?.brand,
-              paymentMethodLast4: paymentMethod.card?.last4,
+              paymentMethodLast4: this.paymentMethodLast4(paymentMethod),
               paymentMethodExpMonth: paymentMethod.card?.exp_month,
               paymentMethodExpYear: paymentMethod.card?.exp_year,
             }
           : {
               stripePaymentMethodId: null,
+              paymentMethodType: null,
               paymentMethodBrand: null,
               paymentMethodLast4: null,
               paymentMethodExpMonth: null,
@@ -1580,8 +1899,9 @@ export class PaymentsService {
           entityId: customer.id,
           metadata: paymentMethod
             ? {
+                type: this.localPaymentMethodType(paymentMethod),
                 brand: paymentMethod.card?.brand ?? null,
-                last4: paymentMethod.card?.last4 ?? null,
+                last4: this.paymentMethodLast4(paymentMethod),
               }
             : undefined,
         },
@@ -1684,6 +2004,7 @@ export class PaymentsService {
     }
 
     const recurring = await this.loadRecurringCheckoutDetails(session);
+    this.assertSelectedPaymentMethod(session, recurring.paymentMethodType);
     await this.synchronizeInitialRecurringPaymentMethod(session, recurring, providerEventId);
     let completion: PublicCheckoutCompletion | null = null;
     try {
@@ -1833,6 +2154,7 @@ export class PaymentsService {
               stripePriceId: recurring.stripePriceId,
               stripeStatus: recurring.stripeStatus,
               stripePaymentMethodId: recurring.paymentMethodId,
+              paymentMethodType: recurring.paymentMethodType,
               paymentMethodBrand: recurring.paymentMethodBrand,
               paymentMethodLast4: recurring.paymentMethodLast4,
               paymentMethodExpMonth: recurring.paymentMethodExpMonth,
@@ -2070,6 +2392,7 @@ export class PaymentsService {
     }
     const paymentMethod = await this.ownedPaymentMethod(paymentMethodId, customer.stripeCustomerId);
     this.assertUsablePaymentMethod(paymentMethod);
+    this.assertSelectedPaymentMethod(session, this.localPaymentMethodType(paymentMethod));
     const subscriptions = await this.protectedRecurringSubscriptions(customer.id);
     await this.stripe.customers.update(
       customer.stripeCustomerId,
@@ -2102,8 +2425,9 @@ export class PaymentsService {
         },
         data: {
           stripePaymentMethodId: paymentMethod.id,
+          paymentMethodType: this.localPaymentMethodType(paymentMethod),
           paymentMethodBrand: paymentMethod.card?.brand,
-          paymentMethodLast4: paymentMethod.card?.last4,
+          paymentMethodLast4: this.paymentMethodLast4(paymentMethod),
           paymentMethodExpMonth: paymentMethod.card?.exp_month,
           paymentMethodExpYear: paymentMethod.card?.exp_year,
         },
@@ -2122,8 +2446,9 @@ export class PaymentsService {
           entityType: 'Customer',
           entityId: customer.id,
           metadata: {
+            type: this.localPaymentMethodType(paymentMethod),
             brand: paymentMethod.card?.brand ?? null,
-            last4: paymentMethod.card?.last4 ?? null,
+            last4: this.paymentMethodLast4(paymentMethod),
             operationId: session.metadata?.operationId ?? null,
           },
         },
@@ -2169,7 +2494,11 @@ export class PaymentsService {
     }
     const setupIntent = await this.stripe.setupIntents.retrieve(setupIntentId);
     const paymentMethodId = this.stripeId(setupIntent.payment_method);
-    if (setupIntent.status !== 'succeeded' || !paymentMethodId) {
+    if (
+      setupIntent.status !== 'succeeded' ||
+      !paymentMethodId ||
+      this.stripeId(setupIntent.customer) !== local.customer.stripeCustomerId
+    ) {
       throw new BadRequestException('Stripe did not confirm a reusable payment method.');
     }
     const trialEnd = Math.floor(local.currentPeriodEnd.getTime() / 1_000);
@@ -2195,6 +2524,16 @@ export class PaymentsService {
     const item = stripeSubscription.items.data[0];
     if (!item) throw new BadRequestException('Stripe subscription has no recurring price item.');
     const paymentMethod = await this.resolvePaymentMethod(paymentMethodId);
+    if (!paymentMethod) {
+      throw new BadRequestException('Stripe did not return the configured payment method.');
+    }
+    this.assertUsablePaymentMethod(paymentMethod);
+    this.assertSelectedPaymentMethod(session, this.localPaymentMethodType(paymentMethod));
+    await this.stripe.customers.update(
+      local.customer.stripeCustomerId,
+      { invoice_settings: { default_payment_method: paymentMethod.id } },
+      { idempotencyKey: `recurring-default-payment-method-${local.id}` },
+    );
     await this.prisma.$transaction(async (transaction) => {
       if (
         await transaction.paymentWebhookEvent.findUnique({ where: { providerEventId: event.id } })
@@ -2209,16 +2548,27 @@ export class PaymentsService {
           stripePriceId: item.price.id,
           stripeStatus: stripeSubscription.status,
           stripePaymentMethodId: paymentMethodId,
+          paymentMethodType: paymentMethod ? this.localPaymentMethodType(paymentMethod) : null,
           paymentMethodBrand: paymentMethod?.card?.brand,
-          paymentMethodLast4: paymentMethod?.card?.last4,
+          paymentMethodLast4: paymentMethod ? this.paymentMethodLast4(paymentMethod) : null,
           paymentMethodExpMonth: paymentMethod?.card?.exp_month,
           paymentMethodExpYear: paymentMethod?.card?.exp_year,
           cancelAtPeriodEnd: false,
           nextBillingAt: local.currentPeriodEnd,
         },
       });
-      if (updated.count !== 1) {
-        throw new ConflictException('Automatic billing was enabled by another request.');
+      const enabledByThisRequest = updated.count === 1;
+      if (!enabledByThisRequest) {
+        const current = await transaction.subscription.findUnique({
+          where: { id: local.id },
+          select: { billingMode: true, stripeSubscriptionId: true },
+        });
+        if (
+          current?.billingMode !== BillingMode.STRIPE_RECURRING ||
+          current.stripeSubscriptionId !== stripeSubscription.id
+        ) {
+          throw new ConflictException('Automatic billing was enabled by another request.');
+        }
       }
       await transaction.paymentWebhookEvent.create({
         data: {
@@ -2227,18 +2577,20 @@ export class PaymentsService {
           eventType: event.type,
         },
       });
-      await transaction.auditLog.create({
-        data: {
-          actorUserId: local.customer.userId,
-          action: 'AUTOMATIC_BILLING_ENABLED',
-          entityType: 'Subscription',
-          entityId: local.id,
-          metadata: {
-            stripeSubscriptionId: stripeSubscription.id,
-            nextBillingAt: local.currentPeriodEnd.toISOString(),
+      if (enabledByThisRequest) {
+        await transaction.auditLog.create({
+          data: {
+            actorUserId: local.customer.userId,
+            action: 'AUTOMATIC_BILLING_ENABLED',
+            entityType: 'Subscription',
+            entityId: local.id,
+            metadata: {
+              stripeSubscriptionId: stripeSubscription.id,
+              nextBillingAt: local.currentPeriodEnd.toISOString(),
+            },
           },
-        },
-      });
+        });
+      }
     });
     await this.dashboardCache.invalidate();
   }
@@ -2281,8 +2633,9 @@ export class PaymentsService {
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
       paymentIntentId: this.invoicePaymentIntentId(invoice),
       paymentMethodId: paymentMethod.id,
+      paymentMethodType: this.localPaymentMethodType(paymentMethod) ?? undefined,
       paymentMethodBrand: paymentMethod?.card?.brand,
-      paymentMethodLast4: paymentMethod?.card?.last4,
+      paymentMethodLast4: this.paymentMethodLast4(paymentMethod) ?? undefined,
       paymentMethodExpMonth: paymentMethod?.card?.exp_month,
       paymentMethodExpYear: paymentMethod?.card?.exp_year,
       hostedInvoiceUrl: invoice.hosted_invoice_url ?? undefined,
@@ -2322,6 +2675,7 @@ export class PaymentsService {
         where: { stripeSubscriptionId: recurring.stripeSubscriptionId },
         data: {
           stripePaymentMethodId: recurring.paymentMethodId,
+          paymentMethodType: recurring.paymentMethodType,
           paymentMethodBrand: recurring.paymentMethodBrand,
           paymentMethodLast4: recurring.paymentMethodLast4,
           paymentMethodExpMonth: recurring.paymentMethodExpMonth,
@@ -2392,6 +2746,7 @@ export class PaymentsService {
   }
 
   private assertUsablePaymentMethod(paymentMethod: Stripe.PaymentMethod): void {
+    this.localPaymentMethodType(paymentMethod);
     if (!paymentMethod.card) return;
     const now = new Date();
     if (
@@ -2400,6 +2755,102 @@ export class PaymentsService {
         paymentMethod.card.exp_month < now.getUTCMonth() + 1)
     ) {
       throw new BadRequestException('This card has expired. Add a valid card before using it.');
+    }
+  }
+
+  private async processStripePaymentIntentState(
+    event: Stripe.PaymentIntentProcessingEvent | Stripe.PaymentIntentPaymentFailedEvent,
+  ): Promise<void> {
+    const paymentIntent = event.data.object;
+    const payment = await this.prisma.payment.findUnique({
+      where: {
+        provider_providerPaymentId: {
+          provider: PaymentProvider.STRIPE,
+          providerPaymentId: paymentIntent.id,
+        },
+      },
+    });
+    if (!payment) return;
+    await this.prisma.$transaction(async (transaction) => {
+      if (
+        await transaction.paymentWebhookEvent.findUnique({
+          where: { providerEventId: event.id },
+        })
+      ) {
+        return;
+      }
+      const status =
+        event.type === 'payment_intent.processing'
+          ? PaymentStatus.PROCESSING
+          : PaymentStatus.FAILED;
+      await transaction.payment.updateMany({
+        where: {
+          id: payment.id,
+          status: { in: [PaymentStatus.PENDING, PaymentStatus.PROCESSING, PaymentStatus.FAILED] },
+        },
+        data: { status },
+      });
+      await transaction.paymentWebhookEvent.create({
+        data: {
+          provider: PaymentProvider.STRIPE,
+          providerEventId: event.id,
+          eventType: event.type,
+          paymentId: payment.id,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          action:
+            status === PaymentStatus.PROCESSING
+              ? 'AUTOMATIC_PAYMENT_PROCESSING'
+              : 'AUTOMATIC_PAYMENT_FAILED',
+          entityType: 'Payment',
+          entityId: payment.id,
+          metadata: {
+            paymentMethodType: payment.paymentMethodType,
+            providerPaymentId: paymentIntent.id,
+          },
+        },
+      });
+    });
+    await this.dashboardCache.invalidate();
+  }
+
+  private localPaymentMethodType(paymentMethod: Stripe.PaymentMethod): PaymentMethodType | null {
+    if (paymentMethod.type === 'card' || paymentMethod.card) return PaymentMethodType.CARD;
+    if (paymentMethod.type === 'au_becs_debit' || paymentMethod.au_becs_debit) {
+      return PaymentMethodType.AU_BECS_DEBIT;
+    }
+    return null;
+  }
+
+  private paymentMethodLast4(paymentMethod: Stripe.PaymentMethod): string | null {
+    return paymentMethod.card?.last4 ?? paymentMethod.au_becs_debit?.last4 ?? null;
+  }
+
+  private paymentMethodConfiguration(paymentMethodType: PaymentMethodType): {
+    payment_method_configuration?: string;
+  } {
+    const stripeConfig = this.configService.getOrThrow('stripe');
+    const configurationId =
+      paymentMethodType === PaymentMethodType.AU_BECS_DEBIT
+        ? stripeConfig.becsPaymentMethodConfigurationId
+        : stripeConfig.cardPaymentMethodConfigurationId;
+    if (!configurationId && paymentMethodType === PaymentMethodType.AU_BECS_DEBIT) {
+      throw new BadRequestException(
+        'Direct Debit is not configured yet. Choose card or contact support.',
+      );
+    }
+    return configurationId ? { payment_method_configuration: configurationId } : {};
+  }
+
+  private assertSelectedPaymentMethod(
+    session: Stripe.Checkout.Session,
+    actual: PaymentMethodType | null | undefined,
+  ): void {
+    const selected = session.metadata?.paymentMethodType;
+    if (selected && selected !== actual) {
+      throw new BadRequestException('Stripe returned a different payment method than selected.');
     }
   }
 
@@ -2431,8 +2882,9 @@ export class PaymentsService {
         },
         data: {
           stripePaymentMethodId: input.paymentMethod.id,
+          paymentMethodType: this.localPaymentMethodType(input.paymentMethod),
           paymentMethodBrand: input.paymentMethod.card?.brand,
-          paymentMethodLast4: input.paymentMethod.card?.last4,
+          paymentMethodLast4: this.paymentMethodLast4(input.paymentMethod),
           paymentMethodExpMonth: input.paymentMethod.card?.exp_month,
           paymentMethodExpYear: input.paymentMethod.card?.exp_year,
         },

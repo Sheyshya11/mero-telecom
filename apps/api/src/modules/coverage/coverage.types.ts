@@ -19,11 +19,17 @@ export type NormalizedAddressSuggestion = {
   longitude: number;
 };
 
-export type PublicAddressSuggestion = Pick<
-  NormalizedAddressSuggestion,
-  'formattedAddress' | 'suburb' | 'state' | 'stateCode' | 'postcode'
-> & {
+export type PublicAddressSuggestion = {
   selectionToken: string;
+  formattedAddress: string;
+  unit: string | null;
+  houseNumber: string;
+  street: string;
+  suburb: string;
+  state: string | null;
+  stateCode: string;
+  postcode: string;
+  countryCode: string;
 };
 
 export interface AddressLookupProvider {

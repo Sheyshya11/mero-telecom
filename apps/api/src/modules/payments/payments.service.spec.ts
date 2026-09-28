@@ -1,8 +1,10 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import {
+  BillingMode,
   CheckoutApplicationStatus,
   CustomerStatus,
   InvoiceStatus,
+  PaymentMethodType,
   PaymentStatus,
   Role,
   SubscriptionStatus,
@@ -54,7 +56,12 @@ function makeService(prisma: Partial<PrismaService>) {
   const configService = {
     getOrThrow: jest.fn((key: keyof AppConfig) => {
       if (key === 'stripe')
-        return { secretKey: 'sk_test_phase13_unit_test', webhookSecret: stripeSecret };
+        return {
+          secretKey: 'sk_test_phase13_unit_test',
+          webhookSecret: stripeSecret,
+          cardPaymentMethodConfigurationId: 'pmc_card_test',
+          becsPaymentMethodConfigurationId: 'pmc_becs_test',
+        };
       return { frontendUrl: 'http://localhost:3000' };
     }),
   };
@@ -80,6 +87,14 @@ function makeService(prisma: Partial<PrismaService>) {
       handleConfirmedPayment: jest.fn().mockResolvedValue(undefined),
       handlePaymentFailure: jest.fn().mockResolvedValue(undefined),
     } as never,
+    {
+      recordStripeInvoiceApplication: jest
+        .fn()
+        .mockResolvedValue({ allocatedCents: 0, unallocatedCents: 0 }),
+      recordStripeInvoiceDebitApplication: jest
+        .fn()
+        .mockResolvedValue({ allocatedCents: 0, unallocatedCents: 0 }),
+    } as never,
   );
 }
 
@@ -87,7 +102,12 @@ function makePublicService(prisma: Partial<PrismaService>) {
   const configService = {
     getOrThrow: jest.fn((key: keyof AppConfig) => {
       if (key === 'stripe')
-        return { secretKey: 'sk_test_public_checkout', webhookSecret: stripeSecret };
+        return {
+          secretKey: 'sk_test_public_checkout',
+          webhookSecret: stripeSecret,
+          cardPaymentMethodConfigurationId: 'pmc_card_test',
+          becsPaymentMethodConfigurationId: 'pmc_becs_test',
+        };
       if (key === 'app') return { frontendUrl: 'http://localhost:3000' };
       return { accountInvitationTtlHours: 24 };
     }),
@@ -125,6 +145,14 @@ function makePublicService(prisma: Partial<PrismaService>) {
     {
       handleConfirmedPayment: jest.fn().mockResolvedValue(undefined),
       handlePaymentFailure: jest.fn().mockResolvedValue(undefined),
+    } as never,
+    {
+      recordStripeInvoiceApplication: jest
+        .fn()
+        .mockResolvedValue({ allocatedCents: 0, unallocatedCents: 0 }),
+      recordStripeInvoiceDebitApplication: jest
+        .fn()
+        .mockResolvedValue({ allocatedCents: 0, unallocatedCents: 0 }),
     } as never,
   );
   return { addressSelections, invitations, notifications, publicCheckoutContext, service };
@@ -180,6 +208,128 @@ function mockRecurringResources(service: PaymentsService, paymentIntentId: strin
 }
 
 describe('PaymentsService', () => {
+  it('reconciles a completed recurring setup on return and exposes the saved card', async () => {
+    const subscriptionId = 'b5b75333-0b2e-4941-9967-a9525f85ca8f';
+    const actor = {
+      id: 'customer-user-id',
+      email: 'customer@merotelecom.test',
+      role: Role.CUSTOMER,
+    };
+    const localSubscription = {
+      id: subscriptionId,
+      customerId,
+      planId: 'plan-id',
+      billingMode: BillingMode.MANUAL,
+      stripeSubscriptionId: null,
+      currentPeriodEnd: new Date('2099-10-01T00:00:00.000Z'),
+      customer: {
+        userId: actor.id,
+        stripeCustomerId: 'cus_recurring_return',
+      },
+      plan: { stripePriceId: 'price_recurring' },
+    };
+    const reconciledSubscription = {
+      id: subscriptionId,
+      billingMode: BillingMode.STRIPE_RECURRING,
+      paymentMethodType: PaymentMethodType.CARD,
+      paymentMethodBrand: 'visa',
+      paymentMethodLast4: '4242',
+      paymentMethodExpMonth: 12,
+      paymentMethodExpYear: 2030,
+    };
+    const transaction = {
+      paymentWebhookEvent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'event-row' }),
+      },
+      subscription: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUnique: jest.fn(),
+      },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const prisma = {
+      subscription: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: subscriptionId,
+          customer: { stripeCustomerId: 'cus_recurring_return' },
+        }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(localSubscription)
+          .mockResolvedValueOnce(reconciledSubscription),
+      },
+      paymentWebhookEvent: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn((operation) => operation(transaction)),
+    };
+    const service = makeService(prisma as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe as unknown as {
+      checkout: { sessions: { retrieve: jest.Mock } };
+      setupIntents: { retrieve: jest.Mock };
+      paymentMethods: { retrieve: jest.Mock };
+      subscriptions: { create: jest.Mock };
+      customers: { update: jest.Mock };
+    };
+    stripe.checkout.sessions.retrieve = jest.fn().mockResolvedValue({
+      id: 'cs_test_recurring_return',
+      status: 'complete',
+      customer: 'cus_recurring_return',
+      client_reference_id: subscriptionId,
+      setup_intent: 'seti_recurring_return',
+      metadata: {
+        checkoutKind: 'enable_recurring',
+        existingSubscriptionId: subscriptionId,
+        paymentMethodType: PaymentMethodType.CARD,
+      },
+    });
+    stripe.setupIntents.retrieve = jest.fn().mockResolvedValue({
+      id: 'seti_recurring_return',
+      status: 'succeeded',
+      customer: 'cus_recurring_return',
+      payment_method: 'pm_recurring_return',
+    });
+    stripe.paymentMethods.retrieve = jest.fn().mockResolvedValue({
+      id: 'pm_recurring_return',
+      type: 'card',
+      customer: 'cus_recurring_return',
+      card: { brand: 'visa', last4: '4242', exp_month: 12, exp_year: 2030 },
+    });
+    stripe.subscriptions.create = jest.fn().mockResolvedValue({
+      id: 'sub_recurring_return',
+      status: 'trialing',
+      items: { data: [{ price: { id: 'price_recurring' } }] },
+    });
+    stripe.customers.update = jest.fn().mockResolvedValue({ id: 'cus_recurring_return' });
+
+    const result = await service.getRecurringSetupStatus('cs_test_recurring_return', actor);
+
+    expect(result).toEqual({
+      checkoutStatus: 'complete',
+      setupStatus: 'enabled',
+      subscription: reconciledSubscription,
+    });
+    expect(stripe.customers.update).toHaveBeenCalledWith(
+      'cus_recurring_return',
+      { invoice_settings: { default_payment_method: 'pm_recurring_return' } },
+      { idempotencyKey: `recurring-default-payment-method-${subscriptionId}` },
+    );
+    expect(transaction.subscription.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: subscriptionId,
+          billingMode: BillingMode.MANUAL,
+          stripeSubscriptionId: null,
+        },
+        data: expect.objectContaining({
+          billingMode: BillingMode.STRIPE_RECURRING,
+          stripePaymentMethodId: 'pm_recurring_return',
+          paymentMethodBrand: 'visa',
+          paymentMethodLast4: '4242',
+        }),
+      }),
+    );
+  });
+
   it('recovers a new subscription card from the paid invoice when Stripe omits the subscription default', async () => {
     const service = makeService({});
     const stripe = (service as unknown as { stripe: Stripe }).stripe as unknown as {
@@ -413,6 +563,72 @@ describe('PaymentsService', () => {
         mode: 'subscription',
         customer_email: 'new.customer@example.com',
         line_items: [expect.objectContaining({ price: 'price_test_home_plus' })],
+      }),
+      { idempotencyKey: `public-plan-checkout-${application.id}` },
+    );
+  });
+
+  it('creates a new BECS subscription through Stripe Checkout configuration', async () => {
+    const planId = '4ccdfc07-0bac-40e6-93fe-728d00740379';
+    const application = {
+      id: '8deea970-2e1f-44a8-b645-b72882631251',
+      amountCents: 8_900,
+      currency: 'AUD',
+    };
+    const prisma = {
+      internetPlan: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: planId,
+          name: 'Home Plus',
+          monthlyCents: 8_900,
+          stripePriceId: 'price_test_home_plus',
+          isActive: true,
+          isPublic: true,
+          isAvailable: true,
+        }),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
+      customer: { findUnique: jest.fn().mockResolvedValue(null) },
+      checkoutApplication: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(application),
+        update: jest.fn().mockResolvedValue(application),
+      },
+    };
+    const { service } = makePublicService(prisma as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe;
+    const create = jest.fn().mockResolvedValue({
+      id: 'cs_test_becs',
+      url: 'https://checkout.stripe.test/becs',
+    });
+    (stripe as unknown as { checkout: { sessions: { create: jest.Mock } } }).checkout = {
+      sessions: { create },
+    };
+
+    await service.createPublicPlanCheckoutSession(
+      {
+        planId,
+        paymentMethodType: PaymentMethodType.AU_BECS_DEBIT,
+        firstName: 'Direct',
+        lastName: 'Debit',
+        email: 'direct.debit@example.com',
+        phone: '+61400000009',
+        residentialSameAsService: true,
+        billingSameAsResidential: true,
+        termsAccepted: true,
+        privacyAccepted: true,
+      },
+      'c'.repeat(43),
+    );
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'subscription',
+        payment_method_configuration: 'pmc_becs_test',
+        metadata: expect.objectContaining({
+          paymentMethodType: PaymentMethodType.AU_BECS_DEBIT,
+        }),
       }),
       { idempotencyKey: `public-plan-checkout-${application.id}` },
     );
@@ -1189,6 +1405,19 @@ describe('PaymentsService', () => {
           id: 'pm_owned',
           type: 'card',
           card: { brand: 'visa', last4: '4242', exp_month: 12, exp_year: 2030 },
+          billing_details: {
+            name: 'Original Customer',
+            email: 'customer@example.test',
+            phone: '+61400000000',
+            address: {
+              line1: '9 Test Street',
+              line2: null,
+              city: 'Adelaide',
+              state: 'SA',
+              postal_code: '5000',
+              country: 'AU',
+            },
+          },
         },
       ],
     });
@@ -1200,6 +1429,19 @@ describe('PaymentsService', () => {
         id: 'pm_owned',
         brand: 'visa',
         last4: '4242',
+        billingDetails: {
+          name: 'Original Customer',
+          email: 'customer@example.test',
+          phone: '+61400000000',
+          address: {
+            line1: '9 Test Street',
+            line2: null,
+            city: 'Adelaide',
+            state: 'SA',
+            postalCode: '5000',
+            country: 'AU',
+          },
+        },
         isDefault: true,
         canRemove: false,
       }),
@@ -1209,6 +1451,101 @@ describe('PaymentsService', () => {
       customer: 'cus_owned',
       limit: 100,
     });
+  });
+
+  it('updates editable details on an owned Stripe payment method without accepting credentials', async () => {
+    const transaction = {
+      subscription: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const prisma = {
+      customer: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: customerId,
+          userId: 'customer-user-id',
+          stripeCustomerId: 'cus_owned',
+        }),
+      },
+      $transaction: jest.fn((operation) => operation(transaction)),
+    };
+    const service = makeService(prisma as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe as unknown as {
+      paymentMethods: { retrieve: jest.Mock; update: jest.Mock };
+    };
+    stripe.paymentMethods.retrieve = jest.fn().mockResolvedValue({
+      id: 'pm_owned',
+      customer: 'cus_owned',
+      type: 'card',
+      card: { brand: 'visa', last4: '4242', exp_month: 12, exp_year: 2030 },
+    });
+    stripe.paymentMethods.update = jest.fn().mockResolvedValue({
+      id: 'pm_owned',
+      customer: 'cus_owned',
+      type: 'card',
+      card: { brand: 'visa', last4: '4242', exp_month: 10, exp_year: 2032 },
+      billing_details: {
+        name: 'Updated Customer',
+        email: 'updated@example.test',
+        address: { line1: '10 Updated Road', country: 'AU' },
+      },
+    });
+
+    await expect(
+      service.updatePaymentMethod(
+        'pm_owned',
+        {
+          billingName: ' Updated Customer ',
+          billingEmail: 'updated@example.test',
+          billingAddressLine1: '10 Updated Road',
+          billingCountry: 'au',
+          cardExpMonth: 10,
+          cardExpYear: 2032,
+        },
+        { id: 'customer-user-id' } as never,
+      ),
+    ).resolves.toEqual({ updated: true });
+
+    expect(stripe.paymentMethods.update).toHaveBeenCalledWith(
+      'pm_owned',
+      {
+        billing_details: {
+          name: 'Updated Customer',
+          email: 'updated@example.test',
+          address: { line1: '10 Updated Road', country: 'AU' },
+        },
+        card: { exp_month: 10, exp_year: 2032 },
+      },
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+    expect(transaction.subscription.updateMany).toHaveBeenCalledWith({
+      where: { customerId, stripePaymentMethodId: 'pm_owned' },
+      data: {
+        paymentMethodBrand: 'visa',
+        paymentMethodLast4: '4242',
+        paymentMethodExpMonth: 10,
+        paymentMethodExpYear: 2032,
+      },
+    });
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorUserId: 'customer-user-id',
+        action: 'PAYMENT_METHOD_DETAILS_UPDATED',
+        metadata: expect.objectContaining({
+          brand: 'visa',
+          last4: '4242',
+          fields: [
+            'billingName',
+            'billingEmail',
+            'billingAddressLine1',
+            'billingCountry',
+            'cardExpMonth',
+            'cardExpYear',
+          ],
+        }),
+      }),
+    });
+    expect(JSON.stringify(stripe.paymentMethods.update.mock.calls)).not.toContain('cvc');
+    expect(JSON.stringify(stripe.paymentMethods.update.mock.calls)).not.toContain('cardNumber');
   });
 
   it('returns a reusable Link payment method instead of filtering it out as a non-card', async () => {
@@ -1250,6 +1587,202 @@ describe('PaymentsService', () => {
       customer: 'cus_owned',
       limit: 100,
     });
+  });
+
+  it('mirrors the Stripe amount due after credit for a BECS recurring invoice', async () => {
+    const createdInvoice = { id: invoiceId };
+    const transaction = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      invoice: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(createdInvoice),
+      },
+      payment: { upsert: jest.fn().mockResolvedValue({ id: 'payment-becs' }) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const prisma = {
+      subscription: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'subscription-becs',
+          customerId,
+          billingMode: 'STRIPE_RECURRING',
+          paymentMethodType: PaymentMethodType.AU_BECS_DEBIT,
+          paymentMethodBrand: null,
+          paymentMethodLast4: '4821',
+          customer: { stripeCustomerId: 'cus_becs' },
+          plan: { name: 'Home Plus' },
+        }),
+      },
+      invoice: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn((operation) => operation(transaction)),
+    };
+    const service = makeService(prisma as never);
+    const accountLedger = (
+      service as unknown as {
+        accountLedger: { recordStripeInvoiceApplication: jest.Mock };
+      }
+    ).accountLedger;
+
+    await expect(
+      (
+        service as unknown as {
+          ensureStripeRecurringInvoice(
+            invoice: Stripe.Invoice,
+            status: InvoiceStatus,
+          ): Promise<string | null>;
+        }
+      ).ensureStripeRecurringInvoice(
+        {
+          id: 'in_becs_credit',
+          object: 'invoice',
+          customer: 'cus_becs',
+          currency: 'aud',
+          created: 1_798_761_600,
+          period_start: 1_798_761_600,
+          period_end: 1_801_440_000,
+          billing_reason: 'subscription_cycle',
+          total: 7_900,
+          amount_due: 5_900,
+          amount_paid: 0,
+          hosted_invoice_url: 'https://invoice.stripe.test/becs-credit',
+          invoice_pdf: 'https://invoice.stripe.test/becs-credit.pdf',
+          due_date: null,
+          parent: { subscription_details: { subscription: 'sub_becs' } },
+          payments: {
+            data: [
+              {
+                status: 'open',
+                is_default: true,
+                payment: { payment_intent: 'pi_becs_credit' },
+              },
+            ],
+          },
+        } as unknown as Stripe.Invoice,
+        InvoiceStatus.ISSUED,
+      ),
+    ).resolves.toBe(invoiceId);
+
+    expect(transaction.invoice.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          totalCents: 5_900,
+          items: {
+            create: [
+              expect.objectContaining({ amountCents: 7_900 }),
+              expect.objectContaining({ amountCents: -2_000 }),
+            ],
+          },
+        }),
+      }),
+    );
+    expect(accountLedger.recordStripeInvoiceApplication).toHaveBeenCalledWith(transaction, {
+      customerId,
+      invoiceId,
+      stripeInvoiceId: 'in_becs_credit',
+      creditAppliedCents: 2_000,
+    });
+    expect(transaction.payment.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          amountCents: 5_900,
+          paymentMethodType: PaymentMethodType.AU_BECS_DEBIT,
+          paymentMethodLast4: '4821',
+          status: PaymentStatus.PENDING,
+        }),
+      }),
+    );
+  });
+
+  it('returns only safe masked BECS metadata', async () => {
+    const service = makeService({
+      customer: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: customerId,
+          userId: 'customer-user-id',
+          stripeCustomerId: 'cus_owned',
+        }),
+      },
+      subscription: { count: jest.fn().mockResolvedValue(1) },
+    } as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe as unknown as {
+      customers: { retrieve: jest.Mock };
+      paymentMethods: { list: jest.Mock };
+    };
+    stripe.customers.retrieve = jest.fn().mockResolvedValue({
+      id: 'cus_owned',
+      invoice_settings: { default_payment_method: 'pm_becs' },
+    });
+    stripe.paymentMethods.list = jest.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'pm_becs',
+          type: 'au_becs_debit',
+          au_becs_debit: { last4: '4821', bsb_number: '000000', fingerprint: 'private' },
+        },
+      ],
+    });
+
+    const result = await service.getPaymentMethods({ id: 'customer-user-id' } as never);
+    const serialized = JSON.stringify(result);
+
+    expect(result.paymentMethods).toEqual([
+      expect.objectContaining({
+        id: 'pm_becs',
+        type: 'au_becs_debit',
+        last4: '4821',
+        brand: null,
+        isDefault: true,
+      }),
+    ]);
+    expect(serialized).not.toContain('000000');
+    expect(serialized).not.toContain('private');
+  });
+
+  it('records BECS initiation as processing rather than paid', async () => {
+    const transaction = {
+      paymentWebhookEvent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      payment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const prisma = {
+      payment: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'payment-becs',
+          status: PaymentStatus.PENDING,
+          paymentMethodType: PaymentMethodType.AU_BECS_DEBIT,
+        }),
+      },
+      $transaction: jest.fn((operation) => operation(transaction)),
+    };
+    const service = makeService(prisma as never);
+
+    await (
+      service as unknown as {
+        processStripePaymentIntentState(event: Stripe.PaymentIntentProcessingEvent): Promise<void>;
+      }
+    ).processStripePaymentIntentState({
+      id: 'evt_becs_processing',
+      type: 'payment_intent.processing',
+      data: { object: { id: 'pi_becs_processing' } },
+    } as Stripe.PaymentIntentProcessingEvent);
+
+    expect(transaction.payment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: PaymentStatus.PROCESSING } }),
+    );
+    expect(transaction.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'AUTOMATIC_PAYMENT_PROCESSING',
+          metadata: expect.objectContaining({
+            paymentMethodType: PaymentMethodType.AU_BECS_DEBIT,
+          }),
+        }),
+      }),
+    );
   });
 
   it('blocks removal of the only payment method for a protected recurring subscription', async () => {
@@ -1397,6 +1930,151 @@ describe('PaymentsService', () => {
       expect.objectContaining({ idempotencyKey: expect.any(String) }),
     );
     expect(prisma.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('records a failed BECS intent as failed for the existing delinquency workflow', async () => {
+    const transaction = {
+      paymentWebhookEvent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      payment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const service = makeService({
+      payment: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'payment-becs',
+          status: PaymentStatus.PROCESSING,
+          paymentMethodType: PaymentMethodType.AU_BECS_DEBIT,
+        }),
+      },
+      $transaction: jest.fn((operation) => operation(transaction)),
+    } as never);
+
+    await (
+      service as unknown as {
+        processStripePaymentIntentState(
+          event: Stripe.PaymentIntentPaymentFailedEvent,
+        ): Promise<void>;
+      }
+    ).processStripePaymentIntentState({
+      id: 'evt_becs_failed',
+      type: 'payment_intent.payment_failed',
+      data: { object: { id: 'pi_becs_processing' } },
+    } as Stripe.PaymentIntentPaymentFailedEvent);
+
+    expect(transaction.payment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: PaymentStatus.FAILED } }),
+    );
+    expect(transaction.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'AUTOMATIC_PAYMENT_FAILED' }),
+      }),
+    );
+  });
+
+  it('switches an automatic subscription from card to a verified BECS method', async () => {
+    const transaction = {
+      subscription: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const prisma = {
+      customer: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: customerId,
+          userId: 'customer-user-id',
+          stripeCustomerId: 'cus_owned',
+        }),
+      },
+      subscription: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'subscription-id', stripeSubscriptionId: 'sub_owned' }]),
+      },
+      invoice: { findMany: jest.fn().mockResolvedValue([]) },
+      $transaction: jest.fn((operation) => operation(transaction)),
+    };
+    const service = makeService(prisma as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe as unknown as {
+      customers: { update: jest.Mock };
+      paymentMethods: { retrieve: jest.Mock };
+      subscriptions: { update: jest.Mock };
+    };
+    stripe.paymentMethods.retrieve = jest.fn().mockResolvedValue({
+      id: 'pm_becs_replacement',
+      customer: 'cus_owned',
+      type: 'au_becs_debit',
+      au_becs_debit: { last4: '4821' },
+    });
+    stripe.customers.update = jest.fn().mockResolvedValue({ id: 'cus_owned' });
+    stripe.subscriptions.update = jest.fn().mockResolvedValue({ id: 'sub_owned' });
+
+    await service.setDefaultPaymentMethod('pm_becs_replacement', {
+      id: 'customer-user-id',
+    } as never);
+
+    expect(transaction.subscription.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          stripePaymentMethodId: 'pm_becs_replacement',
+          paymentMethodType: PaymentMethodType.AU_BECS_DEBIT,
+          paymentMethodLast4: '4821',
+        }),
+      }),
+    );
+  });
+
+  it('preserves the existing default when replacement setup did not succeed', async () => {
+    const service = makeService({
+      paymentWebhookEvent: { findUnique: jest.fn().mockResolvedValue(null) },
+      customer: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: customerId,
+          userId: 'customer-user-id',
+          stripeCustomerId: 'cus_owned',
+        }),
+      },
+    } as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe as unknown as {
+      setupIntents: { retrieve: jest.Mock };
+      customers: { update: jest.Mock };
+      subscriptions: { update: jest.Mock };
+    };
+    stripe.setupIntents.retrieve = jest.fn().mockResolvedValue({
+      id: 'seti_failed',
+      status: 'requires_payment_method',
+      customer: 'cus_owned',
+      payment_method: null,
+    });
+    stripe.customers.update = jest.fn();
+    stripe.subscriptions.update = jest.fn();
+
+    await expect(
+      (
+        service as unknown as {
+          processPaymentMethodSetupEvent(
+            event: Stripe.Event,
+            session: Stripe.Checkout.Session,
+          ): Promise<void>;
+        }
+      ).processPaymentMethodSetupEvent(
+        { id: 'evt_setup_failed', type: 'checkout.session.completed' } as Stripe.Event,
+        {
+          id: 'cs_setup_failed',
+          client_reference_id: customerId,
+          customer: 'cus_owned',
+          setup_intent: 'seti_failed',
+          metadata: {
+            checkoutKind: 'manage_payment_method',
+            customerId,
+            paymentMethodType: PaymentMethodType.AU_BECS_DEBIT,
+          },
+        } as unknown as Stripe.Checkout.Session,
+      ),
+    ).rejects.toThrow('did not confirm a reusable payment method');
+    expect(stripe.customers.update).not.toHaveBeenCalled();
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
   });
 
   it('removes a non-default card without changing or cancelling the recurring subscription', async () => {

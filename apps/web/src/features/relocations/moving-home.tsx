@@ -30,6 +30,10 @@ export function MovingHome() {
   const queryClient = useQueryClient();
   const [step, setStep] = useState(0);
   const [selectedAddress, setSelectedAddress] = useState<AddressSuggestion | null>(null);
+  const [billingSameAsService, setBillingSameAsService] = useState(true);
+  const [selectedBillingAddress, setSelectedBillingAddress] = useState<AddressSuggestion | null>(
+    null,
+  );
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [moveDate, setMoveDate] = useState('');
   const [startNew, setStartNew] = useState(false);
@@ -78,6 +82,10 @@ export function MovingHome() {
             qualificationToken: qualification.data!.qualificationToken,
             requestedPlanId: selectedPlanId,
             requestedMoveDate: moveDate,
+            billingSameAsService,
+            billingAddressSelectionToken: billingSameAsService
+              ? undefined
+              : selectedBillingAddress?.selectionToken,
           }),
         },
         accessToken,
@@ -175,6 +183,7 @@ export function MovingHome() {
               selectedMessage="New address selected. Ready to check availability."
             />
           </div>
+          {selectedAddress ? <AddressDetails address={selectedAddress} /> : null}
           <button
             className="button-primary mt-4"
             disabled={!selectedAddress || qualification.isPending}
@@ -303,9 +312,51 @@ export function MovingHome() {
       {step === 4 && result && selectedPlan ? (
         <section className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
           <h2 className="text-xl font-bold">Review your relocation</h2>
+          <fieldset className="mt-5 rounded-xl border border-border p-4">
+            <legend className="px-1 text-sm font-semibold text-foreground">Billing address</legend>
+            <label className="flex items-start gap-3 text-sm text-foreground">
+              <input
+                aria-label="Use the new service address for billing"
+                checked={billingSameAsService}
+                className="mt-1"
+                onChange={(event) => {
+                  setBillingSameAsService(event.target.checked);
+                  if (event.target.checked) setSelectedBillingAddress(null);
+                }}
+                type="checkbox"
+              />
+              <span>
+                <span className="font-medium">Use the new service address for billing</span>
+                <span className="mt-1 block text-muted-foreground">
+                  Turn this off if bills should use a different complete address.
+                </span>
+              </span>
+            </label>
+            {!billingSameAsService ? (
+              <div className="mt-4">
+                <AddressAutocomplete
+                  label="Billing address"
+                  onSelectionChange={setSelectedBillingAddress}
+                  placeholder="Start typing the complete billing address"
+                  selectedMessage="Billing address selected."
+                />
+                {selectedBillingAddress ? (
+                  <AddressDetails address={selectedBillingAddress} />
+                ) : null}
+              </div>
+            ) : null}
+          </fieldset>
           <dl className="mt-5 grid gap-4 sm:grid-cols-2">
             <Detail label="Moving from" value={formatAddress(subscription.currentServiceAddress)} />
             <Detail label="Moving to" value={result.address.formattedAddress} />
+            <Detail
+              label="Billing address"
+              value={
+                billingSameAsService
+                  ? (selectedAddress?.formattedAddress ?? result.address.formattedAddress)
+                  : (selectedBillingAddress?.formattedAddress ?? 'Select a billing address')
+              }
+            />
             <Detail label="Current plan" value={subscription.plan.name} />
             <Detail
               label="Plan at new home"
@@ -327,7 +378,7 @@ export function MovingHome() {
           </p>
           <button
             className="button-primary mt-5"
-            disabled={submit.isPending}
+            disabled={submit.isPending || (!billingSameAsService && !selectedBillingAddress)}
             onClick={() => submit.mutate()}
             type="button"
           >
@@ -443,6 +494,26 @@ function Detail({ label, value }: Readonly<{ label: string; value: string }>) {
       </dt>
       <dd className="mt-1 font-medium text-foreground">{value}</dd>
     </div>
+  );
+}
+function AddressDetails({ address }: Readonly<{ address: AddressSuggestion }>) {
+  const unit = address.unit?.trim();
+  const premise = [
+    unit ? (/^unit\b/i.test(unit) ? unit : `Unit ${unit}`) : null,
+    address.houseNumber,
+  ]
+    .filter(Boolean)
+    .join(', ');
+  return (
+    <dl className="mt-3 grid gap-3 rounded-lg border border-border bg-muted p-4 text-sm sm:grid-cols-2">
+      <Detail label="Unit / house number" value={premise || 'Not supplied'} />
+      <Detail label="Street" value={address.street ?? 'Not supplied'} />
+      <Detail label="Suburb" value={address.suburb ?? 'Not supplied'} />
+      <Detail
+        label="State and postcode"
+        value={[address.stateCode ?? address.state, address.postcode].filter(Boolean).join(' ')}
+      />
+    </dl>
   );
 }
 function MutationError({ error }: Readonly<{ error: unknown }>) {

@@ -3,6 +3,7 @@ import { AuthorizationModule } from '../../common/authorization.module';
 import { BillingModule } from '../billing/billing.module';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AccountLedgerModule } from '../account-ledger/account-ledger.module';
 import { InvoicesController } from './invoices.controller';
 import { InvoiceEmailService } from './invoice-email.service';
 import { InvoicePdfService } from './invoice-pdf.service';
@@ -10,7 +11,13 @@ import { InvoicesService } from './invoices.service';
 import { InvoiceDocumentService } from './invoice-document.service';
 
 @Module({
-  imports: [AuthModule, AuthorizationModule, BillingModule, NotificationsModule],
+  imports: [
+    AuthModule,
+    AuthorizationModule,
+    BillingModule,
+    NotificationsModule,
+    AccountLedgerModule,
+  ],
   controllers: [InvoicesController],
   providers: [InvoicesService, InvoicePdfService, InvoiceDocumentService, InvoiceEmailService],
 })

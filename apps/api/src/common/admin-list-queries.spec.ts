@@ -112,7 +112,13 @@ describe('Admin list database filters', () => {
   });
   it('preserves customer invoice ownership with search and financial filters', async () => {
     const db = database();
-    const service = new InvoicesService(db as never, {} as never, {} as never, {} as never);
+    const service = new InvoicesService(
+      db as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
     await service.findAll(
       Object.assign(new InvoiceQueryDto(), {
         customerId: 'someone-else',

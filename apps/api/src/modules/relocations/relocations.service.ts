@@ -158,6 +158,15 @@ export class RelocationsService {
       input.qualificationToken,
       input.requestedPlanId,
     );
+    let billingAddress = qualification.address;
+    if (!input.billingSameAsService) {
+      const billingAddressSelectionToken = input.billingAddressSelectionToken;
+      if (!billingAddressSelectionToken) {
+        throw new BadRequestException('Select a complete billing address.');
+      }
+      billingAddress = await this.coverage.consumeTrustedAddress(billingAddressSelectionToken);
+    }
+    const billingAddressData = this.postalAddressData(billingAddress);
 
     let relocation: RelocationRecord;
     try {
@@ -186,6 +195,24 @@ export class RelocationsService {
               qualification.address,
               qualification,
             ),
+          });
+          await transaction.customer.update({
+            where: { id: subscription.customerId },
+            data: billingAddressData,
+          });
+          await transaction.customerAddress.upsert({
+            where: {
+              customerId_type: {
+                customerId: subscription.customerId,
+                type: AddressType.BILLING,
+              },
+            },
+            create: {
+              customerId: subscription.customerId,
+              type: AddressType.BILLING,
+              ...billingAddressData,
+            },
+            update: billingAddressData,
           });
           const created = await transaction.serviceRelocation.create({
             data: {
@@ -240,6 +267,18 @@ export class RelocationsService {
                   currentPlanCompatible: qualification.compatiblePlanIds.includes(
                     subscription.planId,
                   ),
+                },
+              },
+              {
+                actorUserId: actor.id,
+                action: 'CUSTOMER_BILLING_ADDRESS_UPDATED',
+                entityType: 'Customer',
+                entityId: subscription.customerId,
+                metadata: {
+                  actorRole: actor.role,
+                  source: 'SERVICE_RELOCATION',
+                  relocationId: created.id,
+                  sameAsServiceAddress: input.billingSameAsService,
                 },
               },
               {
@@ -740,7 +779,7 @@ export class RelocationsService {
           throw new ConflictException(
             existing.status === ServiceRelocationStatus.AWAITING_CONFIRMATION
               ? 'Confirm the relocation before simulating provisioning.'
-              : 'Provisioning cannot be simulated in the relocation\'s current state.',
+              : "Provisioning cannot be simulated in the relocation's current state.",
           );
         }
       }
@@ -757,7 +796,7 @@ export class RelocationsService {
           throw new ConflictException(
             !existing.newServiceActivatedAt
               ? 'Activate the new service before simulating old-service disconnection.'
-              : 'Old-service disconnection cannot be simulated in the relocation\'s current state.',
+              : "Old-service disconnection cannot be simulated in the relocation's current state.",
           );
         }
       }
@@ -1724,23 +1763,10 @@ export class RelocationsService {
       compatiblePlanIds: string[];
     },
   ): Prisma.ServiceAddressUncheckedCreateInput {
-    const addressLine1 =
-      [address.houseNumber, address.street].filter(Boolean).join(' ').trim() ||
-      address.formattedAddress.split(',')[0]?.trim();
-    const suburb = address.suburb ?? address.city;
-    const state = address.stateCode?.trim().toUpperCase();
-    if (!addressLine1 || !suburb || !state || !address.postcode) {
-      throw new BadRequestException(
-        'The qualified address is incomplete. Select a more specific street address.',
-      );
-    }
+    const postalAddress = this.postalAddressData(address);
     return {
       customerId,
-      addressLine1,
-      addressLine2: address.unit,
-      suburb,
-      state,
-      postcode: address.postcode,
+      ...postalAddress,
       countryCode: address.countryCode?.trim().toUpperCase() || 'AU',
       latitude: address.latitude,
       longitude: address.longitude,
@@ -1754,6 +1780,27 @@ export class RelocationsService {
         compatiblePlanIds: qualification.compatiblePlanIds,
         source: 'DATABASE_ESTIMATE',
       },
+    };
+  }
+
+  private postalAddressData(address: NormalizedAddressSuggestion) {
+    const houseNumber = address.houseNumber?.trim();
+    const street = address.street?.trim();
+    const suburb = (address.suburb ?? address.city)?.trim();
+    const state = address.stateCode?.trim().toUpperCase();
+    const postcode = address.postcode?.trim();
+    const countryCode = address.countryCode?.trim().toUpperCase();
+    if (!houseNumber || !street || !suburb || !state || !postcode || countryCode !== 'AU') {
+      throw new BadRequestException(
+        'The selected address must include a house number, street, suburb, state and postcode.',
+      );
+    }
+    return {
+      addressLine1: `${houseNumber} ${street}`,
+      addressLine2: address.unit?.trim() || null,
+      suburb,
+      state,
+      postcode,
     };
   }
 

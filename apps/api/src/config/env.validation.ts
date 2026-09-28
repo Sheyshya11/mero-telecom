@@ -112,6 +112,14 @@ export const validationSchema = Joi.object({
     .pattern(/^bpc_[A-Za-z0-9]+$/)
     .allow('')
     .default(''),
+  STRIPE_CARD_PAYMENT_METHOD_CONFIGURATION_ID: Joi.string()
+    .pattern(/^pmc_[A-Za-z0-9]+$/)
+    .allow('')
+    .default(''),
+  STRIPE_BECS_PAYMENT_METHOD_CONFIGURATION_ID: Joi.string()
+    .pattern(/^pmc_[A-Za-z0-9]+$/)
+    .allow('')
+    .default(''),
   STRIPE_PRICE_ESSENTIAL_50: Joi.string()
     .pattern(/^price_[A-Za-z0-9]+$/)
     .allow('')

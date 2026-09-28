@@ -96,6 +96,8 @@ export interface AppConfig {
     secretKey: string;
     webhookSecret: string;
     portalConfigurationId: string;
+    cardPaymentMethodConfigurationId: string;
+    becsPaymentMethodConfigurationId: string;
   };
   email: {
     from: string;
@@ -255,6 +257,8 @@ export default (): AppConfig => ({
     secretKey: process.env.STRIPE_SECRET_KEY ?? '',
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
     portalConfigurationId: process.env.STRIPE_PORTAL_CONFIGURATION_ID ?? '',
+    cardPaymentMethodConfigurationId: process.env.STRIPE_CARD_PAYMENT_METHOD_CONFIGURATION_ID ?? '',
+    becsPaymentMethodConfigurationId: process.env.STRIPE_BECS_PAYMENT_METHOD_CONFIGURATION_ID ?? '',
   },
   email: {
     from: process.env.EMAIL_FROM ?? '',
