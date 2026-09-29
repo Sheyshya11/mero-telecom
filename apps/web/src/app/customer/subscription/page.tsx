@@ -105,7 +105,8 @@ type CheckoutStatus = {
 
 type RecurringSetupStatus = {
   checkoutStatus: string | null;
-  setupStatus: 'enabled' | 'processing' | 'expired';
+  setupStatus: 'enabled' | 'processing' | 'expired' | 'failed';
+  setupMessage?: string | null;
   subscription: {
     id: string;
     billingMode: 'MANUAL' | 'STRIPE_RECURRING';
@@ -628,7 +629,8 @@ export default function CustomerSubscriptionPage() {
       {recurringReturn ? (
         <p
           className={`mt-6 rounded-md p-3 text-sm ${
-            recurringReturn === 'enabled'
+            recurringReturn === 'enabled' &&
+            recurringSetupReconciliation.data?.setupStatus === 'enabled'
               ? 'bg-success-subtle text-success-foreground'
               : 'bg-warning-subtle text-warning-foreground'
           }`}
@@ -637,7 +639,12 @@ export default function CustomerSubscriptionPage() {
           {recurringReturn === 'enabled'
             ? recurringSetupReconciliation.data?.setupStatus === 'enabled'
               ? 'Your payment method was saved. Automatic payments are now enabled.'
-              : 'Your payment method was saved. Automatic billing is being activated.'
+              : recurringSetupReconciliation.data?.setupStatus === 'failed'
+                ? (recurringSetupReconciliation.data.setupMessage ??
+                  'Automatic billing could not be enabled because the subscription changed. Please try again.')
+                : recurringSetupReconciliation.data?.setupStatus === 'expired'
+                  ? 'Automatic payment setup expired. Please start again.'
+                  : 'Your payment method was saved. Automatic billing is being activated.'
             : 'Automatic payment setup was cancelled; your existing billing arrangement is unchanged.'}
         </p>
       ) : null}

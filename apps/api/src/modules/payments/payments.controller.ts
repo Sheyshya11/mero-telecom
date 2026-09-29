@@ -38,6 +38,7 @@ import {
 } from './dto/create-checkout-session.dto';
 import { PaymentsService } from './payments.service';
 import { PublicCheckoutContextService } from './public-checkout-context.service';
+import { StripeWebhookQueueService } from './stripe-webhook-queue.service';
 
 type StripeRawBodyRequest = Request & { rawBody?: Buffer };
 
@@ -47,6 +48,7 @@ export class PaymentsController {
   constructor(
     private readonly payments: PaymentsService,
     private readonly publicCheckoutContext: PublicCheckoutContextService,
+    private readonly stripeWebhooks: StripeWebhookQueueService,
   ) {}
 
   @Post('stripe/webhook')
@@ -56,7 +58,7 @@ export class PaymentsController {
     @Headers('stripe-signature') signature: string | undefined,
   ): Promise<{ received: true }> {
     if (!request.rawBody) throw new BadRequestException('Stripe webhook raw body is required.');
-    await this.payments.processStripeWebhook(request.rawBody, signature);
+    await this.stripeWebhooks.enqueue(request.rawBody, signature);
     return { received: true };
   }
 

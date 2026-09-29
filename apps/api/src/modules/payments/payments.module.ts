@@ -9,6 +9,7 @@ import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { PublicCheckoutContextService } from './public-checkout-context.service';
 import { StripeModule } from './stripe.module';
+import { StripeWebhookQueueService } from './stripe-webhook-queue.service';
 import { PlanChangesModule } from '../plan-changes/plan-changes.module';
 import { RefundsModule } from '../refunds/refunds.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
@@ -28,6 +29,6 @@ import { AccountLedgerModule } from '../account-ledger/account-ledger.module';
     AccountLedgerModule,
   ],
   controllers: [PaymentsController],
-  providers: [PaymentsService, PublicCheckoutContextService],
+  providers: [PaymentsService, PublicCheckoutContextService, StripeWebhookQueueService],
 })
 export class PaymentsModule {}

@@ -1,4 +1,11 @@
-import { InvoiceStatus, Role, SubscriptionStatus, SuspensionReason } from '@prisma/client';
+import {
+  BillingMode,
+  InvoiceCollectionStatus,
+  InvoiceStatus,
+  Role,
+  SubscriptionStatus,
+  SuspensionReason,
+} from '@prisma/client';
 
 import type { AppConfig } from '../../config/configuration';
 import type { PrismaService } from '../../database/prisma.service';
@@ -279,5 +286,138 @@ describe('SubscriptionLifecycleService', () => {
     );
     expect(transaction.auditLog.create).toHaveBeenCalled();
     expect(cache.invalidate).toHaveBeenCalled();
+  });
+
+  it('records authentication-required state and sends the hosted Stripe action link', async () => {
+    const invoice = {
+      ...paidInvoice,
+      status: InvoiceStatus.ISSUED,
+      paidAt: null,
+      overdueAt: null,
+      stripeHostedUrl: null,
+      stripeAttemptCount: 0,
+      subscription: {
+        ...paidInvoice.subscription,
+        status: SubscriptionStatus.ACTIVE,
+        suspensionReason: null,
+        pastDueAt: null,
+        plan: { name: 'Home 100' },
+      },
+    };
+    const transaction = {
+      paymentWebhookEvent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      invoice: {
+        findUnique: jest.fn().mockResolvedValue(invoice),
+        update: jest.fn().mockResolvedValue(invoice),
+      },
+      subscription: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      planChangeRequest: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      auditLog: {
+        create: jest.fn().mockResolvedValue({}),
+        createMany: jest.fn().mockResolvedValue({ count: 2 }),
+      },
+    };
+    const prisma = {
+      $transaction: jest.fn(async (callback: (tx: typeof transaction) => unknown) =>
+        callback(transaction),
+      ),
+    };
+    const notifications = {
+      sendOverdueLifecycleNotification: jest.fn().mockResolvedValue({}),
+    };
+    const config = {
+      getOrThrow: jest.fn().mockReturnValue({
+        gracePeriodDays: 7,
+        terminationDays: 30,
+        batchSize: 50,
+      }),
+    };
+    const service = new SubscriptionLifecycleService(
+      prisma as unknown as PrismaService,
+      config as never,
+      {} as never,
+      {} as never,
+      notifications as never,
+      { invalidate: jest.fn().mockResolvedValue(true) } as never,
+    );
+    const requiredAt = new Date('2026-09-29T01:00:00.000Z');
+
+    await service.handlePaymentActionRequired({
+      providerEventId: 'evt_action_required',
+      eventType: 'invoice.payment_action_required',
+      invoiceId: invoice.id,
+      expectedAmountCents: invoice.totalCents,
+      expectedCurrency: 'aud',
+      failedAt: requiredAt,
+      attemptCount: 1,
+      paymentErrorCode: 'authentication_required',
+      hostedInvoiceUrl: 'https://invoice.stripe.test/authenticate',
+    });
+
+    expect(transaction.invoice.update).toHaveBeenCalledWith({
+      where: { id: invoice.id },
+      data: expect.objectContaining({
+        collectionStatus: InvoiceCollectionStatus.ACTION_REQUIRED,
+        stripeAttemptCount: 1,
+        paymentActionRequiredAt: requiredAt,
+      }),
+    });
+    expect(notifications.sendOverdueLifecycleNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'PAYMENT_AUTHENTICATION_REQUIRED',
+        actionUrl: 'https://invoice.stripe.test/authenticate',
+      }),
+    );
+  });
+
+  it('does not suspend service before Stripe reaches its scheduled retry', async () => {
+    const now = new Date('2026-09-29T00:00:00.000Z');
+    const transaction = {
+      subscription: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'subscription-id',
+          status: SubscriptionStatus.PAST_DUE,
+          billingMode: BillingMode.STRIPE_RECURRING,
+          gracePeriodEndsAt: new Date('2026-09-28T00:00:00.000Z'),
+          customer: paidInvoice.customer,
+          plan: { name: 'Home 100' },
+          invoices: [
+            {
+              ...paidInvoice,
+              status: InvoiceStatus.OVERDUE,
+              stripeNextPaymentAttempt: new Date('2026-09-30T00:00:00.000Z'),
+            },
+          ],
+        }),
+        updateMany: jest.fn(),
+      },
+    };
+    const prisma = {
+      subscription: { findMany: jest.fn().mockResolvedValue([{ id: 'subscription-id' }]) },
+      $transaction: jest.fn(async (callback: (tx: typeof transaction) => unknown) =>
+        callback(transaction),
+      ),
+    };
+    const config = {
+      getOrThrow: jest.fn().mockReturnValue({
+        gracePeriodDays: 7,
+        terminationDays: 30,
+        batchSize: 50,
+      }),
+    };
+    const service = new SubscriptionLifecycleService(
+      prisma as unknown as PrismaService,
+      config as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(service.suspendExpiredGracePeriods(now)).resolves.toBe(0);
+    expect(transaction.subscription.updateMany).not.toHaveBeenCalled();
   });
 });

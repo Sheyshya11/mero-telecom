@@ -6,6 +6,7 @@ import {
   InvoiceStatus,
   PaymentMethodType,
   PaymentStatus,
+  RecurringSetupAttemptStatus,
   Role,
   SubscriptionStatus,
   UserStatus,
@@ -86,6 +87,7 @@ function makeService(prisma: Partial<PrismaService>) {
     {
       handleConfirmedPayment: jest.fn().mockResolvedValue(undefined),
       handlePaymentFailure: jest.fn().mockResolvedValue(undefined),
+      handlePaymentActionRequired: jest.fn().mockResolvedValue(undefined),
     } as never,
     {
       recordStripeInvoiceApplication: jest
@@ -145,6 +147,7 @@ function makePublicService(prisma: Partial<PrismaService>) {
     {
       handleConfirmedPayment: jest.fn().mockResolvedValue(undefined),
       handlePaymentFailure: jest.fn().mockResolvedValue(undefined),
+      handlePaymentActionRequired: jest.fn().mockResolvedValue(undefined),
     } as never,
     {
       recordStripeInvoiceApplication: jest
@@ -210,6 +213,10 @@ function mockRecurringResources(service: PaymentsService, paymentIntentId: strin
 describe('PaymentsService', () => {
   it('reconciles a completed recurring setup on return and exposes the saved card', async () => {
     const subscriptionId = 'b5b75333-0b2e-4941-9967-a9525f85ca8f';
+    const attemptId = '4feef440-8e04-44d2-ac85-ae3de5f9df53';
+    const currentPeriodStart = new Date('2099-09-01T00:00:00.000Z');
+    const currentPeriodEnd = new Date('2099-10-01T00:00:00.000Z');
+    const subscriptionUpdatedAt = new Date('2099-09-01T01:00:00.000Z');
     const actor = {
       id: 'customer-user-id',
       email: 'customer@merotelecom.test',
@@ -219,14 +226,37 @@ describe('PaymentsService', () => {
       id: subscriptionId,
       customerId,
       planId: 'plan-id',
+      status: SubscriptionStatus.ACTIVE,
       billingMode: BillingMode.MANUAL,
       stripeSubscriptionId: null,
-      currentPeriodEnd: new Date('2099-10-01T00:00:00.000Z'),
+      currentPeriodStart,
+      currentPeriodEnd,
+      updatedAt: subscriptionUpdatedAt,
       customer: {
         userId: actor.id,
         stripeCustomerId: 'cus_recurring_return',
       },
       plan: { stripePriceId: 'price_recurring' },
+    };
+    const recurringAttempt = {
+      id: attemptId,
+      subscriptionId,
+      customerId,
+      status: RecurringSetupAttemptStatus.CHECKOUT_CREATED,
+      expectedPlanId: 'plan-id',
+      expectedStripePriceId: 'price_recurring',
+      expectedCurrentPeriodStart: currentPeriodStart,
+      expectedCurrentPeriodEnd: currentPeriodEnd,
+      expectedSubscriptionUpdatedAt: subscriptionUpdatedAt,
+      paymentMethodType: PaymentMethodType.CARD,
+      stripeCheckoutSessionId: 'cs_test_recurring_return',
+      stripeSetupIntentId: null,
+      stripeSubscriptionId: null,
+      expiresAt: new Date('2099-09-02T00:00:00.000Z'),
+      failureReason: null,
+      completedAt: null,
+      createdAt: new Date('2099-09-01T01:00:00.000Z'),
+      updatedAt: new Date('2099-09-01T01:00:00.000Z'),
     };
     const reconciledSubscription = {
       id: subscriptionId,
@@ -244,8 +274,14 @@ describe('PaymentsService', () => {
       },
       subscription: {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-        findUnique: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(localSubscription),
       },
+      recurringSetupAttempt: {
+        findUnique: jest.fn().mockResolvedValue(recurringAttempt),
+        update: jest.fn().mockResolvedValue(recurringAttempt),
+      },
+      invoice: { count: jest.fn().mockResolvedValue(0) },
+      $executeRaw: jest.fn().mockResolvedValue(1),
       auditLog: { create: jest.fn().mockResolvedValue({}) },
     };
     const prisma = {
@@ -254,12 +290,15 @@ describe('PaymentsService', () => {
           id: subscriptionId,
           customer: { stripeCustomerId: 'cus_recurring_return' },
         }),
-        findUnique: jest
-          .fn()
-          .mockResolvedValueOnce(localSubscription)
-          .mockResolvedValueOnce(reconciledSubscription),
+        findUnique: jest.fn().mockResolvedValue(reconciledSubscription),
       },
       paymentWebhookEvent: { findUnique: jest.fn().mockResolvedValue(null) },
+      recurringSetupAttempt: {
+        findFirst: jest.fn().mockResolvedValue({
+          status: RecurringSetupAttemptStatus.COMPLETED,
+          failureReason: null,
+        }),
+      },
       $transaction: jest.fn((operation) => operation(transaction)),
     };
     const service = makeService(prisma as never);
@@ -278,7 +317,9 @@ describe('PaymentsService', () => {
       setup_intent: 'seti_recurring_return',
       metadata: {
         checkoutKind: 'enable_recurring',
+        recurringSetupAttemptId: attemptId,
         existingSubscriptionId: subscriptionId,
+        customerId,
         paymentMethodType: PaymentMethodType.CARD,
       },
     });
@@ -306,26 +347,246 @@ describe('PaymentsService', () => {
     expect(result).toEqual({
       checkoutStatus: 'complete',
       setupStatus: 'enabled',
+      setupMessage: null,
       subscription: reconciledSubscription,
     });
     expect(stripe.customers.update).toHaveBeenCalledWith(
       'cus_recurring_return',
       { invoice_settings: { default_payment_method: 'pm_recurring_return' } },
-      { idempotencyKey: `recurring-default-payment-method-${subscriptionId}` },
+      { idempotencyKey: `recurring-default-payment-method-${attemptId}` },
     );
     expect(transaction.subscription.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
+        where: expect.objectContaining({
           id: subscriptionId,
+          status: SubscriptionStatus.ACTIVE,
           billingMode: BillingMode.MANUAL,
           stripeSubscriptionId: null,
-        },
+          planId: 'plan-id',
+        }),
         data: expect.objectContaining({
           billingMode: BillingMode.STRIPE_RECURRING,
           stripePaymentMethodId: 'pm_recurring_return',
           paymentMethodBrand: 'visa',
           paymentMethodLast4: '4242',
         }),
+      }),
+    );
+  });
+
+  it('refuses a completed setup when the customer cancelled after opening Checkout', async () => {
+    const subscriptionId = '2f0fb350-6f44-48db-b889-f12ff38c4ae7';
+    const attemptId = '3a84653e-b9da-4641-b9c6-6b8c439b5620';
+    const periodStart = new Date('2099-09-01T00:00:00.000Z');
+    const periodEnd = new Date('2099-10-01T00:00:00.000Z');
+    const updatedAt = new Date('2099-09-01T01:00:00.000Z');
+    const attempt = {
+      id: attemptId,
+      subscriptionId,
+      customerId,
+      status: RecurringSetupAttemptStatus.CHECKOUT_CREATED,
+      expectedPlanId: 'plan-id',
+      expectedStripePriceId: 'price-recurring',
+      expectedCurrentPeriodStart: periodStart,
+      expectedCurrentPeriodEnd: periodEnd,
+      expectedSubscriptionUpdatedAt: updatedAt,
+      paymentMethodType: PaymentMethodType.CARD,
+      stripeCheckoutSessionId: 'cs_test_cancelled_race',
+      stripeSetupIntentId: null,
+      stripeSubscriptionId: null,
+      expiresAt: new Date('2099-09-02T00:00:00.000Z'),
+      failureReason: null,
+      completedAt: null,
+      createdAt: updatedAt,
+      updatedAt,
+    };
+    const transaction = {
+      paymentWebhookEvent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      recurringSetupAttempt: {
+        findUnique: jest.fn().mockResolvedValue(attempt),
+        update: jest.fn().mockResolvedValue(attempt),
+      },
+      subscription: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: subscriptionId,
+          customerId,
+          planId: 'plan-id',
+          status: SubscriptionStatus.CANCELLATION_PENDING,
+          billingMode: BillingMode.MANUAL,
+          stripeSubscriptionId: null,
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+          updatedAt,
+          customer: { userId: 'customer-user-id', stripeCustomerId: 'cus_cancelled_race' },
+          plan: { stripePriceId: 'price-recurring' },
+        }),
+      },
+      invoice: { count: jest.fn().mockResolvedValue(0) },
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    const service = makeService({
+      paymentWebhookEvent: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn((operation) => operation(transaction)),
+    } as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe as unknown as {
+      subscriptions: { create: jest.Mock };
+    };
+    stripe.subscriptions.create = jest.fn();
+
+    await expect(
+      service.processStripeEvent({
+        id: 'evt_cancelled_setup_race',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_test_cancelled_race',
+            customer: 'cus_cancelled_race',
+            client_reference_id: subscriptionId,
+            setup_intent: 'seti_cancelled_race',
+            metadata: {
+              checkoutKind: 'enable_recurring',
+              recurringSetupAttemptId: attemptId,
+              existingSubscriptionId: subscriptionId,
+              customerId,
+              paymentMethodType: PaymentMethodType.CARD,
+            },
+          },
+        },
+      } as Stripe.Event),
+    ).resolves.toBeUndefined();
+    expect(stripe.subscriptions.create).not.toHaveBeenCalled();
+    expect(transaction.recurringSetupAttempt.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: RecurringSetupAttemptStatus.CANCELLED }),
+      }),
+    );
+  });
+
+  it('cancels the remote subscription when local activation loses a race', async () => {
+    const subscriptionId = 'bd33f107-900f-434b-a47b-09b0f9801de6';
+    const attemptId = '192053e9-f7fa-4c96-a367-e3145eac6f9f';
+    const periodStart = new Date('2099-09-01T00:00:00.000Z');
+    const periodEnd = new Date('2099-10-01T00:00:00.000Z');
+    const updatedAt = new Date('2099-09-01T01:00:00.000Z');
+    const active = {
+      id: subscriptionId,
+      customerId,
+      planId: 'plan-id',
+      status: SubscriptionStatus.ACTIVE,
+      billingMode: BillingMode.MANUAL,
+      stripeSubscriptionId: null,
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+      updatedAt,
+      customer: { userId: 'customer-user-id', stripeCustomerId: 'cus_compensation' },
+      plan: { stripePriceId: 'price-recurring' },
+    };
+    const attempt = {
+      id: attemptId,
+      subscriptionId,
+      customerId,
+      status: RecurringSetupAttemptStatus.CHECKOUT_CREATED,
+      expectedPlanId: 'plan-id',
+      expectedStripePriceId: 'price-recurring',
+      expectedCurrentPeriodStart: periodStart,
+      expectedCurrentPeriodEnd: periodEnd,
+      expectedSubscriptionUpdatedAt: updatedAt,
+      paymentMethodType: PaymentMethodType.CARD,
+      stripeCheckoutSessionId: 'cs_test_compensation',
+      stripeSetupIntentId: null,
+      stripeSubscriptionId: null,
+      expiresAt: new Date('2099-09-02T00:00:00.000Z'),
+      failureReason: null,
+      completedAt: null,
+      createdAt: updatedAt,
+      updatedAt,
+    };
+    const transaction = {
+      paymentWebhookEvent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn(),
+      },
+      recurringSetupAttempt: {
+        findUnique: jest.fn().mockResolvedValue(attempt),
+        update: jest.fn().mockResolvedValue(attempt),
+      },
+      subscription: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(active)
+          .mockResolvedValueOnce({ ...active, status: SubscriptionStatus.CANCELLATION_PENDING }),
+        updateMany: jest.fn(),
+      },
+      invoice: { count: jest.fn().mockResolvedValue(0) },
+      auditLog: { create: jest.fn() },
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    const recurringSetupAttempt = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    const service = makeService({
+      paymentWebhookEvent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      recurringSetupAttempt,
+      $transaction: jest.fn((operation) => operation(transaction)),
+    } as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe as unknown as {
+      setupIntents: { retrieve: jest.Mock };
+      paymentMethods: { retrieve: jest.Mock };
+      subscriptions: { create: jest.Mock; cancel: jest.Mock };
+      customers: { update: jest.Mock };
+    };
+    stripe.setupIntents.retrieve = jest.fn().mockResolvedValue({
+      id: 'seti_compensation',
+      status: 'succeeded',
+      customer: 'cus_compensation',
+      payment_method: 'pm_compensation',
+    });
+    stripe.paymentMethods.retrieve = jest.fn().mockResolvedValue({
+      id: 'pm_compensation',
+      type: 'card',
+      customer: 'cus_compensation',
+      card: { brand: 'visa', last4: '4242', exp_month: 12, exp_year: 2030 },
+    });
+    stripe.subscriptions.create = jest.fn().mockResolvedValue({
+      id: 'sub_orphaned',
+      status: 'trialing',
+      items: { data: [{ price: { id: 'price-recurring' } }] },
+    });
+    stripe.subscriptions.cancel = jest.fn().mockResolvedValue({ id: 'sub_orphaned' });
+    stripe.customers.update = jest.fn().mockResolvedValue({ id: 'cus_compensation' });
+
+    await service.processStripeEvent({
+      id: 'evt_setup_compensation',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_test_compensation',
+          customer: 'cus_compensation',
+          client_reference_id: subscriptionId,
+          setup_intent: 'seti_compensation',
+          metadata: {
+            checkoutKind: 'enable_recurring',
+            recurringSetupAttemptId: attemptId,
+            existingSubscriptionId: subscriptionId,
+            customerId,
+            paymentMethodType: PaymentMethodType.CARD,
+          },
+        },
+      },
+    } as Stripe.Event);
+
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledWith(
+      'sub_orphaned',
+      { invoice_now: false, prorate: false },
+      { idempotencyKey: `recurring-setup-compensation-${attemptId}` },
+    );
+    expect(recurringSetupAttempt.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: RecurringSetupAttemptStatus.FAILED }),
       }),
     );
   });

@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   BillingMode,
+  InvoiceCollectionStatus,
   InvoiceStatus,
   PaymentProvider,
   PaymentStatus,
@@ -46,6 +47,14 @@ interface PaymentFailureInput {
   expectedAmountCents?: number;
   expectedCurrency?: string;
   failedAt?: Date;
+  attemptCount?: number;
+  nextPaymentAttempt?: Date;
+  collectionStatus?: InvoiceCollectionStatus;
+  paymentErrorCode?: string;
+}
+
+interface PaymentActionRequiredInput extends PaymentFailureInput {
+  hostedInvoiceUrl?: string;
 }
 
 @Injectable()
@@ -96,6 +105,16 @@ export class SubscriptionLifecycleService {
         });
         if (!invoice) throw new NotFoundException('Invoice referenced by Stripe was not found.');
         this.assertStripeInvoiceMatch(invoice, input);
+        if (invoice.status === InvoiceStatus.PAID || invoice.status === InvoiceStatus.CANCELLED) {
+          await transaction.paymentWebhookEvent.create({
+            data: {
+              provider: PaymentProvider.STRIPE,
+              providerEventId: input.providerEventId,
+              eventType: input.eventType,
+            },
+          });
+          return null;
+        }
         const payment = await transaction.payment.findFirst({
           where: {
             invoiceId: invoice.id,
@@ -117,6 +136,17 @@ export class SubscriptionLifecycleService {
             data: { status: PaymentStatus.FAILED },
           });
         }
+        await transaction.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            collectionStatus:
+              input.collectionStatus ?? InvoiceCollectionStatus.PAYMENT_METHOD_REQUIRED,
+            stripeAttemptCount: input.attemptCount ?? invoice.stripeAttemptCount,
+            stripeNextPaymentAttempt: input.nextPaymentAttempt ?? null,
+            stripeLastPaymentErrorCode: input.paymentErrorCode ?? null,
+            paymentActionRequiredAt: null,
+          },
+        });
         const transition = await this.markPastDue(
           transaction,
           invoice,
@@ -147,6 +177,77 @@ export class SubscriptionLifecycleService {
     );
     if (!result) return;
     await this.notify(result.invoice, 'PAYMENT_FAILED', input.providerEventId);
+    await this.dashboardCache.invalidate();
+  }
+
+  async handlePaymentActionRequired(input: PaymentActionRequiredInput): Promise<void> {
+    const result = await this.prisma.$transaction(
+      async (transaction) => {
+        if (
+          await transaction.paymentWebhookEvent.findUnique({
+            where: { providerEventId: input.providerEventId },
+          })
+        ) {
+          return null;
+        }
+        const invoice = await transaction.invoice.findUnique({
+          where: { id: input.invoiceId },
+          include: lifecycleInvoiceInclude,
+        });
+        if (!invoice) throw new NotFoundException('Invoice referenced by Stripe was not found.');
+        this.assertStripeInvoiceMatch(invoice, input);
+        if (invoice.status === InvoiceStatus.PAID || invoice.status === InvoiceStatus.CANCELLED) {
+          await transaction.paymentWebhookEvent.create({
+            data: {
+              provider: PaymentProvider.STRIPE,
+              providerEventId: input.providerEventId,
+              eventType: input.eventType,
+            },
+          });
+          return null;
+        }
+        const requiredAt = input.failedAt ?? new Date();
+        await transaction.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            collectionStatus: InvoiceCollectionStatus.ACTION_REQUIRED,
+            stripeAttemptCount: input.attemptCount ?? invoice.stripeAttemptCount,
+            stripeNextPaymentAttempt: input.nextPaymentAttempt ?? null,
+            stripeLastPaymentErrorCode: input.paymentErrorCode ?? null,
+            paymentActionRequiredAt: requiredAt,
+            stripeHostedUrl: input.hostedInvoiceUrl ?? invoice.stripeHostedUrl,
+          },
+        });
+        const transition = await this.markPastDue(transaction, invoice, requiredAt);
+        await transaction.paymentWebhookEvent.create({
+          data: {
+            provider: PaymentProvider.STRIPE,
+            providerEventId: input.providerEventId,
+            eventType: input.eventType,
+          },
+        });
+        await transaction.auditLog.create({
+          data: {
+            action: 'PAYMENT_AUTHENTICATION_REQUIRED',
+            entityType: 'Invoice',
+            entityId: invoice.id,
+            metadata: this.auditMetadata(invoice, {
+              providerEventId: input.providerEventId,
+              attemptCount: input.attemptCount ?? null,
+            }),
+          },
+        });
+        return { invoice: transition.invoice };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+    if (!result) return;
+    await this.notify(
+      result.invoice,
+      'PAYMENT_AUTHENTICATION_REQUIRED',
+      input.providerEventId,
+      input.hostedInvoiceUrl,
+    );
     await this.dashboardCache.invalidate();
   }
 
@@ -644,6 +745,14 @@ export class SubscriptionLifecycleService {
         ) {
           return null;
         }
+        const invoice = subscription.invoices[0];
+        if (
+          subscription.billingMode === BillingMode.STRIPE_RECURRING &&
+          invoice.stripeNextPaymentAttempt &&
+          invoice.stripeNextPaymentAttempt > now
+        ) {
+          return null;
+        }
         const changed = await transaction.subscription.updateMany({
           where: { id, status: SubscriptionStatus.PAST_DUE, gracePeriodEndsAt: { lte: now } },
           data: {
@@ -674,7 +783,6 @@ export class SubscriptionLifecycleService {
             cancellationReason: 'SUBSCRIPTION_SUSPENDED_NON_PAYMENT',
           },
         });
-        const invoice = subscription.invoices[0];
         await transaction.auditLog.create({
           data: {
             action: 'SERVICE_SUSPENDED_NON_PAYMENT',
@@ -816,9 +924,17 @@ export class SubscriptionLifecycleService {
     invoice: LifecycleInvoice,
     event: Parameters<NotificationService['sendOverdueLifecycleNotification']>[0]['event'],
     suffix: string,
+    actionUrl?: string | null,
   ): Promise<boolean> {
     if (!invoice.subscription) return false;
-    return this.notifyRecord(invoice.subscription, invoice.customer, invoice, event, suffix);
+    return this.notifyRecord(
+      invoice.subscription,
+      invoice.customer,
+      invoice,
+      event,
+      suffix,
+      actionUrl,
+    );
   }
 
   private async notifyRecord(
@@ -833,6 +949,7 @@ export class SubscriptionLifecycleService {
     invoice: Pick<LifecycleInvoice, 'invoiceNumber' | 'totalCents' | 'currency' | 'dueDate'>,
     event: Parameters<NotificationService['sendOverdueLifecycleNotification']>[0]['event'],
     suffix: string,
+    actionUrl?: string | null,
   ): Promise<boolean> {
     if (!subscription) return false;
     try {
@@ -848,6 +965,7 @@ export class SubscriptionLifecycleService {
         dueDate: invoice.dueDate,
         gracePeriodEndsAt: subscription.gracePeriodEndsAt,
         suspendedAt: subscription.suspendedAt,
+        actionUrl,
       });
       return true;
     } catch (error: unknown) {

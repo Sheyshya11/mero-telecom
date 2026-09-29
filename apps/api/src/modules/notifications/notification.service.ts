@@ -209,13 +209,15 @@ export class NotificationService {
       subscriptionId: string;
       customerEmail: string;
       idempotencySuffix: string;
+      actionUrl?: string | null;
     },
   ): Promise<InvoiceEmailResult> {
     const recipient = this.invoiceRecipient(input.customerEmail);
     const template = renderOverdueEmail({
       ...input,
       brandLogoUrl: this.brandLogoUrl(),
-      dashboardUrl: `${this.configService.getOrThrow('app').frontendUrl}/customer/dashboard`,
+      dashboardUrl:
+        input.actionUrl ?? `${this.configService.getOrThrow('app').frontendUrl}/customer/dashboard`,
     });
     const result = await this.emailQueue.enqueue(
       { to: recipient, ...template },

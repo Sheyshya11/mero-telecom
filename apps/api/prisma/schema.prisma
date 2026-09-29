@@ -198,6 +198,25 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum InvoiceCollectionStatus {
+  NONE
+  SCHEDULED
+  RETRYING
+  ACTION_REQUIRED
+  PAYMENT_METHOD_REQUIRED
+  EXHAUSTED
+}
+
+enum RecurringSetupAttemptStatus {
+  PENDING
+  CHECKOUT_CREATED
+  PROCESSING
+  COMPLETED
+  EXPIRED
+  CANCELLED
+  FAILED
+}
+
 enum PaymentProvider {
   STRIPE
   MANUAL
@@ -476,37 +495,38 @@ model UserRole {
 }
 
 model Customer {
-  id                   String                @id @default(uuid()) @db.Uuid
-  userId               String?               @unique @db.Uuid
-  stripeCustomerId     String?               @unique @db.VarChar(255)
-  customerNumber       String                @unique @db.VarChar(32)
-  firstName            String                @db.VarChar(100)
-  lastName             String                @db.VarChar(100)
-  email                String                @unique @db.VarChar(320)
-  phone                String                @db.VarChar(32)
-  addressLine1         String                @db.VarChar(255)
-  addressLine2         String?               @db.VarChar(255)
-  suburb               String                @db.VarChar(100)
-  state                String                @db.VarChar(3)
-  postcode             String                @db.VarChar(10)
-  status               CustomerStatus        @default(ACTIVE)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  user                 User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
-  subscriptions        Subscription[]
-  invoices             Invoice[]
-  payments             Payment[]
-  addresses            CustomerAddress[]
-  checkoutApplications CheckoutApplication[]
-  planChangeRequests   PlanChangeRequest[]
-  coverageSearches     CoverageSearch[]
-  refunds              Refund[]
-  supportCases         SupportCase[]
-  internalRequests     InternalRequest[]
-  cancellationRequests CancellationRequest[]
-  serviceAddresses     ServiceAddress[]
-  serviceRelocations   ServiceRelocation[]
-  accountTransactions  AccountTransaction[]
+  id                     String                  @id @default(uuid()) @db.Uuid
+  userId                 String?                 @unique @db.Uuid
+  stripeCustomerId       String?                 @unique @db.VarChar(255)
+  customerNumber         String                  @unique @db.VarChar(32)
+  firstName              String                  @db.VarChar(100)
+  lastName               String                  @db.VarChar(100)
+  email                  String                  @unique @db.VarChar(320)
+  phone                  String                  @db.VarChar(32)
+  addressLine1           String                  @db.VarChar(255)
+  addressLine2           String?                 @db.VarChar(255)
+  suburb                 String                  @db.VarChar(100)
+  state                  String                  @db.VarChar(3)
+  postcode               String                  @db.VarChar(10)
+  status                 CustomerStatus          @default(ACTIVE)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  user                   User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  subscriptions          Subscription[]
+  invoices               Invoice[]
+  payments               Payment[]
+  addresses              CustomerAddress[]
+  checkoutApplications   CheckoutApplication[]
+  planChangeRequests     PlanChangeRequest[]
+  coverageSearches       CoverageSearch[]
+  refunds                Refund[]
+  supportCases           SupportCase[]
+  internalRequests       InternalRequest[]
+  cancellationRequests   CancellationRequest[]
+  serviceAddresses       ServiceAddress[]
+  serviceRelocations     ServiceRelocation[]
+  accountTransactions    AccountTransaction[]
+  recurringSetupAttempts RecurringSetupAttempt[]
 
   @@index([lastName, firstName])
   @@index([firstName, id])
@@ -840,6 +860,7 @@ model Subscription {
   currentServiceAddress     ServiceAddress?              @relation("CurrentServiceAddress", fields: [currentServiceAddressId], references: [id], onDelete: Restrict)
   serviceRelocations        ServiceRelocation[]
   accountTransactions       AccountTransaction[]
+  recurringSetupAttempts    RecurringSetupAttempt[]
 
   @@index([customerId, status])
   @@index([billingMode, status])
@@ -849,6 +870,32 @@ model Subscription {
   @@index([planId])
   @@index([currentServiceAddressId])
   @@index([createdAt, id])
+}
+
+model RecurringSetupAttempt {
+  id                            String                      @id @default(uuid()) @db.Uuid
+  subscriptionId                String                      @db.Uuid
+  customerId                    String                      @db.Uuid
+  status                        RecurringSetupAttemptStatus @default(PENDING)
+  expectedPlanId                String                      @db.Uuid
+  expectedStripePriceId         String                      @db.VarChar(255)
+  expectedCurrentPeriodStart    DateTime
+  expectedCurrentPeriodEnd      DateTime
+  expectedSubscriptionUpdatedAt DateTime
+  paymentMethodType             PaymentMethodType
+  stripeCheckoutSessionId       String?                     @unique @db.VarChar(255)
+  stripeSetupIntentId           String?                     @db.VarChar(255)
+  stripeSubscriptionId          String?                     @unique @db.VarChar(255)
+  expiresAt                     DateTime
+  failureReason                 String?                     @db.VarChar(500)
+  completedAt                   DateTime?
+  createdAt                     DateTime                    @default(now())
+  updatedAt                     DateTime                    @updatedAt
+  subscription                  Subscription                @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  customer                      Customer                    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([subscriptionId, status, expiresAt])
+  @@index([customerId, createdAt])
 }
 
 model ServiceRelocation {
@@ -1019,42 +1066,47 @@ model CancellationNote {
 }
 
 model Invoice {
-  id                  String               @id @default(uuid()) @db.Uuid
-  invoiceNumber       String               @unique @db.VarChar(32)
-  customerId          String               @db.Uuid
-  subscriptionId      String?              @db.Uuid
-  purchasePlanId      String?              @db.Uuid
-  type                InvoiceType          @default(MANUAL)
-  stripeInvoiceId     String?              @unique @db.VarChar(255)
-  stripeHostedUrl     String?              @db.VarChar(2048)
-  stripePdfUrl        String?              @db.VarChar(2048)
-  issueDate           DateTime             @db.Date
-  dueDate             DateTime             @db.Date
-  billingPeriodStart  DateTime?            @db.Date
-  billingPeriodEnd    DateTime?            @db.Date
-  subtotalCents       Int
-  taxCents            Int
-  totalCents          Int
-  currency            String               @default("AUD") @db.Char(3)
-  status              InvoiceStatus        @default(DRAFT)
-  pdfUrl              String?              @db.VarChar(2048)
-  issuedAt            DateTime?
-  paidAt              DateTime?
-  overdueAt           DateTime?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  customer            Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  subscription        Subscription?        @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
-  purchasePlan        InternetPlan?        @relation("InvoicePurchasePlan", fields: [purchasePlanId], references: [id], onDelete: Restrict)
-  items               InvoiceItem[]
-  payments            Payment[]
-  documents           InvoiceDocument[]
-  checkoutApplication CheckoutApplication?
-  planChangeRequest   PlanChangeRequest?
-  refunds             Refund[]
-  internalRequests    InternalRequest[]
-  accountTransactions AccountTransaction[]
-  creditApplications  CreditApplication[]
+  id                         String                  @id @default(uuid()) @db.Uuid
+  invoiceNumber              String                  @unique @db.VarChar(32)
+  customerId                 String                  @db.Uuid
+  subscriptionId             String?                 @db.Uuid
+  purchasePlanId             String?                 @db.Uuid
+  type                       InvoiceType             @default(MANUAL)
+  stripeInvoiceId            String?                 @unique @db.VarChar(255)
+  stripeHostedUrl            String?                 @db.VarChar(2048)
+  stripePdfUrl               String?                 @db.VarChar(2048)
+  issueDate                  DateTime                @db.Date
+  dueDate                    DateTime                @db.Date
+  billingPeriodStart         DateTime?               @db.Date
+  billingPeriodEnd           DateTime?               @db.Date
+  subtotalCents              Int
+  taxCents                   Int
+  totalCents                 Int
+  currency                   String                  @default("AUD") @db.Char(3)
+  status                     InvoiceStatus           @default(DRAFT)
+  pdfUrl                     String?                 @db.VarChar(2048)
+  issuedAt                   DateTime?
+  paidAt                     DateTime?
+  overdueAt                  DateTime?
+  collectionStatus           InvoiceCollectionStatus @default(NONE)
+  stripeAttemptCount         Int                     @default(0)
+  stripeNextPaymentAttempt   DateTime?
+  stripeLastPaymentErrorCode String?                 @db.VarChar(100)
+  paymentActionRequiredAt    DateTime?
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  customer                   Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  subscription               Subscription?           @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  purchasePlan               InternetPlan?           @relation("InvoicePurchasePlan", fields: [purchasePlanId], references: [id], onDelete: Restrict)
+  items                      InvoiceItem[]
+  payments                   Payment[]
+  documents                  InvoiceDocument[]
+  checkoutApplication        CheckoutApplication?
+  planChangeRequest          PlanChangeRequest?
+  refunds                    Refund[]
+  internalRequests           InternalRequest[]
+  accountTransactions        AccountTransaction[]
+  creditApplications         CreditApplication[]
 
   @@unique([subscriptionId, billingPeriodStart, billingPeriodEnd])
   @@index([createdAt, id])

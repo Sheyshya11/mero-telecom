@@ -3,6 +3,7 @@ import type { RenderedEmailTemplate } from './invoice-email.template';
 
 export type OverdueEmailEvent =
   | 'PAYMENT_FAILED'
+  | 'PAYMENT_AUTHENTICATION_REQUIRED'
   | 'OVERDUE_REMINDER'
   | 'SUSPENSION_WARNING'
   | 'SERVICE_SUSPENDED'
@@ -92,6 +93,16 @@ const copy: Record<
     note: string;
   }
 > = {
+  PAYMENT_AUTHENTICATION_REQUIRED: {
+    subject: 'Authenticate your Mero Telecom payment',
+    title: 'Payment authentication required',
+    status: 'Action required',
+    tone: 'warning',
+    intro:
+      'Your bank requires an additional security check before this automatic payment can complete. Your card has not been charged twice.',
+    action: 'Authenticate payment',
+    note: 'Use the secure Stripe billing page. Never send card or verification details by email.',
+  },
   PAYMENT_FAILED: {
     subject: 'Payment unsuccessful — action required',
     title: 'We could not process your payment',
