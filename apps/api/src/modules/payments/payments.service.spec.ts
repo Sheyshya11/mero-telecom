@@ -81,7 +81,14 @@ function makeService(prisma: Partial<PrismaService>) {
       issueWithinTransaction: jest.fn(),
       queueDelivery: jest.fn().mockResolvedValue(true),
     } as never,
-    { sendSubscriptionConfirmation: jest.fn().mockResolvedValue({}) } as never,
+    {
+      sendSubscriptionConfirmation: jest.fn().mockResolvedValue({}),
+      sendActivationReviewRequired: jest.fn().mockResolvedValue(undefined),
+      sendInvoiceCreated: jest.fn().mockResolvedValue(undefined),
+      sendPaymentSucceeded: jest.fn().mockResolvedValue(undefined),
+      sendInvoicePaid: jest.fn().mockResolvedValue(undefined),
+      sendPaymentReviewRequired: jest.fn().mockResolvedValue(undefined),
+    } as never,
     { processStripeEvent: jest.fn().mockResolvedValue(undefined) } as never,
     { processStripeEvent: jest.fn().mockResolvedValue(undefined) } as never,
     {
@@ -100,7 +107,10 @@ function makeService(prisma: Partial<PrismaService>) {
   );
 }
 
-function makePublicService(prisma: Partial<PrismaService>) {
+function makePublicService(
+  prisma: Partial<PrismaService>,
+  stripeConfigOverrides: Partial<AppConfig['stripe']> = {},
+) {
   const configService = {
     getOrThrow: jest.fn((key: keyof AppConfig) => {
       if (key === 'stripe')
@@ -109,6 +119,7 @@ function makePublicService(prisma: Partial<PrismaService>) {
           webhookSecret: stripeSecret,
           cardPaymentMethodConfigurationId: 'pmc_card_test',
           becsPaymentMethodConfigurationId: 'pmc_becs_test',
+          ...stripeConfigOverrides,
         };
       if (key === 'app') return { frontendUrl: 'http://localhost:3000' };
       return { accountInvitationTtlHours: 24 };
@@ -126,6 +137,11 @@ function makePublicService(prisma: Partial<PrismaService>) {
   };
   const notifications = {
     sendSubscriptionConfirmation: jest.fn().mockResolvedValue({ messageId: 'message-id' }),
+    sendActivationReviewRequired: jest.fn().mockResolvedValue(undefined),
+    sendInvoiceCreated: jest.fn().mockResolvedValue(undefined),
+    sendPaymentSucceeded: jest.fn().mockResolvedValue(undefined),
+    sendInvoicePaid: jest.fn().mockResolvedValue(undefined),
+    sendPaymentReviewRequired: jest.fn().mockResolvedValue(undefined),
   };
   const publicCheckoutContext = checkoutContextMock();
   const addressSelections = {
@@ -895,6 +911,58 @@ describe('PaymentsService', () => {
     );
   });
 
+  it('rejects unavailable Direct Debit before consuming verified checkout addresses', async () => {
+    const planId = '4ccdfc07-0bac-40e6-93fe-728d00740379';
+    const prisma = {
+      internetPlan: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: planId,
+          name: 'Home Plus',
+          monthlyCents: 8_900,
+          stripePriceId: 'price_test_home_plus',
+          isActive: true,
+          isPublic: true,
+          isAvailable: true,
+        }),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
+      customer: { findUnique: jest.fn().mockResolvedValue(null) },
+      checkoutApplication: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn(),
+      },
+    };
+    const { addressSelections, publicCheckoutContext, service } = makePublicService(
+      prisma as never,
+      { becsPaymentMethodConfigurationId: '' },
+    );
+
+    await expect(
+      service.createPublicPlanCheckoutSession(
+        {
+          planId,
+          paymentMethodType: PaymentMethodType.AU_BECS_DEBIT,
+          firstName: 'Direct',
+          lastName: 'Debit',
+          email: 'direct.debit@example.com',
+          phone: '+61400000009',
+          residentialSameAsService: false,
+          residentialAddressToken: 'r'.repeat(43),
+          billingSameAsResidential: false,
+          billingAddressToken: 'b'.repeat(43),
+          termsAccepted: true,
+          privacyAccepted: true,
+        },
+        'c'.repeat(43),
+      ),
+    ).rejects.toThrow('Direct Debit is not configured yet. Choose card or contact support.');
+
+    expect(publicCheckoutContext.consume).not.toHaveBeenCalled();
+    expect(addressSelections.consume).not.toHaveBeenCalled();
+    expect(prisma.checkoutApplication.create).not.toHaveBeenCalled();
+  });
+
   it('resolves separate residential and billing addresses only from trusted tokens', async () => {
     const planId = '4ccdfc07-0bac-40e6-93fe-728d00740379';
     const application = {
@@ -1557,6 +1625,9 @@ describe('PaymentsService', () => {
     };
     const service = makeService({
       $transaction: jest.fn((operation) => operation(transaction)),
+      invoice: {
+        findUnique: jest.fn().mockResolvedValue({ customer: { userId: 'customer-user-id' } }),
+      },
     } as never);
     jest
       .spyOn(
@@ -1595,6 +1666,14 @@ describe('PaymentsService', () => {
     expect(transaction.invoice.update).toHaveBeenCalledTimes(1);
     expect(transaction.paymentWebhookEvent.create).toHaveBeenCalledTimes(1);
     expect(transaction.auditLog.create).toHaveBeenCalledTimes(1);
+    const notifications = (service as unknown as { notifications: { sendInvoicePaid: jest.Mock } })
+      .notifications;
+    expect(notifications.sendInvoicePaid).toHaveBeenCalledTimes(1);
+    expect(notifications.sendInvoicePaid).toHaveBeenCalledWith({
+      invoiceId,
+      userId: 'customer-user-id',
+      idempotencyKey: 'evt_recurring_paid_001',
+    });
   });
 
   it('rejects an event whose signature cannot be verified', async () => {
@@ -1848,6 +1927,29 @@ describe('PaymentsService', () => {
       customer: 'cus_owned',
       limit: 100,
     });
+  });
+
+  it('accepts a reusable Link wallet from the card automatic-payment flow', () => {
+    const service = makeService({}) as unknown as {
+      localPaymentMethodType(paymentMethod: Stripe.PaymentMethod): PaymentMethodType | null;
+      assertSelectedPaymentMethod(
+        session: Stripe.Checkout.Session,
+        actual: PaymentMethodType | null,
+      ): void;
+    };
+    const paymentMethod = {
+      id: 'pm_link',
+      type: 'link',
+      link: { email: 'customer@merotelecom.test' },
+    } as unknown as Stripe.PaymentMethod;
+    const session = {
+      metadata: { paymentMethodType: PaymentMethodType.CARD },
+    } as unknown as Stripe.Checkout.Session;
+
+    const actual = service.localPaymentMethodType(paymentMethod);
+
+    expect(actual).toBe(PaymentMethodType.CARD);
+    expect(() => service.assertSelectedPaymentMethod(session, actual)).not.toThrow();
   });
 
   it('mirrors the Stripe amount due after credit for a BECS recurring invoice', async () => {

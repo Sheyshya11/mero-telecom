@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   AccountInvitationReason,
@@ -20,6 +21,7 @@ import { buildPaginationMeta, dateRange } from '../../common/pagination';
 import { AccountInvitationsService } from '../auth/account-invitations.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
+import { NotificationService } from '../notifications/notification.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { UpdateCustomerDto, UpdateOwnCustomerDto } from './dto/update-customer.dto';
@@ -86,6 +88,7 @@ export class CustomersService {
     private readonly prisma: PrismaService,
     private readonly dashboardCache: AdminDashboardCacheService,
     private readonly invitations: AccountInvitationsService,
+    @Optional() private readonly notifications?: NotificationService,
   ) {}
 
   async create(
@@ -334,7 +337,7 @@ export class CustomersService {
     });
     if (!customer) throw new NotFoundException('No customer profile is linked to this account.');
 
-    const updatedCustomer = await this.prisma.$transaction(async (transaction) => {
+    const result = await this.prisma.$transaction(async (transaction) => {
       const addressChanged =
         input.addressLine1 !== undefined ||
         input.addressLine2 !== undefined ||
@@ -379,13 +382,33 @@ export class CustomersService {
           update: this.addressData(AddressType.BILLING, contactAddress),
         });
       }
-      return transaction.customer.findUniqueOrThrow({
+      const audit = await transaction.auditLog.create({
+        data: {
+          actorUserId: userId,
+          action: 'PROFILE_UPDATED',
+          entityType: 'Customer',
+          entityId: customer.id,
+          metadata: {
+            changedFields: [
+              ...(input.phone !== undefined ? ['phone'] : []),
+              ...(addressChanged ? ['contactAddress'] : []),
+            ],
+          },
+        },
+        select: { id: true },
+      });
+      const updated = await transaction.customer.findUniqueOrThrow({
         where: { id: customer.id },
         include: customerAccountInclude,
       });
+      return { updated, notificationEventId: audit.id };
     });
 
-    return toCustomerResponse(updatedCustomer);
+    await this.notifications?.sendProfileUpdated({
+      userId,
+      eventId: result.notificationEventId,
+    });
+    return toCustomerResponse(result.updated);
   }
 
   private getUpdateData(role: Role, input: UpdateCustomerDto): Prisma.CustomerUpdateInput {

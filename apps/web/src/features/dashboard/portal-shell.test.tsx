@@ -16,6 +16,9 @@ vi.mock('../auth/auth-provider', () => ({
     logout: mocks.logout,
   }),
 }));
+vi.mock('../notifications/notification-bell', () => ({
+  NotificationBell: () => <button aria-label="Notifications">Notifications</button>,
+}));
 
 describe('PortalShell navigation', () => {
   beforeEach(() => {
@@ -107,4 +110,41 @@ describe('PortalShell navigation', () => {
       expect(link.getAttribute('href')).toMatch(/^\/customer\//);
     }
   });
+
+  it.each(['CUSTOMER', 'STAFF', 'ADMIN', 'SUPER_ADMIN'] as const)(
+    'links %s users to their shared security settings',
+    (role) => {
+      mocks.role = role;
+      mocks.pathname = '/account/security';
+      render(
+        <PortalShell>
+          <main>Security settings</main>
+        </PortalShell>,
+      );
+
+      expect(screen.getByRole('link', { name: 'Security' })).toHaveAttribute(
+        'href',
+        '/account/security',
+      );
+      expect(screen.getByRole('link', { name: 'Security' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+    },
+  );
+
+  it.each(['CUSTOMER', 'STAFF', 'ADMIN', 'SUPER_ADMIN'] as const)(
+    'shows the personal notification bell for %s',
+    (role) => {
+      mocks.role = role;
+      mocks.pathname = role === 'CUSTOMER' ? '/customer/dashboard' : '/control-centre/dashboard';
+      render(
+        <PortalShell>
+          <main>Dashboard</main>
+        </PortalShell>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+    },
+  );
 });

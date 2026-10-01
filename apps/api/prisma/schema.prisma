@@ -14,6 +14,14 @@ enum Role {
   CUSTOMER
 }
 
+enum NotificationSeverity {
+  INFO
+  SUCCESS
+  WARNING
+  CRITICAL
+  ACTION_REQUIRED
+}
+
 enum CustomerStatus {
   INVITATION_PENDING
   ACTIVE
@@ -479,6 +487,7 @@ model User {
   relocationNotesAuthored       ServiceRelocationNote[]
   accountTransactionsCreated    AccountTransaction[]     @relation("AccountTransactionCreator")
   accountTransactionsApproved   AccountTransaction[]     @relation("AccountTransactionApprover")
+  notifications                 Notification[]
 
   @@index([createdAt, id])
 }
@@ -492,6 +501,30 @@ model UserRole {
 
   @@id([userId, role])
   @@index([role, userId])
+}
+
+model Notification {
+  id               String               @id @default(uuid()) @db.Uuid
+  userId           String               @db.Uuid
+  type             String               @db.VarChar(80)
+  severity         NotificationSeverity
+  title            String               @db.VarChar(160)
+  message          String               @db.VarChar(1000)
+  isRead           Boolean              @default(false)
+  readAt           DateTime?
+  actionUrl        String?              @db.VarChar(500)
+  entityType       String?              @db.VarChar(100)
+  entityId         String?              @db.VarChar(255)
+  metadata         Json?
+  deduplicationKey String?              @db.VarChar(190)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deduplicationKey])
+  @@index([userId, isRead, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
 }
 
 model Customer {

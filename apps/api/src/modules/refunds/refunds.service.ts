@@ -42,6 +42,7 @@ const refundInclude = {
   customer: {
     select: {
       id: true,
+      userId: true,
       customerNumber: true,
       firstName: true,
       lastName: true,
@@ -277,7 +278,12 @@ export class RefundsService {
     );
     const hydrated = await this.refundOrThrow(refund.id);
     this.log('refund.request.created', hydrated);
-    await this.notifySafely(() => this.notifications.sendRefundRequested(this.emailData(hydrated)));
+    await this.notifySafely(() =>
+      this.notifications.sendRefundRequested({
+        ...this.emailData(hydrated),
+        operationalReviewRequired: true,
+      }),
+    );
     return this.customerView(hydrated);
   }
 
@@ -482,10 +488,12 @@ export class RefundsService {
         return updated;
       });
     }
-    return this.transition(id, RefundStatus.UNDER_REVIEW, actor, {
+    const refund = await this.transition(id, RefundStatus.UNDER_REVIEW, actor, {
       internalNote: input.internalNote?.trim() || undefined,
       action: 'REFUND_REVIEW_STARTED',
     });
+    await this.notifications.resolveActionRequired('Refund', id);
+    return refund;
   }
 
   async requestMoreInformation(
@@ -1114,6 +1122,7 @@ export class RefundsService {
   private emailData(refund: RefundDetail) {
     return {
       refundId: refund.id,
+      userId: refund.customer.userId,
       customerName: `${refund.customer.firstName} ${refund.customer.lastName}`,
       customerEmail: refund.customer.email,
       invoiceNumber: refund.invoice?.invoiceNumber ?? 'Not linked',

@@ -232,6 +232,12 @@ export class InternalRequestsService {
           priority: true,
           type: true,
           requestedBy: { select: { displayName: true, email: true } },
+          supportCase: {
+            select: {
+              caseNumber: true,
+              customer: { select: { userId: true } },
+            },
+          },
         },
       });
       await this.event(transaction, internalRequest.id, actor, InternalRequestEventType.CREATED, {
@@ -248,10 +254,13 @@ export class InternalRequestsService {
 
     await this.notifySafely(() =>
       this.notifications.sendNewInternalRequest({
+        internalRequestId: created.id,
         requestNumber: created.requestNumber,
         requesterName: created.requestedBy.displayName || created.requestedBy.email,
         type: created.type,
         priority: created.priority,
+        supportCaseNumber: created.supportCase?.caseNumber,
+        customerUserId: created.supportCase?.customer?.userId,
       }),
     );
     return this.findMineOne(created.requestNumber, actor);
@@ -300,7 +309,7 @@ export class InternalRequestsService {
 
   async take(requestNumber: string, actor: AuthenticatedUser) {
     this.workflow.assertAdminActor(actor);
-    await this.prisma.$transaction(async (transaction) => {
+    const claimed = await this.prisma.$transaction(async (transaction) => {
       const result = await transaction.internalRequest.updateMany({
         where: {
           requestNumber,
@@ -344,7 +353,9 @@ export class InternalRequestsService {
           assignedToUserId: actor.id,
         });
       }
+      return current;
     });
+    await this.notifications.resolveActionRequired('InternalRequest', claimed.id);
     return this.findOne(requestNumber, actor);
   }
 
@@ -366,7 +377,7 @@ export class InternalRequestsService {
         id: true,
         status: true,
         assignedTo: { select: { email: true } },
-        superAdminAssignedTo: { select: { email: true } },
+        superAdminAssignedTo: { select: { id: true, email: true } },
         currentLevel: true,
       },
     });
@@ -656,7 +667,7 @@ export class InternalRequestsService {
 
   async takeEscalation(requestNumber: string, actor: AuthenticatedUser) {
     this.workflow.assertSuperAdminActor(actor);
-    await this.prisma.$transaction(async (transaction) => {
+    const claimed = await this.prisma.$transaction(async (transaction) => {
       const result = await transaction.internalRequest.updateMany({
         where: {
           requestNumber,
@@ -708,7 +719,9 @@ export class InternalRequestsService {
           currentLevel: InternalRequestLevel.SUPER_ADMIN,
         });
       }
+      return current;
     });
+    await this.notifications.resolveActionRequired('InternalRequest', claimed.id);
     return this.findEscalation(requestNumber, actor);
   }
 
@@ -1236,7 +1249,7 @@ export class InternalRequestsService {
         currentLevel: true,
         priority: true,
         assignedToUserId: true,
-        superAdminAssignedTo: { select: { email: true } },
+        superAdminAssignedTo: { select: { id: true, email: true } },
         assignedTo: { select: { email: true } },
         requestedBy: { select: { displayName: true, email: true } },
       },
@@ -1340,7 +1353,7 @@ export class InternalRequestsService {
         priority: true,
         assignedTo: { select: { email: true } },
         superAdminAssignedToUserId: true,
-        superAdminAssignedTo: { select: { email: true } },
+        superAdminAssignedTo: { select: { id: true, email: true } },
         requestedBy: { select: { displayName: true, email: true } },
       },
     });
@@ -1651,13 +1664,14 @@ export class InternalRequestsService {
     request: {
       id: string;
       priority: InternalRequestPriority;
-      superAdminAssignedTo: { email: string } | null;
+      superAdminAssignedTo: { id: string; email: string } | null;
+      supportCase?: { caseNumber: string } | null;
     },
     event: SuperAdminNotificationEvent,
   ): Promise<void> {
     const current = await this.prisma.internalRequest.findUnique({
       where: { id: request.id },
-      select: { requestNumber: true },
+      select: { requestNumber: true, supportCase: { select: { caseNumber: true } } },
     });
     if (!current) return;
     const recipients = request.superAdminAssignedTo
@@ -1668,7 +1682,7 @@ export class InternalRequestsService {
             status: 'ACTIVE',
             roles: { some: { role: Role.SUPER_ADMIN } },
           },
-          select: { email: true },
+          select: { id: true, email: true },
           take: 100,
         });
     await Promise.all(
@@ -1676,6 +1690,9 @@ export class InternalRequestsService {
         this.notifySafely(() =>
           this.notifications.sendInternalRequestSuperAdminUpdate({
             event,
+            internalRequestId: request.id,
+            userId: recipient.id,
+            supportCaseNumber: current.supportCase?.caseNumber,
             requestNumber: current.requestNumber,
             superAdminEmail: recipient.email,
             priority: request.priority,

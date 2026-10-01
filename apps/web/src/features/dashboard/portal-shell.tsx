@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
 import { MeroTelecomLogo } from '../../components/brand/mero-telecom-logo';
+import { NotificationBell } from '../notifications/notification-bell';
 import {
   getHomeRoute,
   hasRole,
@@ -94,13 +95,21 @@ export function PortalShell({ children }: Readonly<{ children: React.ReactNode }
   const [signOutError, setSignOutError] = useState(false);
   if (!user) return null;
 
-  const area = pathname.startsWith('/control-centre/')
-    ? 'control-centre'
-    : pathname.startsWith('/staff/')
-      ? 'staff'
-      : pathname.startsWith('/customer/')
+  const area = pathname.startsWith('/notifications')
+    ? user.role === 'CUSTOMER'
+      ? 'customer'
+      : 'control-centre'
+    : pathname.startsWith('/account/')
+      ? user.role === 'CUSTOMER'
         ? 'customer'
-        : 'admin';
+        : 'control-centre'
+      : pathname.startsWith('/control-centre/')
+        ? 'control-centre'
+        : pathname.startsWith('/staff/')
+          ? 'staff'
+          : pathname.startsWith('/customer/')
+            ? 'customer'
+            : 'admin';
   const roleLabel =
     user.role === 'SUPER_ADMIN'
       ? 'Super admin'
@@ -140,9 +149,17 @@ export function PortalShell({ children }: Readonly<{ children: React.ReactNode }
             <span className={styles.role}>{roleLabel}</span>
           </div>
           <div className={styles.account}>
+            <NotificationBell />
             <span className={styles.email} title={user.email}>
               {user.email}
             </span>
+            <Link
+              aria-current={pathname.startsWith('/account/') ? 'page' : undefined}
+              className={styles.website}
+              href="/account/security"
+            >
+              Security
+            </Link>
             <Link className={styles.website} href={PUBLIC_WEBSITE_ROUTE}>
               Visit website
             </Link>

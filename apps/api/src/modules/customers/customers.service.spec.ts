@@ -309,6 +309,7 @@ describe('CustomersService', () => {
         }),
       },
       customerAddress: { upsert: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({ id: 'profile-audit-id' }) },
     };
     const prisma = {
       customer: {
@@ -318,10 +319,12 @@ describe('CustomersService', () => {
         operation(transaction),
       ),
     };
+    const notifications = { sendProfileUpdated: jest.fn().mockResolvedValue(undefined) };
     const service = new CustomersService(
       prisma as unknown as PrismaService,
       dashboardCache as never,
       invitations as never,
+      notifications as never,
     );
 
     await service.updateOwn('customer-user', { addressLine1: ' 2 New Service Road ', state: 'sa' });
@@ -345,5 +348,17 @@ describe('CustomersService', () => {
         }),
       }),
     );
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorUserId: 'customer-user',
+        action: 'PROFILE_UPDATED',
+        metadata: { changedFields: ['contactAddress'] },
+      }),
+      select: { id: true },
+    });
+    expect(notifications.sendProfileUpdated).toHaveBeenCalledWith({
+      userId: 'customer-user',
+      eventId: 'profile-audit-id',
+    });
   });
 });

@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Req,
   Res,
@@ -12,6 +13,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
+  ApiBadRequestResponse,
   ApiBody,
   ApiCookieAuth,
   ApiNoContentResponse,
@@ -28,11 +30,13 @@ import type { AppConfig } from '../../config/configuration';
 import type { AuthenticatedUser } from './auth.types';
 import { AuthService } from './auth.service';
 import { AccountInvitationsService } from './account-invitations.service';
+import { ChangePasswordService } from './change-password.service';
 import {
   ActivateAccountDto,
   ResendAccountInvitationDto,
   VerifyAccountActivationDto,
 } from './dto/account-activation.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import {
   ForgotPasswordDto,
@@ -61,6 +65,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly invitations: AccountInvitationsService,
     private readonly passwordResets: PasswordResetService,
+    private readonly passwordChanges: ChangePasswordService,
     private readonly configService: ConfigService<AppConfig, true>,
   ) {}
 
@@ -197,6 +202,23 @@ export class AuthController {
     const refreshToken = request.cookies?.[this.refreshCookieName];
     await this.authService.logout(refreshToken);
     response.clearCookie(this.refreshCookieName, this.getRefreshCookieOptions());
+  }
+
+  @Patch('change-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Change the authenticated user's own password." })
+  @ApiOkResponse({ description: 'Password changed and other active sessions revoked.' })
+  @ApiBadRequestResponse({ description: 'Current password or new password is invalid.' })
+  @ApiUnauthorizedResponse({ description: 'Authentication is missing or expired.' })
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() input: ChangePasswordDto,
+    @Req() request: Request,
+  ): Promise<{ success: true; message: string }> {
+    return this.passwordChanges.changePassword(user, input, this.getRequestContext(request));
   }
 
   @Get('me')

@@ -195,7 +195,11 @@ function makeService(input?: {
     requestDisconnection: jest.fn(),
     getDisconnectionStatus: jest.fn(),
   };
-  const notifications = { sendRelocationNotification: jest.fn().mockResolvedValue({}) };
+  const notifications = {
+    sendRelocationNotification: jest.fn().mockResolvedValue({}),
+    sendRelocationActionRequired: jest.fn().mockResolvedValue(undefined),
+    resolveActionRequired: jest.fn().mockResolvedValue(undefined),
+  };
   return {
     service: new RelocationsService(
       prisma as unknown as PrismaService,

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   BillingMode,
@@ -18,6 +19,7 @@ import { BillingService } from '../billing/billing.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import { AccountLedgerService } from '../account-ledger/account-ledger.service';
+import { NotificationService } from '../notifications/notification.service';
 import { GenerateInvoiceDto, InvoiceQueryDto, UpdateInvoiceStatusDto } from './dto/invoice.dto';
 import { InvoiceDocumentService, type StoredInvoicePdfData } from './invoice-document.service';
 
@@ -38,6 +40,7 @@ export class InvoicesService {
     private readonly invoiceDocuments: InvoiceDocumentService,
     private readonly dashboardCache: AdminDashboardCacheService,
     private readonly accountLedger: AccountLedgerService,
+    @Optional() private readonly notifications?: NotificationService,
   ) {}
 
   async generate(input: GenerateInvoiceDto) {
@@ -156,7 +159,14 @@ export class InvoicesService {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
       );
-      if (invoice.generationResult === 'CREATED') await this.dashboardCache.invalidate();
+      if (invoice.generationResult === 'CREATED') {
+        await this.dashboardCache.invalidate();
+        await this.notifications?.sendInvoiceCreated({
+          invoiceId: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          userId: invoice.customer.userId,
+        });
+      }
       return invoice;
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

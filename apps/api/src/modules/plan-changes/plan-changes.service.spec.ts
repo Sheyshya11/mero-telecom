@@ -102,7 +102,10 @@ function makeService(
     $transaction: jest.fn((operation: (client: object) => unknown) => operation(transaction)),
     ...prismaOverrides,
   };
-  const notifications = { sendPlanChangeNotification: jest.fn().mockResolvedValue({}) };
+  const notifications = {
+    sendPlanChangeNotification: jest.fn().mockResolvedValue({}),
+    sendScheduledPlanChangeFailure: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new PlanChangesService(
     prisma as unknown as PrismaService,
     new BillingService(),

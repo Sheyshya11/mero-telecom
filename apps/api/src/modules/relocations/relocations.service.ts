@@ -743,6 +743,13 @@ export class RelocationsService {
         },
       );
     });
+    await this.notifications.resolveActionRequired('ServiceRelocation', id);
+    if (!decision.available) {
+      await this.notifications.sendRelocationActionRequired({
+        relocationRequestId: id,
+        idempotencyKey: decision.qualification.checkedAt,
+      });
+    }
     return this.findOne(id, actor);
   }
 
@@ -934,13 +941,15 @@ export class RelocationsService {
           status: 'ACTIVE',
           roles: { some: { role: Role.SUPER_ADMIN } },
         },
-        select: { email: true },
+        select: { id: true, email: true },
         take: 100,
       });
       await Promise.all(
         recipients.map((recipient) =>
           this.notifications.sendInternalRequestSuperAdminUpdate({
             event: 'ESCALATED',
+            internalRequestId: created.id,
+            userId: recipient.id,
             requestNumber: created.requestNumber,
             superAdminEmail: recipient.email,
             priority: created.priority,
@@ -1529,7 +1538,7 @@ export class RelocationsService {
       return;
     }
     if (result.status === CancellationProviderStatus.FAILED) {
-      await this.prisma.$transaction(async (transaction) => {
+      const changed = await this.prisma.$transaction(async (transaction) => {
         const updated = await transaction.serviceRelocation.updateMany({
           where: {
             id,
@@ -1555,7 +1564,15 @@ export class RelocationsService {
             },
           });
         }
+        return updated.count > 0;
       });
+      if (changed) {
+        const failed = await this.prisma.serviceRelocation.findUnique({
+          where: { id },
+          include: relocationInclude,
+        });
+        if (failed) await this.notify('FAILED', failed);
+      }
       return;
     }
     await this.prisma.serviceRelocation.updateMany({
@@ -1961,6 +1978,7 @@ export class RelocationsService {
     try {
       await this.notifications.sendRelocationNotification({
         event,
+        userId: relocation.customer.userId,
         relocationRequestId: relocation.id,
         customerName: relocation.customer.firstName,
         customerEmail: relocation.customer.email,
@@ -1969,6 +1987,8 @@ export class RelocationsService {
         planName: relocation.requestedPlan.name,
         requestedMoveDate: relocation.requestedMoveDate,
         failureReason: relocation.failureReason,
+        installationRequired: relocation.installationRequired,
+        appointmentRequired: relocation.appointmentRequired,
       });
     } catch (error: unknown) {
       this.logger.warn(

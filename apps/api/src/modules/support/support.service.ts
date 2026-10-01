@@ -183,7 +183,9 @@ export class SupportService {
 
     await this.notifySafely(() =>
       this.notifications.sendNewSupportCase({
+        supportCaseId: created.id,
         caseNumber: created.caseNumber,
+        userId: actor.id,
         customerName: `${created.customer.firstName} ${created.customer.lastName}`,
         customerEmail: created.customer.email,
         subject: input.subject,
@@ -354,7 +356,11 @@ export class SupportService {
     await this.attachments.validate(files);
     const existing = await this.prisma.supportCase.findFirst({
       where: { caseNumber, customer: { userId: actor.id } },
-      select: { id: true, status: true, assignedTo: { select: { email: true } } },
+      select: {
+        id: true,
+        status: true,
+        assignedTo: { select: { id: true, email: true } },
+      },
     });
     if (!existing) throw new NotFoundException('Support request not found.');
     if (existing.status === SupportStatus.CLOSED) {
@@ -393,7 +399,10 @@ export class SupportService {
       await this.notifySafely(() =>
         this.notifications.sendAssignedSupportReply({
           caseNumber,
+          staffUserId: existing.assignedTo!.id,
           staffEmail: existing.assignedTo!.email,
+          supportCaseId: existing.id,
+          supportMessageId: message.id,
         }),
       );
     }
@@ -401,7 +410,7 @@ export class SupportService {
   }
 
   async take(caseNumber: string, actor: AuthenticatedUser) {
-    await this.prisma.$transaction(async (transaction) => {
+    const claimed = await this.prisma.$transaction(async (transaction) => {
       const result = await transaction.supportCase.updateMany({
         where: {
           caseNumber,
@@ -432,6 +441,7 @@ export class SupportService {
       }
       return current;
     });
+    await this.notifications.resolveActionRequired('SupportCase', claimed.id);
     return this.findOne(caseNumber, actor);
   }
 
@@ -450,7 +460,7 @@ export class SupportService {
         requestType: true,
         prospectName: true,
         prospectEmail: true,
-        customer: { select: { firstName: true, lastName: true, email: true } },
+        customer: { select: { userId: true, firstName: true, lastName: true, email: true } },
       },
     });
     if (!existing) throw new NotFoundException('Support request not found.');
@@ -595,7 +605,7 @@ export class SupportService {
           requestType: true,
           prospectName: true,
           prospectEmail: true,
-          customer: { select: { firstName: true, lastName: true, email: true } },
+          customer: { select: { userId: true, firstName: true, lastName: true, email: true } },
         },
       });
       if (locked.status === status) return { current: locked, changed: false };
@@ -656,7 +666,7 @@ export class SupportService {
           requestType: true,
           prospectName: true,
           prospectEmail: true,
-          customer: { select: { firstName: true, lastName: true, email: true } },
+          customer: { select: { userId: true, firstName: true, lastName: true, email: true } },
         },
       });
       const blockers = await this.blockingInternalRequests(locked.id, transaction);
@@ -925,10 +935,16 @@ export class SupportService {
 
   private async sendExternalUpdate(
     supportCase: {
+      id: string;
       requestType: SupportRequestType;
       prospectName: string | null;
       prospectEmail: string | null;
-      customer: { firstName: string; lastName: string; email: string } | null;
+      customer: {
+        userId: string | null;
+        firstName: string;
+        lastName: string;
+        email: string;
+      } | null;
     },
     messageId: string | null,
     event: 'STAFF_REPLIED' | 'WAITING_FOR_CUSTOMER' | 'RESOLVED',
@@ -949,9 +965,11 @@ export class SupportService {
           messageBody,
         });
       } else {
-        if (!supportCase.customer) throw new Error('Customer contact is unavailable');
+        if (!supportCase.customer?.userId) throw new Error('Customer contact is unavailable');
         await this.notifications.sendSupportCustomerUpdate({
           event,
+          userId: supportCase.customer.userId,
+          supportCaseId: supportCase.id,
           caseNumber,
           customerName: `${supportCase.customer.firstName} ${supportCase.customer.lastName}`,
           customerEmail: supportCase.customer.email,

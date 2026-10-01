@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ServiceProvisioningAction, ServiceProvisioningStatus } from '@prisma/client';
 
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 
 @Injectable()
 export class ProvisioningService {
@@ -13,6 +14,7 @@ export class ProvisioningService {
   constructor(
     private readonly prisma: PrismaService,
     config: ConfigService<AppConfig, true>,
+    @Optional() private readonly notifications?: NotificationService,
   ) {
     this.mockResult = config.getOrThrow('overdueLifecycle').provisioningMockResult;
   }
@@ -126,6 +128,27 @@ export class ProvisioningService {
         },
       }),
     ]);
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { id: request.subscriptionId },
+      select: { customer: { select: { userId: true } } },
+    });
+    try {
+      await this.notifications?.sendProvisioningResult({
+        subscriptionId: request.subscriptionId,
+        provisioningRequestId: request.id,
+        userId: subscription?.customer.userId,
+        action: request.action,
+        succeeded: completed,
+      });
+    } catch (error: unknown) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'service_provisioning_notification_failed',
+          subscriptionId: request.subscriptionId,
+          error: error instanceof Error ? error.name : 'UnknownError',
+        }),
+      );
+    }
     this.logger.log(
       JSON.stringify({
         event: 'service_provisioning_processed',

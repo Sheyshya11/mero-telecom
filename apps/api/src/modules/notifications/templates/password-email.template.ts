@@ -46,15 +46,22 @@ export function renderPasswordResetEmail(input: {
 export function renderPasswordChangedEmail(input: {
   brandLogoUrl: string;
   displayName: string;
+  currentSessionRetained?: boolean;
 }): RenderedEmailTemplate {
+  const sessionMessage = input.currentSessionRetained
+    ? 'Other active sessions have been signed out. Your current session remains active.'
+    : 'For your security, all existing sessions have been signed out.';
   return {
     subject: 'Your Mero Telecom password was changed',
     text: [
       `Hello ${input.displayName},`,
       '',
-      'Your Mero Telecom password was changed successfully.',
-      'For your security, all existing sessions have been signed out.',
-      'If you did not make this change, contact Mero Telecom support immediately.',
+      'Your Mero Telecom account password was successfully changed.',
+      '',
+      'If you made this change, no further action is required.',
+      sessionMessage,
+      '',
+      'If you did not make this change, please contact Mero Telecom support immediately.',
     ].join('\n'),
     html: `<!doctype html>
 <html lang="en">
@@ -64,9 +71,10 @@ export function renderPasswordChangedEmail(input: {
       <div style="padding:28px">
         <p>Hello ${escapeHtml(input.displayName)},</p>
         <h1 style="font-size:22px">Password changed</h1>
-        <p>Your Mero Telecom password was changed successfully.</p>
-        <p>For your security, all existing sessions have been signed out.</p>
-        <p style="color:#9f1239"><strong>If you did not make this change, contact Mero Telecom support immediately.</strong></p>
+        <p>Your Mero Telecom account password was successfully changed.</p>
+        <p>If you made this change, no further action is required.</p>
+        <p>${escapeHtml(sessionMessage)}</p>
+        <p style="color:#9f1239"><strong>If you did not make this change, please contact Mero Telecom support immediately.</strong></p>
       </div>
     </div>
   </body>

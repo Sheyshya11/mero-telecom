@@ -107,12 +107,27 @@ export async function apiDownload(
     throw new ApiError(body?.message ?? 'The file could not be downloaded.', response.status);
   }
 
-  const blobUrl = URL.createObjectURL(await response.blob());
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength === 0) {
+    throw new ApiError('The PDF download was empty. Please try again.', 502);
+  }
+  if (
+    bytes[0] !== 0x25 ||
+    bytes[1] !== 0x50 ||
+    bytes[2] !== 0x44 ||
+    bytes[3] !== 0x46 ||
+    bytes[4] !== 0x2d
+  ) {
+    throw new ApiError('The downloaded file was not a valid PDF.', 502);
+  }
+
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const blobUrl = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = blobUrl;
   anchor.download = suggestedFilename;
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(blobUrl);
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1_000);
 }

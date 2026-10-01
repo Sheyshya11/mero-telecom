@@ -946,7 +946,7 @@ export class SubscriptionLifecycleService {
           suspendedAt: Date | null;
         },
     customer: LifecycleInvoice['customer'],
-    invoice: Pick<LifecycleInvoice, 'invoiceNumber' | 'totalCents' | 'currency' | 'dueDate'>,
+    invoice: Pick<LifecycleInvoice, 'id' | 'invoiceNumber' | 'totalCents' | 'currency' | 'dueDate'>,
     event: Parameters<NotificationService['sendOverdueLifecycleNotification']>[0]['event'],
     suffix: string,
     actionUrl?: string | null,
@@ -957,6 +957,8 @@ export class SubscriptionLifecycleService {
         event,
         subscriptionId: subscription.id,
         idempotencySuffix: suffix,
+        userId: customer.userId,
+        invoiceId: invoice.id,
         customerName: `${customer.firstName} ${customer.lastName}`,
         customerEmail: customer.email,
         invoiceNumber: invoice.invoiceNumber,

@@ -33,6 +33,7 @@ import { InternalRequestsModule } from './modules/internal-requests/internal-req
 import { CancellationsModule } from './modules/cancellations/cancellations.module';
 import { RelocationsModule } from './modules/relocations/relocations.module';
 import { AccountLedgerModule } from './modules/account-ledger/account-ledger.module';
+import { NotificationCentreModule } from './modules/notifications/notification-centre.module';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { AccountLedgerModule } from './modules/account-ledger/account-ledger.mod
     CancellationsModule,
     RelocationsModule,
     AccountLedgerModule,
+    NotificationCentreModule,
     HealthModule,
   ],
   providers: [

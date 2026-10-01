@@ -5,6 +5,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AccountInvitationsService } from './account-invitations.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { ChangePasswordService } from './change-password.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PasswordResetService } from './password-reset.service';
 import { TrustedOriginGuard } from './trusted-origin.guard';
@@ -16,6 +17,7 @@ import { TrustedOriginGuard } from './trusted-origin.guard';
     AuthService,
     AccountInvitationsService,
     PasswordResetService,
+    ChangePasswordService,
     JwtAuthGuard,
     TrustedOriginGuard,
   ],

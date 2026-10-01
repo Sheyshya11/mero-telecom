@@ -1181,6 +1181,8 @@ export class CancellationsService {
     try {
       await this.notifications.sendCancellationNotification({
         event,
+        cancellationRequestId: request.id,
+        userId: request.customer.userId,
         requestNumber: request.requestNumber,
         customerName: `${request.customer.firstName} ${request.customer.lastName}`,
         customerEmail: request.customer.email,
@@ -1207,6 +1209,7 @@ export class CancellationsService {
   private async notifyFailure(request: CancellationRecord): Promise<void> {
     try {
       await this.notifications.sendCancellationOperationalAlert({
+        cancellationRequestId: request.id,
         requestNumber: request.requestNumber,
         customerName: `${request.customer.firstName} ${request.customer.lastName}`,
         planName: request.subscription.plan.name,

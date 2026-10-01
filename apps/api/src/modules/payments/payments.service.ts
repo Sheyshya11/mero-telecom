@@ -77,6 +77,7 @@ interface StoredAddress {
 
 interface PublicCheckoutCompletion {
   invitation: IssuedAccountInvitation;
+  userId: string;
   customerName: string;
   customerEmail: string;
   planName: string;
@@ -195,6 +196,9 @@ export class PaymentsService {
       );
     }
 
+    const paymentMethodType = input.paymentMethodType ?? PaymentMethodType.CARD;
+    const paymentMethodConfiguration = this.paymentMethodConfiguration(paymentMethodType);
+
     const trustedCheckout = await this.publicCheckoutContext.consume(
       checkoutContextToken,
       input.planId,
@@ -245,14 +249,14 @@ export class PaymentsService {
       checkoutKind: 'public_subscription',
       checkoutApplicationId: application.id,
       planId: plan.id,
-      paymentMethodType: input.paymentMethodType ?? PaymentMethodType.CARD,
+      paymentMethodType,
     };
     try {
       const session = await this.stripe.checkout.sessions.create(
         {
           mode: 'subscription',
           integration_identifier: `mero_telecom_public_${this.randomLetters(8)}`,
-          ...this.paymentMethodConfiguration(input.paymentMethodType ?? PaymentMethodType.CARD),
+          ...paymentMethodConfiguration,
           customer_email: applicantEmail,
           client_reference_id: application.id,
           metadata,
@@ -1157,7 +1161,11 @@ export class PaymentsService {
       return;
     }
     if (event.type === 'invoice.finalized') {
-      await this.ensureStripeRecurringInvoice(event.data.object, InvoiceStatus.ISSUED);
+      const invoiceId = await this.ensureStripeRecurringInvoice(
+        event.data.object,
+        InvoiceStatus.ISSUED,
+      );
+      if (invoiceId) await this.notifyInvoiceCreated(invoiceId);
       return;
     }
     if (event.type === 'invoice.updated') {
@@ -1436,6 +1444,7 @@ export class PaymentsService {
       throw error;
     }
     await this.dashboardCache.invalidate();
+    await this.notifyPaymentSucceeded(invoiceId, providerEventId);
     await this.subscriptionLifecycle.handleConfirmedPayment(invoiceId);
   }
 
@@ -1546,14 +1555,14 @@ export class PaymentsService {
     const invoiceId = await this.ensureStripeRecurringInvoice(stripeInvoice, InvoiceStatus.PAID);
     if (!invoiceId) return;
     try {
-      await this.prisma.$transaction(
+      const handled = await this.prisma.$transaction(
         async (transaction) => {
           if (
             await transaction.paymentWebhookEvent.findUnique({
               where: { providerEventId: event.id },
             })
           ) {
-            return;
+            return false;
           }
           const invoice = await transaction.invoice.findUnique({
             where: { id: invoiceId },
@@ -1643,9 +1652,11 @@ export class PaymentsService {
               paymentId: payment?.id,
             },
           });
+          return true;
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
+      if (!handled) return;
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const stored = await this.prisma.paymentWebhookEvent.findUnique({
@@ -1656,6 +1667,7 @@ export class PaymentsService {
       throw error;
     }
     await this.subscriptionLifecycle.handleConfirmedPayment(invoiceId);
+    await this.notifyInvoicePaid(invoiceId, event.id);
     await this.dashboardCache.invalidate();
   }
 
@@ -1707,7 +1719,8 @@ export class PaymentsService {
             where: { stripeInvoiceId: stripeInvoice.id },
             select: { id: true },
           });
-          if (alreadyExists) return alreadyExists;
+          if (alreadyExists) return { id: alreadyExists.id, paymentReviewRequired: false };
+          let paymentReviewRequired = false;
           const issueDate = this.utcDate(issueAt);
           const invoiceNumber = await this.nextInvoiceNumber(transaction, issueDate);
           const baseDescription = isPlanChangeInvoice
@@ -1777,6 +1790,7 @@ export class PaymentsService {
               },
             );
             if (application.unallocatedCents > 0) {
+              paymentReviewRequired = true;
               await transaction.auditLog.create({
                 data: {
                   action: 'STRIPE_CREDIT_APPLICATION_REQUIRES_REVIEW',
@@ -1802,6 +1816,7 @@ export class PaymentsService {
               },
             );
             if (application.unallocatedCents > 0) {
+              paymentReviewRequired = true;
               await transaction.auditLog.create({
                 data: {
                   action: 'STRIPE_DEBIT_APPLICATION_REQUIRES_REVIEW',
@@ -1846,10 +1861,16 @@ export class PaymentsService {
               update: {},
             });
           }
-          return { id: invoice.id };
+          return { id: invoice.id, paymentReviewRequired };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
+      if (created.paymentReviewRequired) {
+        await this.notifications.sendPaymentReviewRequired({
+          invoiceId: created.id,
+          idempotencyKey: stripeInvoice.id,
+        });
+      }
       return created.id;
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -2561,6 +2582,7 @@ export class PaymentsService {
 
           return {
             invitation,
+            userId: invitation.userId,
             customerName: `${customer.firstName} ${customer.lastName}`,
             customerEmail: customer.email,
             planName: application.plan.name,
@@ -2595,6 +2617,7 @@ export class PaymentsService {
           currency: completion.currency,
           activationPending: true,
           checkoutApplicationId: applicationId,
+          userId: completion.userId,
         });
       } catch (error: unknown) {
         this.logger.error(
@@ -2634,6 +2657,10 @@ export class PaymentsService {
         throw error;
       }
     }
+    await this.notifications.sendActivationReviewRequired({
+      checkoutApplicationId: applicationId,
+      idempotencyKey: providerEventId,
+    });
   }
 
   private loadPublicCheckoutStatus(sessionId: string) {
@@ -3280,8 +3307,75 @@ export class PaymentsService {
     await this.dashboardCache.invalidate();
   }
 
+  private async notifyInvoiceCreated(invoiceId: string): Promise<void> {
+    const invoices = this.prisma.invoice;
+    if (!invoices) return;
+    const invoice = await invoices.findUnique({
+      where: { id: invoiceId },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        customer: { select: { userId: true } },
+      },
+    });
+    if (!invoice) return;
+    await this.notifications.sendInvoiceCreated({
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      userId: invoice.customer.userId,
+    });
+  }
+
+  private async notifyPaymentSucceeded(invoiceId: string, idempotencyKey: string): Promise<void> {
+    const invoices = this.prisma.invoice;
+    if (!invoices) return;
+    const invoice = await invoices.findUnique({
+      where: { id: invoiceId },
+      select: {
+        customer: { select: { userId: true } },
+        payments: {
+          where: { status: PaymentStatus.SUCCEEDED },
+          select: { id: true, amountCents: true, currency: true },
+          orderBy: [{ paidAt: 'desc' }, { id: 'desc' }],
+          take: 1,
+        },
+      },
+    });
+    const payment = invoice?.payments[0];
+    if (!invoice || !payment) return;
+    await this.notifications.sendPaymentSucceeded({
+      paymentId: payment.id,
+      userId: invoice.customer.userId,
+      amountCents: payment.amountCents,
+      currency: payment.currency,
+      idempotencyKey,
+    });
+  }
+
+  private async notifyInvoicePaid(invoiceId: string, idempotencyKey: string): Promise<void> {
+    const invoices = this.prisma.invoice;
+    if (!invoices) return;
+    const invoice = await invoices.findUnique({
+      where: { id: invoiceId },
+      select: { customer: { select: { userId: true } } },
+    });
+    if (!invoice) return;
+    await this.notifications.sendInvoicePaid({
+      invoiceId,
+      userId: invoice.customer.userId,
+      idempotencyKey,
+    });
+  }
+
   private localPaymentMethodType(paymentMethod: Stripe.PaymentMethod): PaymentMethodType | null {
-    if (paymentMethod.type === 'card' || paymentMethod.card) return PaymentMethodType.CARD;
+    if (
+      paymentMethod.type === 'card' ||
+      paymentMethod.card ||
+      paymentMethod.type === 'link' ||
+      paymentMethod.link
+    ) {
+      return PaymentMethodType.CARD;
+    }
     if (paymentMethod.type === 'au_becs_debit' || paymentMethod.au_becs_debit) {
       return PaymentMethodType.AU_BECS_DEBIT;
     }

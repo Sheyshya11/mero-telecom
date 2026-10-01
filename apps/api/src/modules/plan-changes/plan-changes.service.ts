@@ -255,9 +255,7 @@ export class PlanChangesService {
         return { planChange: this.toResponse(result.request), checkoutUrl: null };
       }
       const applied = await this.applyStripeRecurringUpgrade(result.request);
-      if (applied.request.status === PlanChangeStatus.APPLIED) {
-        await this.notify('APPLIED', applied.request);
-      }
+      await this.notify(applied.outcome, applied.request);
       await this.dashboardCache.invalidate();
       return { planChange: this.toResponse(applied.request), checkoutUrl: null };
     }
@@ -543,6 +541,9 @@ export class PlanChangesService {
             error: error instanceof Error ? error.name : 'UnknownError',
           }),
         );
+        await this.notifications.sendScheduledPlanChangeFailure({
+          planChangeRequestId: request.id,
+        });
         throw error;
       }
     }
@@ -1534,6 +1535,8 @@ export class PlanChangesService {
     try {
       await this.notifications.sendPlanChangeNotification({
         event,
+        userId: request.customer.userId,
+        changeType: request.type,
         planChangeRequestId: request.id,
         customerName: `${request.customer.firstName} ${request.customer.lastName}`,
         customerEmail: request.customer.email,
@@ -1549,6 +1552,9 @@ export class PlanChangesService {
                 request.effectiveAt,
                 request.sourceSubscription.billingAnchorDay,
               ),
+        manualReviewRequired:
+          event === 'FAILED' &&
+          !['PAYMENT_FAILED', 'CHECKOUT_EXPIRED'].includes(request.failureReason ?? ''),
       });
     } catch (error: unknown) {
       this.logger.error(
