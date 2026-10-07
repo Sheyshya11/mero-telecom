@@ -12,6 +12,10 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 
+import {
+  ApproveServiceRequestDto,
+  RejectServiceRequestDto,
+} from '../../common/workflow/request-review.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -92,8 +96,27 @@ export class RelocationsController {
     return this.relocations.findOne(id, actor);
   }
 
+  @Post(':relocationId/approve')
+  @Roles(Role.STAFF, Role.ADMIN)
+  approve(
+    @Param('relocationId', new ParseUUIDPipe()) id: string,
+    @Body() input: ApproveServiceRequestDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.relocations.approve(id, actor, input.reviewNotes);
+  }
+  @Post(':relocationId/reject')
+  @Roles(Role.STAFF, Role.ADMIN)
+  reject(
+    @Param('relocationId', new ParseUUIDPipe()) id: string,
+    @Body() input: RejectServiceRequestDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.relocations.reject(id, actor, input.reason, input.reviewNotes);
+  }
+
   @Post(':relocationId/confirm')
-  @Roles(Role.CUSTOMER, Role.ADMIN)
+  @Roles(Role.STAFF, Role.ADMIN)
   confirm(
     @Param('relocationId', new ParseUUIDPipe()) id: string,
     @CurrentUser() actor: AuthenticatedUser,

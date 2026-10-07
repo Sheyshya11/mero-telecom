@@ -58,6 +58,8 @@ export class CreateRelocationDto {
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   requestedOldServiceDisconnectionDate?: string;
+
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(2000) customerComments?: string;
 }
 
 export class RelocationQueryDto {

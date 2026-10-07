@@ -1,0 +1,32 @@
+<!doctype html><html><meta charset="utf-8"><title>TC01 - Automated test evidence</title><style>body{margin:0;background:#eef1f5;font:16px Arial,sans-serif;color:#172233}main{margin:32px auto;width:1120px;background:white;border:1px solid #ccd4de;border-radius:10px;overflow:hidden}header{padding:24px 30px;border-bottom:1px solid #ccd4de;background:#10243b;color:white}h1{font-size:28px;margin:9px 0}h2{font-size:18px;margin:0}.meta{padding:20px 30px;background:#f7fafc;line-height:1.6}.warning{margin:18px 30px;padding:14px;background:#fff4da;border:1px solid #dfbd73;border-radius:6px;line-height:1.5}.stats{display:flex;gap:38px;margin-top:12px}.stats b{font-size:24px;color:#14723d}pre{margin:20px 30px 28px;font:14px/1.65 Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}footer{padding:15px 30px;border-top:1px solid #ccd4de;color:#546477;font-size:13px}a{color:#1764aa}li{line-height:2}</style><main><header><h2>MERO TELECOM | EXECUTED AUTOMATED TEST EVIDENCE</h2><h1>TC01 — Authentication and Role Access</h1>Existing Jest tests executed against project code</header><div class="meta">Run: 06 October 2026, 11:49 PM ACDT<br>Scope: <strong>unit/service tests with mocked dependencies</strong><div class="stats"><span><b>PASSED</b><br>Automated test run</span><span><b>9</b><br>Assertions passed</span><span><b>0</b><br>Assertions failed</span><span><b>25.73s</b><br>Elapsed time</span></div></div><div class="warning"><strong>Full browser acceptance is blocked.</strong> Docker/WSL failed with ERROR_NO_SYSTEM_RESOURCES and localhost:3000 refused the connection. This screenshot records an actual automated test run. It does not show the application workflow, a live payment, or live NBN/MNF provisioning.</div><pre>Case: TC01 - Authentication and Role Access
+Evidence: executed existing Jest unit/service tests with mocked dependencies.
+Full browser acceptance: blocked by Docker/WSL ERROR_NO_SYSTEM_RESOURCES.
+Started (UTC): 2026-10-06T13:19:11.7265666Z
+Command: jest --runInBand --verbose --no-colors --json --outputFile=D:\MeroTelecom\output\playwright\capstone-2026-10-06\TC01-jest.json --runTestsByPath src/modules/auth/auth.service.spec.ts src/common/guards/roles.guard.spec.ts
+
+(node:216168) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/modules/auth/auth.service.spec.ts (12.996 s)
+  AuthService
+    √ issues an access token and persists a hashed refresh session for valid credentials (836 ms)
+    √ rejects an incorrect password without creating a refresh session (533 ms)
+    √ rejects an invited account until the customer creates a password
+    √ only authenticates an access token while its server session remains active (284 ms)
+
+PASS src/common/guards/roles.guard.spec.ts
+  RolesGuard
+    √ allows an admin assigned to an admin-only route (2 ms)
+    √ rejects staff from an admin-only route
+    √ explicitly allows a super admin to inherit an admin route (1 ms)
+    √ allows all authenticated roles when no role metadata is defined (1 ms)
+    √ allows a multi-role account when any assigned role is permitted (1 ms)
+
+Test Suites: 2 passed, 2 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        18.642 s
+Ran all test suites within paths &quot;src/modules/auth/auth.service.spec.ts&quot;, &quot;src/common/guards/roles.guard.spec.ts&quot;.
+Test results written to: ..\..\output\playwright\capstone-2026-10-06\TC01-jest.json
+
+Exit code: 0
+</pre><footer>Source: TC01-console.txt and TC01-jest.json. Screenshot captured in Chromium. Raw results are included.</footer></main></html>

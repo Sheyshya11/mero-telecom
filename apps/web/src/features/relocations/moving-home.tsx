@@ -18,6 +18,10 @@ import type {
 
 const steps = ['New Address', 'Availability', 'Plan', 'Move Date', 'Review', 'Confirmation'];
 const activeStatuses = [
+  'PENDING_REVIEW',
+  'REJECTED',
+  'PARTIALLY_COMPLETED',
+  'MANUAL_REVIEW_REQUIRED',
   'AWAITING_CONFIRMATION',
   'CONFIRMED',
   'PROVISIONING',
@@ -36,6 +40,7 @@ export function MovingHome() {
   );
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [moveDate, setMoveDate] = useState('');
+  const [comments, setComments] = useState('');
   const [startNew, setStartNew] = useState(false);
 
   const subscriptions = useQuery({
@@ -83,6 +88,7 @@ export function MovingHome() {
             requestedPlanId: selectedPlanId,
             requestedMoveDate: moveDate,
             billingSameAsService,
+            customerComments: comments.trim() || undefined,
             billingAddressSelectionToken: billingSameAsService
               ? undefined
               : selectedBillingAddress?.selectionToken,
@@ -90,11 +96,7 @@ export function MovingHome() {
         },
         accessToken,
       );
-      return apiRequest<ServiceRelocation>(
-        `/relocations/${created.id}/confirm`,
-        { method: 'POST' },
-        accessToken,
-      );
+      return created;
     },
     onSuccess: async () => {
       setStep(5);
@@ -138,7 +140,11 @@ export function MovingHome() {
           relocation={existing}
           cancelling={cancel.isPending}
           onCancel={() => cancel.mutate(existing.id)}
-          onStartNew={existing.status === 'COMPLETED' ? () => setStartNew(true) : undefined}
+          onStartNew={
+            ['COMPLETED', 'REJECTED'].includes(existing.status)
+              ? () => setStartNew(true)
+              : undefined
+          }
         />
       </Shell>
     );
@@ -373,25 +379,34 @@ export function MovingHome() {
             />
           </dl>
           <p className="mt-5 rounded-lg border border-info-border bg-info-subtle p-4 text-sm text-info-foreground">
-            Confirming starts the relocation workflow. It does not cancel your subscription or
-            immediately overwrite your active service address.
+            Submitting creates a request for employee review. Your service, addresses and billing
+            stay unchanged until approval and operational processing.
           </p>
+          <label className="mt-4 block text-sm">
+            Additional information
+            <textarea
+              className="field mt-1 w-full"
+              maxLength={2000}
+              value={comments}
+              onChange={(event) => setComments(event.target.value)}
+            />
+          </label>
           <button
             className="button-primary mt-5"
             disabled={submit.isPending || (!billingSameAsService && !selectedBillingAddress)}
             onClick={() => submit.mutate()}
             type="button"
           >
-            {submit.isPending ? 'Confirming move…' : 'Confirm move'}
+            {submit.isPending ? 'Submitting request…' : 'Submit Move Home Request'}
           </button>
           <MutationError error={submit.error} />
         </section>
       ) : null}
 
       {step === 5 ? (
-        <Notice title="Your relocation is confirmed">
-          We’ll keep your current connection active while the new service is provisioned. You can
-          return here at any time to see its status.
+        <Notice title="Your move home request is awaiting review">
+          Your existing connection, addresses and billing remain unchanged. An employee will review
+          your request before relocation processing can begin.
         </Notice>
       ) : null}
     </Shell>
@@ -431,7 +446,13 @@ function RelocationStatusCard({
         <div>
           <p className="text-sm font-semibold text-primary">MOVING HOME</p>
           <h2 className="mt-1 text-2xl font-bold">
-            {relocation.status === 'COMPLETED' ? 'Relocation complete' : 'Relocation in progress'}
+            {relocation.status === 'PENDING_REVIEW'
+              ? 'Awaiting review'
+              : relocation.status === 'REJECTED'
+                ? 'Move home request not approved'
+                : relocation.status === 'COMPLETED'
+                  ? 'Relocation complete'
+                  : 'Relocation in progress'}
           </h2>
         </div>
         <span className="rounded-full bg-primary-subtle px-3 py-1 text-xs font-bold text-primary-hover">
@@ -449,6 +470,9 @@ function RelocationStatusCard({
           ? 'Your new service address is active and the previous service was closed through the relocation workflow.'
           : 'Your existing subscription and service address remain active until the new service has been successfully provisioned.'}
       </p>
+      {relocation.rejectionReason ? (
+        <p className="mt-4 rounded border border-border p-4">{relocation.rejectionReason}</p>
+      ) : null}
       {relocation.failureReason ? (
         <p className="mt-4 rounded-lg bg-destructive-subtle p-4 text-sm text-destructive-foreground">
           {relocation.failureReason}
@@ -550,6 +574,9 @@ function formatMoney(cents: number) {
   return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(cents / 100);
 }
 function friendly(value: string) {
+  if (value === 'PENDING_REVIEW') return 'Awaiting review';
+  if (value === 'REJECTED') return 'Not approved';
+  if (value === 'CONFIRMED') return 'Approved';
   return value
     .replaceAll('_', ' ')
     .toLowerCase()

@@ -8,6 +8,7 @@ import { LandingIcon, type LandingIconName } from '../../components/landing/land
 import { apiDownload, apiRequest } from '../../lib/api/client';
 import { hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
+import { CollectionBanner } from '../invoices/collection-banner';
 import { StripeCheckoutButton } from '../payments/stripe-checkout-button';
 import styles from './dashboard.module.css';
 import type { CustomerDashboard, CustomerInvoice } from './customer-dashboard.types';
@@ -149,6 +150,7 @@ export function CustomerDashboardView() {
           </div>
         </section>
 
+        <CollectionBanner />
         {paymentReturn ? (
           <p
             className={styles.notice}
@@ -461,7 +463,7 @@ export function InvoiceRow({ invoice }: Readonly<{ invoice: CustomerInvoice }>) 
   }
 
   return (
-    <tr className={styles.invoiceRow}>
+    <tr id={`invoice-${invoice.id}`} className={styles.invoiceRow}>
       <td className={`${styles.invoiceCell} ${styles.tableStrong}`}>{invoice.invoiceNumber}</td>
       <td className={`${styles.invoiceCell} ${styles.tableMuted}`}>
         {formatDate(invoice.issueDate)}
@@ -494,6 +496,23 @@ export function InvoiceRow({ invoice }: Readonly<{ invoice: CustomerInvoice }>) 
         >
           {downloadError ? 'Retry PDF' : 'Download PDF'}
         </button>
+        {(invoice.status === 'ISSUED' || invoice.status === 'OVERDUE') &&
+        paymentStatus !== 'PROCESSING' ? (
+          invoice.type === 'STRIPE_RECURRING' ? (
+            invoice.stripeHostedUrl &&
+            /^https:\/\/invoice\.stripe\.com\//.test(invoice.stripeHostedUrl) ? (
+              <a className="button-primary ml-2" href={invoice.stripeHostedUrl}>
+                Pay securely with Stripe
+              </a>
+            ) : (
+              <Link className="button-secondary ml-2" href="/customer/subscription">
+                Update payment method
+              </Link>
+            )
+          ) : (
+            <StripeCheckoutButton invoiceId={invoice.id} />
+          )
+        ) : null}
       </td>
     </tr>
   );

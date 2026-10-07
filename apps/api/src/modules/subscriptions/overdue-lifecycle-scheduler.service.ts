@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue, Worker } from 'bullmq';
 
 import type { AppConfig } from '../../config/configuration';
+import { CollectionService } from './collection.service';
 import { ProvisioningService } from './provisioning.service';
 import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 
@@ -29,6 +30,7 @@ export class OverdueLifecycleSchedulerService implements OnModuleInit, OnModuleD
     config: ConfigService<AppConfig, true>,
     private readonly lifecycle: SubscriptionLifecycleService,
     private readonly provisioning: ProvisioningService,
+    private readonly collections: CollectionService,
   ) {
     const settings = config.getOrThrow('overdueLifecycle');
     this.redisUrl = config.getOrThrow('redis').url;
@@ -95,6 +97,7 @@ export class OverdueLifecycleSchedulerService implements OnModuleInit, OnModuleD
     const subscriptionsSuspended = await this.lifecycle.suspendExpiredGracePeriods(now);
     const terminationReviewsQueued = await this.lifecycle.queueTerminationReviews(now);
     const provisioningRequestsProcessed = await this.provisioning.reconcilePending(this.batchSize);
+    await this.collections.deliver(now);
     return {
       invoicesMarkedOverdue,
       notificationsSent,

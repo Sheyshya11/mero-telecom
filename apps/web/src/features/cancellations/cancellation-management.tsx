@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog';
 import { ApiError, apiRequest } from '../../lib/api/client';
+import { RequestReviewControls } from '../service-requests/request-review-controls';
 import { useAuth } from '../auth/auth-provider';
 
 interface CancellationRecord {
@@ -63,6 +64,11 @@ interface CancellationRecord {
       billingPeriodEnd: string | null;
     } | null;
   } | null;
+  reviewDecision?: string | null;
+  reviewedAt?: string | null;
+  reviewedByUserId?: string | null;
+  reviewNotes?: string | null;
+  rejectionReason?: string | null;
   requestedByRole: string;
   customer: {
     id: string;
@@ -71,7 +77,12 @@ interface CancellationRecord {
     lastName: string;
     email: string;
   };
-  subscription: { monthlyCents: number; plan: { name: string; monthlyCents: number } };
+  subscription: {
+    status: string;
+    invoices?: Array<{ invoiceNumber: string; status: string; totalCents: number }>;
+    monthlyCents: number;
+    plan: { name: string; monthlyCents: number };
+  };
   requestedBy: { displayName: string | null; email: string };
   notes: Array<{
     id: string;
@@ -88,7 +99,12 @@ interface CancellationRecord {
     lastCheckedAt: string | null;
     failureReason: string | null;
   };
-  capabilities: { canRetry: boolean; canRevoke: boolean; canEscalate: boolean };
+  capabilities: {
+    canReview?: boolean;
+    canRetry: boolean;
+    canRevoke: boolean;
+    canEscalate: boolean;
+  };
 }
 
 interface CancellationDetail extends CancellationRecord {
@@ -153,6 +169,8 @@ export function CancellationManagement() {
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['cancellations'] }),
+      queryClient.invalidateQueries({ queryKey: ['service-request-review-queue'] }),
+      queryClient.invalidateQueries({ queryKey: ['notifications'] }),
       queryClient.invalidateQueries({ queryKey: ['cancellation-summary'] }),
       queryClient.invalidateQueries({ queryKey: ['cancellation', selected] }),
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] }),
@@ -177,6 +195,24 @@ export function CancellationManagement() {
       apiRequest(`/admin/cancellations/${requestNumber}/revoke`, { method: 'POST' }, accessToken),
     onSuccess: async () => {
       setRevokeTarget(null);
+      await refresh();
+    },
+  });
+  const review = useMutation({
+    mutationFn: ({
+      decision,
+      body,
+    }: {
+      decision: 'approve' | 'reject';
+      body: { reviewNotes?: string; reason?: string };
+    }) =>
+      apiRequest(
+        `/admin/cancellations/${selected}/${decision}`,
+        { method: 'POST', body: JSON.stringify(body) },
+        accessToken,
+      ),
+    onSuccess: refresh,
+    onError: async () => {
       await refresh();
     },
   });
@@ -275,6 +311,8 @@ export function CancellationManagement() {
               key: 'status',
               label: 'Status',
               options: [
+                'PENDING_REVIEW',
+                'REJECTED',
                 'REQUESTED',
                 'SCHEDULED',
                 'PROCESSING',
@@ -408,12 +446,49 @@ export function CancellationManagement() {
             <div className="mt-6 grid gap-8 lg:grid-cols-2">
               <div>
                 <h3 className="font-semibold">Cancellation summary</h3>
+                {detail.data.capabilities.canReview ? (
+                  <RequestReviewControls
+                    key={detail.data.id}
+                    kind="Cancellation"
+                    busy={review.isPending}
+                    onDecision={(decision, body) => review.mutate({ decision, body })}
+                  />
+                ) : null}
+                {review.isError ? <p role="alert">{review.error.message}</p> : null}
+                {detail.data.reviewDecision ? (
+                  <div className="my-4 rounded border border-border p-3 text-sm">
+                    <p>
+                      Decision: {humanize(detail.data.reviewDecision)}{' '}
+                      {detail.data.reviewedAt ? `on ${formatDateTime(detail.data.reviewedAt)}` : ''}
+                    </p>
+                    <p>Reviewer: {detail.data.reviewedByUserId ?? 'Legacy workflow'}</p>
+                    {detail.data.rejectionReason ? (
+                      <p>Customer reason: {detail.data.rejectionReason}</p>
+                    ) : null}
+                    {detail.data.reviewNotes ? (
+                      <p>Internal notes: {detail.data.reviewNotes}</p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <dl className="mt-3 grid gap-3 rounded-xl bg-muted p-4 sm:grid-cols-2">
                   <Fact
                     label="Customer"
                     value={`${detail.data.customer.firstName} ${detail.data.customer.lastName}`}
                   />
                   <Fact label="Plan" value={detail.data.subscription.plan.name} />
+                  <Fact label="Current service" value={humanize(detail.data.subscription.status)} />
+                  <Fact
+                    label="Monthly price"
+                    value={formatMoney(detail.data.subscription.monthlyCents)}
+                  />
+                  <Fact
+                    label="Latest invoice"
+                    value={
+                      detail.data.subscription.invoices?.[0]
+                        ? `${detail.data.subscription.invoices[0].invoiceNumber} - ${humanize(detail.data.subscription.invoices[0].status)}`
+                        : 'No invoice'
+                    }
+                  />
                   <Fact label="Reason" value={humanize(detail.data.reason)} />
                   <Fact
                     label="Requested by"
@@ -664,6 +739,8 @@ function Status({ text }: Readonly<{ text: string }>) {
   return <main className="grid min-h-screen place-items-center text-muted-foreground">{text}</main>;
 }
 function humanize(value: string): string {
+  if (value === 'PENDING_REVIEW') return 'Awaiting review';
+  if (value === 'REJECTED') return 'Not approved';
   return value
     .toLowerCase()
     .replaceAll('_', ' ')

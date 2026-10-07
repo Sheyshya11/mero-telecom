@@ -14,6 +14,11 @@ import { DashboardService } from './dashboard.service';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
+  @Get('service-requests')
+  @Roles(Role.STAFF, Role.ADMIN)
+  getServiceRequestReviewSummary() {
+    return this.dashboard.getServiceRequestReviewSummary();
+  }
   @Get('admin') @Roles(Role.ADMIN) getAdminSummary() {
     return this.dashboard.getAdminSummary();
   }

@@ -11,6 +11,10 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 
+import {
+  ApproveServiceRequestDto,
+  RejectServiceRequestDto,
+} from '../../common/workflow/request-review.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -104,6 +108,23 @@ export class OperationsCancellationsController {
   @Get(':requestNumber')
   findOne(@Param('requestNumber') requestNumber: string, @CurrentUser() actor: AuthenticatedUser) {
     return this.cancellations.findOne(requestNumber, actor);
+  }
+
+  @Post(':requestNumber/approve')
+  approve(
+    @Param('requestNumber') requestNumber: string,
+    @Body() input: ApproveServiceRequestDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.cancellations.approve(requestNumber, actor, input.reviewNotes);
+  }
+  @Post(':requestNumber/reject')
+  reject(
+    @Param('requestNumber') requestNumber: string,
+    @Body() input: RejectServiceRequestDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.cancellations.reject(requestNumber, actor, input.reason, input.reviewNotes);
   }
 
   @Post(':requestNumber/notes')

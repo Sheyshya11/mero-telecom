@@ -1,4 +1,16 @@
-import { IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsUUID,
+  IsString,
+  MaxLength,
+  MinLength,
+  Max,
+  Min,
+} from 'class-validator';
 import { BillingCycle, PaymentStatus, SubscriptionStatus, SuspensionReason } from '@prisma/client';
 import { ListQueryDto } from '../../../common/pagination';
 
@@ -27,6 +39,7 @@ export class SubscriptionQueryDto extends ListQueryDto {
 
 export class ExtendGracePeriodDto {
   @IsInt() @Min(1) @Max(30) days!: number;
+  @IsString() @MinLength(3) @MaxLength(1000) reason!: string;
 }
 
 export class SuspendSubscriptionDto {

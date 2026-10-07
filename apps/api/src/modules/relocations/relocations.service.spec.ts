@@ -5,6 +5,7 @@ import {
   CoverageResultStatus,
   MockRelocationOutcome,
   Role,
+  RequestReviewDecision,
   ServiceProvisioningStatus,
   ServiceRelocationStatus,
   SubscriptionStatus,
@@ -123,7 +124,11 @@ function makeService(input?: {
     serviceAddress: { create: jest.fn().mockResolvedValue(newAddress) },
     serviceRelocation: {
       count: jest.fn().mockResolvedValue(input?.activeRelocations ?? 0),
-      create: jest.fn().mockResolvedValue(record),
+      create: jest.fn().mockResolvedValue({
+        ...record,
+        status: ServiceRelocationStatus.PENDING_REVIEW,
+        reviewDecision: null,
+      }),
       findFirst: jest.fn(),
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
@@ -265,7 +270,7 @@ describe('RelocationsService', () => {
       },
       actor,
     );
-    expect(result.status).toBe(ServiceRelocationStatus.AWAITING_CONFIRMATION);
+    expect(result.status).toBe(ServiceRelocationStatus.PENDING_REVIEW);
     expect(transaction.subscription.update).not.toHaveBeenCalled();
     expect(transaction.serviceRelocation.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -275,19 +280,14 @@ describe('RelocationsService', () => {
     expect(transaction.serviceAddress.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ countryCode: 'AU' }) }),
     );
-    expect(transaction.customer.update).toHaveBeenCalledWith({
-      where: { id: subscription.customerId },
-      data: expect.objectContaining({
-        addressLine1: '25 Example Street',
-        addressLine2: null,
-        suburb: 'Adelaide',
-        state: 'SA',
-        postcode: '5000',
-      }),
-    });
-    expect(transaction.customerAddress.upsert).toHaveBeenCalledWith(
+    expect(transaction.customer.update).not.toHaveBeenCalled();
+    expect(transaction.customerAddress.upsert).not.toHaveBeenCalled();
+    expect(transaction.serviceRelocation.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ type: 'BILLING', addressLine1: '25 Example Street' }),
+        data: expect.objectContaining({
+          status: ServiceRelocationStatus.PENDING_REVIEW,
+          requestedBillingAddress: expect.objectContaining({ addressLine1: '25 Example Street' }),
+        }),
       }),
     );
   });
@@ -308,16 +308,21 @@ describe('RelocationsService', () => {
     );
 
     expect(coverage.consumeTrustedAddress).toHaveBeenCalledWith('b'.repeat(43));
-    expect(transaction.customer.update).toHaveBeenCalledWith({
-      where: { id: subscription.customerId },
-      data: {
-        addressLine1: '40 Billing Road',
-        addressLine2: '4',
-        suburb: 'Norwood',
-        state: 'SA',
-        postcode: '5067',
-      },
-    });
+    expect(transaction.customer.update).not.toHaveBeenCalled();
+    expect(transaction.customerAddress.upsert).not.toHaveBeenCalled();
+    expect(transaction.serviceRelocation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requestedBillingAddress: {
+            addressLine1: '40 Billing Road',
+            addressLine2: '4',
+            suburb: 'Norwood',
+            state: 'SA',
+            postcode: '5067',
+          },
+        }),
+      }),
+    );
   });
 
   it('rejects a billing selection without a house number', async () => {
@@ -391,6 +396,7 @@ describe('RelocationsService', () => {
   it('cancels a reversible relocation without cancelling the subscription', async () => {
     const { service, transaction, record } = makeService();
     transaction.serviceRelocation.findFirst.mockResolvedValue(record);
+    transaction.serviceRelocation.findUnique.mockResolvedValue(record);
     transaction.serviceRelocation.update.mockResolvedValue({
       ...record,
       status: ServiceRelocationStatus.CANCELLED,
@@ -517,9 +523,13 @@ describe('RelocationsService', () => {
     );
   });
 
-  it('explains why simulated provisioning cannot run before confirmation', async () => {
+  it('explains why simulated provisioning cannot run before employee approval', async () => {
     const { service, transaction, record } = makeService();
-    transaction.serviceRelocation.findUnique.mockResolvedValue(record);
+    transaction.serviceRelocation.findUnique.mockResolvedValue({
+      ...record,
+      status: ServiceRelocationStatus.PENDING_REVIEW,
+      reviewDecision: null,
+    });
 
     await expect(
       service.configureDemoOutcome(
@@ -531,7 +541,7 @@ describe('RelocationsService', () => {
         },
         adminActor,
       ),
-    ).rejects.toThrow('Confirm the relocation before simulating provisioning.');
+    ).rejects.toThrow('Employee approval is required before operational processing.');
     expect(transaction.serviceRelocation.update).not.toHaveBeenCalled();
   });
 
@@ -681,7 +691,14 @@ function relocationRecord(newAddress: typeof serviceAddress) {
     serviceClass: null,
     installationRequired: null,
     appointmentRequired: null,
-    status: ServiceRelocationStatus.AWAITING_CONFIRMATION,
+    status: ServiceRelocationStatus.CONFIRMED,
+    reviewDecision: RequestReviewDecision.APPROVED,
+    reviewedAt: new Date(),
+    reviewedByUserId: adminActor.id,
+    reviewNotes: null,
+    rejectionReason: null,
+    requestedBillingAddress: null,
+    customerComments: null,
     provisioningStatus: null,
     oldServiceDisconnectionStatus: null,
     providerName: 'MOCK_MNF',

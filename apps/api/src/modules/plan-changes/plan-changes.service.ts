@@ -692,7 +692,14 @@ export class PlanChangesService {
       where: {
         subscriptionId: subscription.id,
         status: {
-          in: ['REQUESTED', 'SCHEDULED', 'PROCESSING', 'DISCONNECTION_PENDING', 'FAILED'],
+          in: [
+            'PENDING_REVIEW',
+            'REQUESTED',
+            'SCHEDULED',
+            'PROCESSING',
+            'DISCONNECTION_PENDING',
+            'FAILED',
+          ],
         },
       },
     });
@@ -706,6 +713,7 @@ export class PlanChangesService {
         subscriptionId: subscription.id,
         status: {
           in: [
+            ServiceRelocationStatus.PENDING_REVIEW,
             ServiceRelocationStatus.AWAITING_CONFIRMATION,
             ServiceRelocationStatus.CONFIRMED,
             ServiceRelocationStatus.PROVISIONING,

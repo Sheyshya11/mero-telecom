@@ -40,6 +40,7 @@ interface CustomerCancellationRecord {
   revokedAt: string | null;
   canRevoke: boolean;
   statusMessage: string;
+  rejectionReason?: string | null;
   refundAmountCents: number;
   refund: {
     id: string;
@@ -230,7 +231,7 @@ export function CustomerCancellation({
     );
   }
   const activeCancellation =
-    cancellation.data && !['COMPLETED', 'REVOKED'].includes(cancellation.data.status)
+    cancellation.data && !['COMPLETED', 'REVOKED', 'REJECTED'].includes(cancellation.data.status)
       ? cancellation.data
       : null;
   if (activeCancellation) {
@@ -245,11 +246,13 @@ export function CustomerCancellation({
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-foreground" id="cancellation-status-title">
-              {activeCancellation.status === 'SCHEDULED'
-                ? 'Cancellation scheduled'
-                : activeCancellation.status === 'FAILED'
-                  ? 'Cancellation needs review'
-                  : 'Cancellation in progress'}
+              {activeCancellation.status === 'PENDING_REVIEW'
+                ? 'Awaiting review'
+                : activeCancellation.status === 'SCHEDULED'
+                  ? 'Cancellation scheduled'
+                  : activeCancellation.status === 'FAILED'
+                    ? 'Cancellation needs review'
+                    : 'Cancellation in progress'}
             </h2>
             <p className="mt-2 max-w-2xl text-foreground">{activeCancellation.statusMessage}</p>
             <p className="mt-2 font-mono text-xs text-muted-foreground">
@@ -307,6 +310,16 @@ export function CustomerCancellation({
       className="mt-8 rounded-2xl border border-border bg-card p-6 shadow-sm"
       aria-labelledby="cancel-service-title"
     >
+      {cancellation.data?.status === 'REJECTED' ? (
+        <div className="mb-5 rounded-xl border border-border bg-muted p-4" role="status">
+          <h3 className="font-semibold">Cancellation request not approved</h3>
+          <p>{cancellation.data.rejectionReason}</p>
+          <p>
+            Your existing service has not been changed. You can contact support or submit another
+            request.
+          </p>
+        </div>
+      ) : null}
       <p className="text-sm font-semibold tracking-wide text-primary">MANAGE SERVICE</p>
       <h2 className="mt-2 text-2xl font-bold text-foreground" id="cancel-service-title">
         {step ? 'Cancel your internet service' : 'Service options'}
@@ -315,7 +328,7 @@ export function CustomerCancellation({
         <div>
           <p className="mt-2 text-muted-foreground">
             Need to leave? Review the effective date and billing implications before submitting a
-            cancellation.
+            cancellation request. Your service and billing continue until employee approval.
           </p>
           <button className="button-secondary mt-5" onClick={() => setStep(1)} type="button">
             Cancel Service
@@ -500,7 +513,8 @@ export function CustomerCancellation({
                   type="checkbox"
                 />
                 <span>
-                  I understand my internet service will stop after this cancellation is completed
+                  I understand this request requires employee approval before my service can be
+                  cancelled
                   {preview.data.automaticRefundCents > 0
                     ? ` and the final prorated refund may change slightly before it is returned to my original payment method.`
                     : '.'}
@@ -527,7 +541,7 @@ export function CustomerCancellation({
                   onClick={() => requestCancellation.mutate()}
                   type="button"
                 >
-                  {requestCancellation.isPending ? 'Submitting…' : 'Confirm Cancellation'}
+                  {requestCancellation.isPending ? 'Submitting…' : 'Submit Cancellation Request'}
                 </button>
               </div>
             </>
@@ -597,6 +611,8 @@ function formatDate(value: string): string {
 }
 
 function humanize(value: string): string {
+  if (value === 'PENDING_REVIEW') return 'Awaiting review';
+  if (value === 'REJECTED') return 'Not approved';
   return value
     .toLowerCase()
     .replaceAll('_', ' ')

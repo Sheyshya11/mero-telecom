@@ -67,12 +67,14 @@ export interface CustomerDashboard {
 
 export type CustomerPaymentStatus =
   | 'PENDING'
+  | 'PROCESSING'
   | 'SUCCEEDED'
   | 'FAILED'
   | 'PARTIALLY_REFUNDED'
   | 'REFUNDED';
 
 export interface CustomerInvoice {
+  stripeHostedUrl?: string | null;
   id: string;
   type: 'MANUAL' | 'STRIPE_RECURRING' | 'PLAN_PURCHASE' | 'PLAN_CHANGE';
   invoiceNumber: string;

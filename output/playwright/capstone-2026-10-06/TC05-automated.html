@@ -1,0 +1,52 @@
+<!doctype html><html><meta charset="utf-8"><title>TC05 - Automated test evidence</title><style>body{margin:0;background:#eef1f5;font:16px Arial,sans-serif;color:#172233}main{margin:32px auto;width:1120px;background:white;border:1px solid #ccd4de;border-radius:10px;overflow:hidden}header{padding:24px 30px;border-bottom:1px solid #ccd4de;background:#10243b;color:white}h1{font-size:28px;margin:9px 0}h2{font-size:18px;margin:0}.meta{padding:20px 30px;background:#f7fafc;line-height:1.6}.warning{margin:18px 30px;padding:14px;background:#fff4da;border:1px solid #dfbd73;border-radius:6px;line-height:1.5}.stats{display:flex;gap:38px;margin-top:12px}.stats b{font-size:24px;color:#14723d}pre{margin:20px 30px 28px;font:14px/1.65 Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}footer{padding:15px 30px;border-top:1px solid #ccd4de;color:#546477;font-size:13px}a{color:#1764aa}li{line-height:2}</style><main><header><h2>MERO TELECOM | EXECUTED AUTOMATED TEST EVIDENCE</h2><h1>TC05 — Cancellation and Refund</h1>Existing Jest tests executed against project code</header><div class="meta">Run: 06 October 2026, 11:50 PM ACDT<br>Scope: <strong>unit/service tests with mocked dependencies</strong><div class="stats"><span><b>PASSED</b><br>Automated test run</span><span><b>26</b><br>Assertions passed</span><span><b>0</b><br>Assertions failed</span><span><b>4.69s</b><br>Elapsed time</span></div></div><div class="warning"><strong>Full browser acceptance is blocked.</strong> Docker/WSL failed with ERROR_NO_SYSTEM_RESOURCES and localhost:3000 refused the connection. This screenshot records an actual automated test run. It does not show the application workflow, a live payment, or live NBN/MNF provisioning.</div><pre>Case: TC05 - Cancellation and Refund
+Evidence: executed existing Jest unit/service tests with mocked dependencies.
+Full browser acceptance: blocked by Docker/WSL ERROR_NO_SYSTEM_RESOURCES.
+Started (UTC): 2026-10-06T13:20:14.1462747Z
+Command: jest --runInBand --verbose --no-colors --json --outputFile=D:\MeroTelecom\output\playwright\capstone-2026-10-06\TC05-jest.json --runTestsByPath src/modules/cancellations/cancellations.service.spec.ts src/modules/cancellations/cancellation-workflow-policy.service.spec.ts src/modules/refunds/refund-policy.service.spec.ts
+
+(node:527256) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/modules/cancellations/cancellations.service.spec.ts
+  CancellationsService
+    √ previews only the paid current-period recurring payment and caps prior refunds (6 ms)
+    √ restores a scheduled cancellation to past due when an invoice became overdue (3 ms)
+
+PASS src/modules/refunds/refund-policy.service.spec.ts
+  RefundPolicyService
+    √ rejects a PENDING payment (13 ms)
+    √ rejects a FAILED payment (1 ms)
+    √ rejects a REFUNDED payment
+    √ accepts a paid or partially refunded Stripe payment with remaining value
+    √ rejects manual, zero-value, fully-refunded, and unlinked payments (2 ms)
+    √ allows REQUESTED → UNDER_REVIEW (1 ms)
+    √ allows REQUESTED → APPROVED
+    √ allows UNDER_REVIEW → APPROVED
+    √ allows UNDER_REVIEW → REJECTED
+    √ allows APPROVED → PROCESSING (1 ms)
+    √ allows PROCESSING → SUCCEEDED
+    √ allows PROCESSING → FAILED
+    √ allows FAILED → PROCESSING
+    √ rejects SUCCEEDED → REQUESTED
+    √ rejects REJECTED → SUCCEEDED (1 ms)
+    √ rejects PROCESSING → APPROVED
+    √ rejects CANCELLED → PROCESSING (1 ms)
+    √ limits approval and processing to administrators (1 ms)
+    √ allows only a super administrator to record an override (1 ms)
+
+PASS src/modules/cancellations/cancellation-workflow-policy.service.spec.ts
+  CancellationWorkflowPolicyService
+    √ allows a customer to request cancellation for their own current service (7 ms)
+    √ allows administrators to withdraw pending activation but denies staff
+    √ only revokes a scheduled operation that has not reached the provider
+    √ rejects a revoke at or after the cancellation effective time (1 ms)
+    √ only permits an administrator to retry a failed request (1 ms)
+
+Test Suites: 3 passed, 3 total
+Tests:       26 passed, 26 total
+Snapshots:   0 total
+Time:        3.708 s
+Ran all test suites within paths &quot;src/modules/cancellations/cancellations.service.spec.ts&quot;, &quot;src/modules/cancellations/cancellation-workflow-policy.service.spec.ts&quot;, &quot;src/modules/refunds/refund-policy.service.spec.ts&quot;.
+Test results written to: ..\..\output\playwright\capstone-2026-10-06\TC05-jest.json
+
+Exit code: 0
+</pre><footer>Source: TC05-console.txt and TC05-jest.json. Screenshot captured in Chromium. Raw results are included.</footer></main></html>

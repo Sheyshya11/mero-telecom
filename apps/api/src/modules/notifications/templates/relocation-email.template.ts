@@ -1,7 +1,13 @@
 import type { RenderedEmailTemplate } from './invoice-email.template';
 import { renderCommunicationEmail } from './communication-email-layout';
 
-export type RelocationEmailEvent = 'REQUESTED' | 'CONFIRMED' | 'SCHEDULED' | 'FAILED' | 'COMPLETED';
+export type RelocationEmailEvent =
+  | 'REQUESTED'
+  | 'REJECTED'
+  | 'CONFIRMED'
+  | 'SCHEDULED'
+  | 'FAILED'
+  | 'COMPLETED';
 
 export function renderRelocationEmail(input: {
   event: RelocationEmailEvent;
@@ -13,25 +19,37 @@ export function renderRelocationEmail(input: {
   brandLogoUrl: string;
   dashboardUrl: string;
   failureReason?: string | null;
+  newServiceActivated?: boolean;
 }): RenderedEmailTemplate {
   const content = {
     REQUESTED: {
       subject: 'We received your moving home request',
-      heading: 'Your new address is qualified',
+      heading: 'Move home request submitted',
       message:
-        'We have recorded your move request. Your existing service remains active while you review and confirm the relocation.',
+        'Your move home request is awaiting employee review. Your existing service, addresses and billing remain unchanged until approval and operational processing.',
+    },
+    REJECTED: {
+      subject: 'Your move home request was reviewed',
+      heading: 'Move home request reviewed',
+      message:
+        'Your move home request was not approved. View the request for the reason. Your existing service and addresses remain unchanged.',
     },
     CONFIRMED: {
-      subject: 'Your service relocation is confirmed',
-      heading: 'Relocation confirmed',
+      subject: 'Your move home request is approved',
+      heading: 'Move home request approved',
       message:
         'We are preparing the new service. Your existing service will remain active until the new connection is ready.',
     },
     SCHEDULED: {
-      subject: 'Your service relocation is scheduled',
-      heading: 'Provisioning is scheduled',
-      message:
-        'We will begin provisioning on the requested move date. Your existing connection remains unchanged in the meantime.',
+      subject: input.newServiceActivated
+        ? 'Your new service address is active'
+        : 'Your service relocation is scheduled',
+      heading: input.newServiceActivated
+        ? 'Waiting for old-service disconnection'
+        : 'Provisioning is scheduled',
+      message: input.newServiceActivated
+        ? 'Your new connection is active. Your move remains in progress until the old service is disconnected.'
+        : 'Your move home request has been approved. We will begin provisioning on the requested move date. Your existing connection remains unchanged in the meantime.',
     },
     FAILED: {
       subject: 'Action required for your service relocation',

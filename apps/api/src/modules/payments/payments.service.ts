@@ -1963,15 +1963,7 @@ export class PaymentsService {
         ? cancellationInProgress
           ? current.status
           : SubscriptionStatus.CANCELLED
-        : stripeSubscription.status === 'past_due' || stripeSubscription.status === 'unpaid'
-          ? current.status === SubscriptionStatus.ACTIVE
-            ? SubscriptionStatus.PAST_DUE
-            : current.status
-          : stripeSubscription.status === 'active' || stripeSubscription.status === 'trialing'
-            ? current.status === SubscriptionStatus.PAST_DUE
-              ? SubscriptionStatus.ACTIVE
-              : current.status
-            : current.status;
+        : current.status;
       await transaction.subscription.update({
         where: { id: current.id },
         data: {

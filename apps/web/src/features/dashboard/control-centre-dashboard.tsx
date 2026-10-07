@@ -1,5 +1,6 @@
 'use client';
 
+import { RequestReviewQueue } from '../service-requests/request-review-queue';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 
@@ -49,6 +50,7 @@ export function ControlCentreDashboard() {
           Access the customer and service workflows assigned to staff.
         </p>
       </header>
+      <RequestReviewQueue />
       <section aria-label="Support summary" className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
           ['New requests', supportSummary.data?.newRequests],
@@ -61,7 +63,9 @@ export function ControlCentreDashboard() {
             href="/control-centre/support"
             key={label}
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {label}
+            </p>
             <p className="mt-2 text-2xl font-bold">
               {supportSummary.isPending ? '…' : (value ?? 0)}
             </p>

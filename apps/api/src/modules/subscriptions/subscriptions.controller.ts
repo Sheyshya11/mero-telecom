@@ -63,7 +63,7 @@ export class SubscriptionsController {
     @Body() input: ExtendGracePeriodDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.lifecycle.extendGracePeriod(id, input.days, user);
+    return this.lifecycle.extendGracePeriod(id, input.days, user, input.reason);
   }
   @Post(':subscriptionId/suspend') @Roles(Role.ADMIN) suspend(
     @Param('subscriptionId', new ParseUUIDPipe()) id: string,

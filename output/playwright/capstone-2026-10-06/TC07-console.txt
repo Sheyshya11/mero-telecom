@@ -1,0 +1,24 @@
+Case: TC07 - Ticket Escalation
+Evidence: executed existing Jest unit/service tests with mocked dependencies.
+Full browser acceptance: blocked by Docker/WSL ERROR_NO_SYSTEM_RESOURCES.
+Started (UTC): 2026-10-06T13:20:23.6294254Z
+Command: jest --runInBand --verbose --no-colors --json --outputFile=D:\MeroTelecom\output\playwright\capstone-2026-10-06\TC07-jest.json --runTestsByPath src/common/workflow/ticket-workflow-policy.service.spec.ts
+
+(node:823336) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/common/workflow/ticket-workflow-policy.service.spec.ts
+  TicketWorkflowPolicyService
+    √ blocks resolution while Super Admin review is pending or waiting for information (20 ms)
+    √ keeps an approved request blocking until the operational work is recorded complete (1 ms)
+    √ allows only the assigned owner to resolve a ticket with no unfinished request (2 ms)
+    √ derives role, level, assignment, and state-specific internal request capabilities (2 ms)
+    √ prevents self-review and role-route impersonation (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        1.336 s
+Ran all test suites within paths "src/common/workflow/ticket-workflow-policy.service.spec.ts".
+Test results written to: ..\..\output\playwright\capstone-2026-10-06\TC07-jest.json
+
+Exit code: 0

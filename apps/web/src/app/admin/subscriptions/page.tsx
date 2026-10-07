@@ -10,6 +10,10 @@ import {
   type PageMeta,
 } from '../../../components/data-table';
 
+import {
+  CollectionControls,
+  CollectionPolicyControls,
+} from '../../../features/invoices/collection-controls';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { usePlanOptions } from '../../../features/plans/use-plan-options';
 import { ApiError, apiRequest } from '../../../lib/api/client';
@@ -45,10 +49,14 @@ type Subscription = {
   eligibleForTerminationAt: string | null;
   provisioningStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | null;
   provisioningFailure: string | null;
+  collectionHoldReason?: string | null;
   remindersSent: number;
   invoices: Array<{
     id: string;
     invoiceNumber: string;
+    collectionStage?: string;
+    suspensionScheduledAt?: string | null;
+    outstandingCents?: number;
     totalCents: number;
     dueDate: string;
     status: 'ISSUED' | 'OVERDUE';
@@ -203,6 +211,7 @@ export default function AdminSubscriptionsPage() {
           </p>
         </div>
       </header>
+      <CollectionPolicyControls />
 
       {subscriptions.isError || planChanges.isError ? (
         <div className="mt-6 flex flex-wrap items-center gap-3 rounded-md bg-destructive-subtle p-4 text-sm text-destructive-foreground">
@@ -313,7 +322,7 @@ export default function AdminSubscriptionsPage() {
                 ) : null}
               </div>
               <div className="flex gap-2">
-                {subscription.status === 'ACTIVE' ? (
+                {subscription.status === 'ACTIVE' && user.role !== 'STAFF' ? (
                   <button
                     className="button-secondary"
                     disabled={transition.isPending}
@@ -337,25 +346,6 @@ export default function AdminSubscriptionsPage() {
                     type="button"
                   >
                     Reactivate
-                  </button>
-                ) : null}
-                {subscription.status === 'PAST_DUE' ? (
-                  <button
-                    className="button-secondary"
-                    disabled={transition.isPending || user.role === 'STAFF'}
-                    onClick={() =>
-                      transition.mutate({
-                        id: subscription.id,
-                        action: 'extend-grace-period',
-                        body: { days: 3 },
-                      })
-                    }
-                    title={
-                      user.role === 'STAFF' ? 'Administrator permission is required.' : undefined
-                    }
-                    type="button"
-                  >
-                    Extend grace 3 days
                   </button>
                 ) : null}
                 {subscription.status === 'SUSPENDED' &&
@@ -440,6 +430,14 @@ export default function AdminSubscriptionsPage() {
                   </div>
                 </dl>
               ) : null}
+              <div className="col-span-full">
+                <CollectionControls
+                  subscriptionId={subscription.id}
+                  invoices={subscription.invoices}
+                  graceEndsAt={subscription.gracePeriodEndsAt}
+                  holdReason={subscription.collectionHoldReason}
+                />
+              </div>
             </article>
           ))}
         </div>

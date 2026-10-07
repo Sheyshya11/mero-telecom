@@ -1,0 +1,44 @@
+Case: TC06 - Service Relocation
+Evidence: executed existing Jest unit/service tests with mocked dependencies.
+Full browser acceptance: blocked by Docker/WSL ERROR_NO_SYSTEM_RESOURCES.
+Started (UTC): 2026-10-06T13:20:18.8397729Z
+Command: jest --runInBand --verbose --no-colors --json --outputFile=D:\MeroTelecom\output\playwright\capstone-2026-10-06\TC06-jest.json --runTestsByPath src/modules/relocations/relocations.service.spec.ts src/modules/relocations/providers/mock-relocation.provider.spec.ts
+
+(node:446280) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/modules/relocations/relocations.service.spec.ts
+  RelocationsService
+    √ lets the owner of an active subscription qualify a serviceable address (6 ms)
+    √ records a non-serviceable qualification without changing the subscription (2 ms)
+    √ reports the existing plan as incompatible when SQ omits it (1 ms)
+    √ creates a relocation while preserving the active subscription and old address (3 ms)
+    √ stores a separately selected complete billing address including its unit (2 ms)
+    √ rejects a billing selection without a house number (1 ms)
+    √ prevents a duplicate active relocation (1 ms)
+    √ prevents relocation while a plan change is active (1 ms)
+    √ prevents relocation while cancellation is active (1 ms)
+    √ rejects access by a customer who does not own the subscription (1 ms)
+    √ cancels a reversible relocation without cancelling the subscription (2 ms)
+    √ activates atomically and changes the authoritative service address exactly once (1 ms)
+    √ keeps the old service authoritative when provisioning fails
+    √ keeps both the subscription and old address unchanged while provisioning is pending
+    √ records the Admin actor when provisioning is retried (2 ms)
+    √ explains why simulated provisioning cannot run before employee approval (33 ms)
+    √ uses the selected simulated result to retry failed provisioning immediately (2 ms)
+    √ records previous and new state for a Super Admin force-close override (2 ms)
+    √ activates the new address but defers old-service disconnection until a later confirmed date (1 ms)
+
+PASS src/modules/relocations/providers/mock-relocation.provider.spec.ts
+  MockRelocationProvider
+    √ uses a per-relocation provisioning failure deterministically (1 ms)
+    √ moves a pending provisioning result to completed on the configured poll
+    √ simulates disconnection failure and successful retry independently (1 ms)
+
+Test Suites: 2 passed, 2 total
+Tests:       22 passed, 22 total
+Snapshots:   0 total
+Time:        3.734 s, estimated 4 s
+Ran all test suites within paths "src/modules/relocations/relocations.service.spec.ts", "src/modules/relocations/providers/mock-relocation.provider.spec.ts".
+Test results written to: ..\..\output\playwright\capstone-2026-10-06\TC06-jest.json
+
+Exit code: 0

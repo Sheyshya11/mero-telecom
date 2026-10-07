@@ -1,0 +1,9 @@
+CREATE TYPE "CollectionStage" AS ENUM ('NONE','FIRST_REMINDER','SECOND_REMINDER','FINAL_WARNING','SUSPENSION_SCHEDULED','SUSPENDED','RESOLVED');
+CREATE TABLE "CollectionPolicy" ("id" VARCHAR(32) NOT NULL DEFAULT 'default', "firstReminderDays" INTEGER NOT NULL DEFAULT 1, "secondReminderDays" INTEGER NOT NULL DEFAULT 3, "finalWarningDays" INTEGER NOT NULL DEFAULT 5, "suspensionDays" INTEGER NOT NULL DEFAULT 7, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "CollectionPolicy_pkey" PRIMARY KEY ("id"), CONSTRAINT "CollectionPolicy_order_check" CHECK (0 < "firstReminderDays" AND "firstReminderDays" < "secondReminderDays" AND "secondReminderDays" < "finalWarningDays" AND "finalWarningDays" < "suspensionDays"));
+ALTER TABLE "Invoice" ADD COLUMN "collectionStage" "CollectionStage" NOT NULL DEFAULT 'NONE', ADD COLUMN "firstReminderSentAt" TIMESTAMP(3), ADD COLUMN "secondReminderSentAt" TIMESTAMP(3), ADD COLUMN "finalWarningSentAt" TIMESTAMP(3), ADD COLUMN "suspensionScheduledAt" TIMESTAMP(3);
+ALTER TABLE "Subscription" ADD COLUMN "graceExtendedUntil" TIMESTAMP(3), ADD COLUMN "graceExtensionReason" VARCHAR(1000), ADD COLUMN "graceExtendedBy" UUID, ADD COLUMN "graceExtendedAt" TIMESTAMP(3), ADD COLUMN "collectionHoldReason" VARCHAR(1000);
+ALTER TABLE "ServiceProvisioningRequest" ADD COLUMN "collectionInvoiceId" UUID, ADD COLUMN "notificationDeliveredAt" TIMESTAMP(3);
+ALTER TABLE "AuditLog" ADD COLUMN "deduplicationKey" VARCHAR(190), ADD COLUMN "notificationEvent" VARCHAR(80), ADD COLUMN "notificationDeliveredAt" TIMESTAMP(3);
+CREATE UNIQUE INDEX "AuditLog_deduplicationKey_key" ON "AuditLog"("deduplicationKey");
+CREATE INDEX "AuditLog_collection_delivery_idx" ON "AuditLog"("notificationEvent", "notificationDeliveredAt");
+CREATE INDEX "Invoice_collectionStage_dueDate_idx" ON "Invoice"("collectionStage", "dueDate");

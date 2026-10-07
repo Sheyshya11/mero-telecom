@@ -1,0 +1,48 @@
+<!doctype html><html><meta charset="utf-8"><title>TC02 - Automated test evidence</title><style>body{margin:0;background:#eef1f5;font:16px Arial,sans-serif;color:#172233}main{margin:32px auto;width:1120px;background:white;border:1px solid #ccd4de;border-radius:10px;overflow:hidden}header{padding:24px 30px;border-bottom:1px solid #ccd4de;background:#10243b;color:white}h1{font-size:28px;margin:9px 0}h2{font-size:18px;margin:0}.meta{padding:20px 30px;background:#f7fafc;line-height:1.6}.warning{margin:18px 30px;padding:14px;background:#fff4da;border:1px solid #dfbd73;border-radius:6px;line-height:1.5}.stats{display:flex;gap:38px;margin-top:12px}.stats b{font-size:24px;color:#14723d}pre{margin:20px 30px 28px;font:14px/1.65 Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}footer{padding:15px 30px;border-top:1px solid #ccd4de;color:#546477;font-size:13px}a{color:#1764aa}li{line-height:2}</style><main><header><h2>MERO TELECOM | EXECUTED AUTOMATED TEST EVIDENCE</h2><h1>TC02 — Coverage Checking</h1>Existing Jest tests executed against project code</header><div class="meta">Run: 06 October 2026, 11:49 PM ACDT<br>Scope: <strong>unit/service tests with mocked dependencies</strong><div class="stats"><span><b>PASSED</b><br>Automated test run</span><span><b>23</b><br>Assertions passed</span><span><b>0</b><br>Assertions failed</span><span><b>12.59s</b><br>Elapsed time</span></div></div><div class="warning"><strong>Full browser acceptance is blocked.</strong> Docker/WSL failed with ERROR_NO_SYSTEM_RESOURCES and localhost:3000 refused the connection. This screenshot records an actual automated test run. It does not show the application workflow, a live payment, or live NBN/MNF provisioning.</div><pre>Case: TC02 - Coverage Checking
+Evidence: executed existing Jest unit/service tests with mocked dependencies.
+Full browser acceptance: blocked by Docker/WSL ERROR_NO_SYSTEM_RESOURCES.
+Started (UTC): 2026-10-06T13:19:37.6043791Z
+Command: jest --runInBand --verbose --no-colors --json --outputFile=D:\MeroTelecom\output\playwright\capstone-2026-10-06\TC02-jest.json --runTestsByPath src/modules/coverage/coverage.service.spec.ts src/modules/coverage/database-qualification.provider.spec.ts
+
+(node:423552) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/modules/coverage/coverage.service.spec.ts (10.662 s)
+  AddressSelectionService
+    √ returns display-safe suggestions and stores the trusted provider result (7 ms)
+    √ omits suggestions that do not contain a complete Australian street address (1 ms)
+    √ rejects an expired or already-consumed selection token (1 ms)
+    √ fails closed when Redis cannot verify a selection
+  CoverageService
+    √ enforces the configured minimum query length (1 ms)
+    √ consumes the trusted selection and omits internal region identifiers publicly (1 ms)
+    √ consumes a trusted address for non-coverage address workflows
+    √ issues and consumes a one-use qualification token bound to compatible plans (2 ms)
+
+PASS src/modules/coverage/database-qualification.provider.spec.ts
+  Australian state normalization
+    √ normalizes SA / null to SA (1 ms)
+    √ normalizes null / South Australia to SA (1 ms)
+    √ normalizes sa / South Australia to SA
+    √ normalizes null / Victoria to VIC
+  DatabaseCoverageQualificationProvider
+    √ requires an Australian country code before database qualification (1 ms)
+    √ matches South Australia by its full state name when state_code is absent (1 ms)
+    √ returns coming soon for a configured coming-soon state
+    √ returns outside region for an unsupported state (1 ms)
+    √ gives an exact-address override precedence over postcode coverage
+    √ performs an exact postcode lookup and never infers a numerical range (1 ms)
+    √ maps postcode PARTIAL to MANUAL_REVIEW
+    √ maps postcode COMING_SOON to COMING_SOON
+    √ maps postcode UNAVAILABLE to NOT_AVAILABLE (1 ms)
+    √ returns only technology and speed-compatible public plans
+    √ returns manual review when no compatible plan exists (1 ms)
+
+Test Suites: 2 passed, 2 total
+Tests:       23 passed, 23 total
+Snapshots:   0 total
+Time:        11.337 s
+Ran all test suites within paths &quot;src/modules/coverage/coverage.service.spec.ts&quot;, &quot;src/modules/coverage/database-qualification.provider.spec.ts&quot;.
+Test results written to: ..\..\output\playwright\capstone-2026-10-06\TC02-jest.json
+
+Exit code: 0
+</pre><footer>Source: TC02-console.txt and TC02-jest.json. Screenshot captured in Chromium. Raw results are included.</footer></main></html>

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  RequestReviewDecision,
   AddressType,
   CancellationProviderStatus,
   CoverageResultStatus,
@@ -24,6 +25,10 @@ import {
   SubscriptionStatus,
 } from '@prisma/client';
 
+import {
+  assertEmployeeReviewer,
+  reviewTransaction,
+} from '../../common/workflow/request-review.policy';
 import { buildPaginationMeta } from '../../common/pagination';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
@@ -47,6 +52,7 @@ import {
 } from './providers/service-relocation.provider';
 
 const activeRelocationStatuses: ServiceRelocationStatus[] = [
+  ServiceRelocationStatus.PENDING_REVIEW,
   ServiceRelocationStatus.AWAITING_CONFIRMATION,
   ServiceRelocationStatus.CONFIRMED,
   ServiceRelocationStatus.PROVISIONING,
@@ -64,6 +70,7 @@ const activePlanChangeStatuses: PlanChangeStatus[] = [
 ];
 
 const cancellableRelocationStatuses: ServiceRelocationStatus[] = [
+  ServiceRelocationStatus.PENDING_REVIEW,
   ServiceRelocationStatus.AWAITING_CONFIRMATION,
   ServiceRelocationStatus.CONFIRMED,
   ServiceRelocationStatus.SCHEDULED,
@@ -78,6 +85,7 @@ const processableRelocationStatuses: ServiceRelocationStatus[] = [
 ];
 
 const reschedulableRelocationStatuses: ServiceRelocationStatus[] = [
+  ServiceRelocationStatus.PENDING_REVIEW,
   ServiceRelocationStatus.AWAITING_CONFIRMATION,
   ServiceRelocationStatus.CONFIRMED,
   ServiceRelocationStatus.SCHEDULED,
@@ -196,24 +204,6 @@ export class RelocationsService {
               qualification,
             ),
           });
-          await transaction.customer.update({
-            where: { id: subscription.customerId },
-            data: billingAddressData,
-          });
-          await transaction.customerAddress.upsert({
-            where: {
-              customerId_type: {
-                customerId: subscription.customerId,
-                type: AddressType.BILLING,
-              },
-            },
-            create: {
-              customerId: subscription.customerId,
-              type: AddressType.BILLING,
-              ...billingAddressData,
-            },
-            update: billingAddressData,
-          });
           const created = await transaction.serviceRelocation.create({
             data: {
               customerId: subscription.customerId,
@@ -238,6 +228,9 @@ export class RelocationsService {
               providerName: this.provider.name,
               providerIdempotencyKey: `relocation-provision:${subscriptionId}:${newServiceAddress.id}`,
               requestedByUserId: actor.id,
+              status: ServiceRelocationStatus.PENDING_REVIEW,
+              requestedBillingAddress: billingAddressData,
+              customerComments: input.customerComments?.trim() || null,
             },
             include: relocationInclude,
           });
@@ -267,18 +260,6 @@ export class RelocationsService {
                   currentPlanCompatible: qualification.compatiblePlanIds.includes(
                     subscription.planId,
                   ),
-                },
-              },
-              {
-                actorUserId: actor.id,
-                action: 'CUSTOMER_BILLING_ADDRESS_UPDATED',
-                entityType: 'Customer',
-                entityId: subscription.customerId,
-                metadata: {
-                  actorRole: actor.role,
-                  source: 'SERVICE_RELOCATION',
-                  relocationId: created.id,
-                  sameAsServiceAddress: input.billingSameAsService,
                 },
               },
               {
@@ -394,6 +375,8 @@ export class RelocationsService {
     ]);
     return {
       ...response,
+      reviewedByUserId: relocation.reviewedByUserId,
+      reviewNotes: relocation.reviewNotes,
       providerName: relocation.providerName,
       providerReference: relocation.providerProvisioningId,
       disconnectionProviderReference: relocation.providerDisconnectionId,
@@ -460,41 +443,132 @@ export class RelocationsService {
   }
 
   async confirm(id: string, actor: AuthenticatedUser) {
+    return this.approve(id, actor);
+  }
+
+  async approve(id: string, actor: AuthenticatedUser, reviewNotes?: string) {
+    assertEmployeeReviewer(actor);
     const confirmedAt = new Date();
-    const relocation = await this.prisma.$transaction(async (transaction) => {
-      const existing = await this.findForActor(transaction, id, actor);
-      if (existing.status !== ServiceRelocationStatus.AWAITING_CONFIRMATION) {
-        throw new ConflictException('This relocation is no longer awaiting confirmation.');
-      }
-      await this.assertNoOperationalConflict(transaction, existing.subscriptionId, id);
-      const scheduled = existing.requestedMoveDate > this.todayUtc();
-      const updated = await transaction.serviceRelocation.update({
+    const result = await reviewTransaction(this.prisma, async (transaction) => {
+      const initial = await transaction.serviceRelocation.findUnique({
         where: { id },
+        select: { subscriptionId: true },
+      });
+      if (!initial) throw new NotFoundException('Relocation request not found.');
+      await this.lockSubscription(transaction, initial.subscriptionId);
+      const existing = await this.findForActor(transaction, id, actor);
+      if (existing.reviewDecision === RequestReviewDecision.APPROVED)
+        return { relocation: existing, reused: true };
+      if (existing.status !== ServiceRelocationStatus.PENDING_REVIEW || existing.reviewDecision)
+        throw new ConflictException('This relocation has already been reviewed or withdrawn.');
+      if (existing.subscription.status !== SubscriptionStatus.ACTIVE)
+        throw new ConflictException('Only an active service can begin relocation.');
+      await this.assertNoOperationalConflict(transaction, existing.subscriptionId, id);
+      const requestedPlan = await transaction.internetPlan.findUnique({
+        where: { id: existing.requestedPlanId },
+      });
+      if (!requestedPlan?.isActive || !requestedPlan.isAvailable || !requestedPlan.isPublic)
+        throw new ConflictException(
+          'The requested plan is no longer available. Review the request before approval.',
+        );
+      const scheduled = existing.requestedMoveDate > this.todayUtc();
+      const changed = await transaction.serviceRelocation.updateMany({
+        where: {
+          id,
+          version: existing.version,
+          status: ServiceRelocationStatus.PENDING_REVIEW,
+          reviewDecision: null,
+        },
         data: {
           status: scheduled ? ServiceRelocationStatus.SCHEDULED : ServiceRelocationStatus.CONFIRMED,
           confirmedAt,
           scheduledAt: scheduled ? confirmedAt : null,
+          reviewDecision: RequestReviewDecision.APPROVED,
+          reviewedByUserId: actor.id,
+          reviewedAt: confirmedAt,
+          reviewNotes: reviewNotes?.trim() || null,
           version: { increment: 1 },
         },
-        include: relocationInclude,
       });
-      await transaction.auditLog.create({
+      if (changed.count !== 1)
+        throw new ConflictException('This relocation was reviewed by another employee.');
+      await this.audit(transaction, id, actor, 'RELOCATION_APPROVED', {
+        scheduled,
+        decision: 'APPROVED',
+        reviewedAt: confirmedAt.toISOString(),
+        reviewNotes: reviewNotes?.trim() || null,
+      });
+      return {
+        relocation: await transaction.serviceRelocation.findUniqueOrThrow({
+          where: { id },
+          include: relocationInclude,
+        }),
+        reused: false,
+      };
+    });
+    if (!result.reused) {
+      await this.notifications.resolveActionRequired('ServiceRelocation', id);
+      await this.notify(
+        result.relocation.status === ServiceRelocationStatus.SCHEDULED ? 'SCHEDULED' : 'CONFIRMED',
+        result.relocation,
+      );
+      if (result.relocation.status !== ServiceRelocationStatus.SCHEDULED)
+        await this.processProvisioning(id);
+    }
+    return this.findOne(id, actor);
+  }
+
+  async reject(id: string, actor: AuthenticatedUser, reason: string, reviewNotes?: string) {
+    assertEmployeeReviewer(actor);
+    if (reason.trim().length < 3)
+      throw new BadRequestException('A customer-safe rejection reason is required.');
+    const result = await reviewTransaction(this.prisma, async (tx) => {
+      const initial = await tx.serviceRelocation.findUnique({
+        where: { id },
+        select: { subscriptionId: true },
+      });
+      if (!initial) throw new NotFoundException('Relocation request not found.');
+      await this.lockSubscription(tx, initial.subscriptionId);
+      const existing = await this.findForActor(tx, id, actor);
+      if (existing.reviewDecision === RequestReviewDecision.REJECTED)
+        return { relocation: existing, reused: true };
+      if (existing.status !== ServiceRelocationStatus.PENDING_REVIEW || existing.reviewDecision)
+        throw new ConflictException('This relocation has already been reviewed or withdrawn.');
+      const changed = await tx.serviceRelocation.updateMany({
+        where: {
+          id,
+          version: existing.version,
+          status: ServiceRelocationStatus.PENDING_REVIEW,
+          reviewDecision: null,
+        },
         data: {
-          actorUserId: actor.id,
-          action: 'RELOCATION_CONFIRMED',
-          entityType: 'ServiceRelocation',
-          entityId: id,
-          metadata: { scheduled },
+          status: ServiceRelocationStatus.REJECTED,
+          reviewDecision: RequestReviewDecision.REJECTED,
+          reviewedByUserId: actor.id,
+          reviewedAt: new Date(),
+          reviewNotes: reviewNotes?.trim() || null,
+          rejectionReason: reason.trim(),
+          version: { increment: 1 },
         },
       });
-      return updated;
+      if (changed.count !== 1)
+        throw new ConflictException('This relocation was reviewed by another employee.');
+      await this.audit(tx, id, actor, 'RELOCATION_REJECTED', {
+        reason: reason.trim(),
+        decision: 'REJECTED',
+        reviewNotes: reviewNotes?.trim() || null,
+      });
+      return {
+        relocation: await tx.serviceRelocation.findUniqueOrThrow({
+          where: { id },
+          include: relocationInclude,
+        }),
+        reused: false,
+      };
     });
-    await this.notify(
-      relocation.status === ServiceRelocationStatus.SCHEDULED ? 'SCHEDULED' : 'CONFIRMED',
-      relocation,
-    );
-    if (relocation.status !== ServiceRelocationStatus.SCHEDULED) {
-      await this.processProvisioning(id);
+    if (!result.reused) {
+      await this.notifications.resolveActionRequired('ServiceRelocation', id);
+      await this.notify('REJECTED', result.relocation);
     }
     return this.findOne(id, actor);
   }
@@ -504,7 +578,13 @@ export class RelocationsService {
       throw new BadRequestException('A cancellation reason is required for an internal action.');
     }
     const cancelledAt = new Date();
-    const relocation = await this.prisma.$transaction(async (transaction) => {
+    const relocation = await reviewTransaction(this.prisma, async (transaction) => {
+      const initial = await transaction.serviceRelocation.findUnique({
+        where: { id },
+        select: { subscriptionId: true },
+      });
+      if (!initial) throw new NotFoundException('Relocation request not found.');
+      await this.lockSubscription(transaction, initial.subscriptionId);
       const existing = await this.findForActor(transaction, id, actor);
       if (
         !cancellableRelocationStatuses.includes(existing.status) ||
@@ -539,6 +619,7 @@ export class RelocationsService {
       });
       return updated;
     });
+    await this.notifications.resolveActionRequired('ServiceRelocation', relocation.id);
     return this.toResponse(relocation);
   }
 
@@ -558,6 +639,7 @@ export class RelocationsService {
         include: relocationInclude,
       });
       if (!existing) throw new NotFoundException('Relocation request not found.');
+      this.assertApproved(existing);
       if (existing.status !== ServiceRelocationStatus.FAILED) {
         throw new ConflictException('Only a failed relocation can be retried.');
       }
@@ -618,7 +700,13 @@ export class RelocationsService {
       ? this.parseDate(input.requestedOldServiceDisconnectionDate, 'Disconnection date')
       : null;
     this.assertDates(requestedMoveDate, requestedOldServiceDisconnectionDate);
-    await this.prisma.$transaction(async (transaction) => {
+    await reviewTransaction(this.prisma, async (transaction) => {
+      const identity = await transaction.serviceRelocation.findUnique({
+        where: { id },
+        select: { subscriptionId: true },
+      });
+      if (!identity) throw new NotFoundException('Relocation request not found.');
+      await this.lockSubscription(transaction, identity.subscriptionId);
       const existing = await transaction.serviceRelocation.findUnique({ where: { id } });
       if (!existing) throw new NotFoundException('Relocation request not found.');
       if (
@@ -659,6 +747,7 @@ export class RelocationsService {
       include: { newServiceAddress: true },
     });
     if (!existing) throw new NotFoundException('Relocation request not found.');
+    this.assertApproved(existing);
     if (
       existing.newServiceActivatedAt ||
       !reschedulableRelocationStatuses.includes(existing.status)
@@ -764,6 +853,7 @@ export class RelocationsService {
     const existing = await this.prisma.$transaction(async (transaction) => {
       const existing = await transaction.serviceRelocation.findUnique({ where: { id } });
       if (!existing) throw new NotFoundException('Relocation request not found.');
+      this.assertApproved(existing);
       if (
         (
           [
@@ -1028,6 +1118,7 @@ export class RelocationsService {
       throw new BadRequestException('A meaningful override reason is required.');
     }
     const before = await this.requireInternalRelocation(id);
+    this.assertApproved(before);
     if (input.action === RelocationOverrideAction.MARK_NEW_SERVICE_ACTIVE) {
       if (before.newServiceActivatedAt) {
         throw new ConflictException('The new service is already active.');
@@ -1142,7 +1233,9 @@ export class RelocationsService {
     const now = new Date();
     const candidates = await this.prisma.serviceRelocation.findMany({
       where: {
+        reviewDecision: RequestReviewDecision.APPROVED,
         OR: [
+          { status: ServiceRelocationStatus.CONFIRMED },
           {
             status: ServiceRelocationStatus.SCHEDULED,
             provisioningStatus: null,
@@ -1188,8 +1281,19 @@ export class RelocationsService {
 
   async processProvisioning(id: string, ignoreSchedule = false): Promise<void> {
     const claimed = await this.prisma.$transaction(async (transaction) => {
+      const identity = await transaction.serviceRelocation.findUnique({
+        where: { id },
+        select: { subscriptionId: true },
+      });
+      if (!identity) return null;
+      await this.lockSubscription(transaction, identity.subscriptionId);
       const existing = await transaction.serviceRelocation.findUnique({ where: { id } });
-      if (!existing || existing.status === ServiceRelocationStatus.COMPLETED) return null;
+      if (
+        !existing ||
+        existing.reviewDecision !== RequestReviewDecision.APPROVED ||
+        existing.status === ServiceRelocationStatus.COMPLETED
+      )
+        return null;
       if (!processableRelocationStatuses.includes(existing.status)) {
         return null;
       }
@@ -1200,7 +1304,6 @@ export class RelocationsService {
       ) {
         return null;
       }
-      await this.lockSubscription(transaction, existing.subscriptionId);
       const now = new Date();
       const updated = await transaction.serviceRelocation.update({
         where: { id },
@@ -1216,7 +1319,7 @@ export class RelocationsService {
       if (!existing.provisioningStartedAt) {
         await transaction.auditLog.create({
           data: {
-            action: 'PROVISIONING_STARTED',
+            action: 'RELOCATION_STARTED',
             entityType: 'ServiceRelocation',
             entityId: id,
             metadata: { provider: this.provider.name },
@@ -1259,7 +1362,11 @@ export class RelocationsService {
   private async applyProviderResult(id: string, result: RelocationProvisioningResult) {
     if (result.status === ServiceProvisioningStatus.PENDING) {
       await this.prisma.serviceRelocation.updateMany({
-        where: { id, status: ServiceRelocationStatus.PROVISIONING },
+        where: {
+          id,
+          status: ServiceRelocationStatus.PROVISIONING,
+          reviewDecision: RequestReviewDecision.APPROVED,
+        },
         data: {
           provisioningStatus: result.status,
           providerProvisioningId: result.providerReference,
@@ -1271,7 +1378,12 @@ export class RelocationsService {
     if (result.status === ServiceProvisioningStatus.FAILED) {
       const failed = await this.prisma.$transaction(async (transaction) => {
         const current = await transaction.serviceRelocation.findUnique({ where: { id } });
-        if (!current || current.status === ServiceRelocationStatus.COMPLETED) return null;
+        if (
+          !current ||
+          current.reviewDecision !== RequestReviewDecision.APPROVED ||
+          current.status === ServiceRelocationStatus.COMPLETED
+        )
+          return null;
         const updated = await transaction.serviceRelocation.update({
           where: { id },
           data: {
@@ -1325,7 +1437,12 @@ export class RelocationsService {
           where: { id },
           include: relocationInclude,
         });
-        if (!current || current.status === ServiceRelocationStatus.COMPLETED) return null;
+        if (
+          !current ||
+          current.reviewDecision !== RequestReviewDecision.APPROVED ||
+          current.status === ServiceRelocationStatus.COMPLETED
+        )
+          return null;
         if (current.status !== ServiceRelocationStatus.PROVISIONING) return null;
         await transaction.subscription.update({
           where: { id: current.subscriptionId },
@@ -1335,6 +1452,41 @@ export class RelocationsService {
             monthlyCents: current.requestedPlan.monthlyCents,
           },
         });
+        const billingAddress = current.requestedBillingAddress;
+        if (
+          billingAddress &&
+          !Array.isArray(billingAddress) &&
+          typeof billingAddress === 'object' &&
+          typeof billingAddress.addressLine1 === 'string' &&
+          typeof billingAddress.suburb === 'string' &&
+          typeof billingAddress.state === 'string' &&
+          typeof billingAddress.postcode === 'string'
+        ) {
+          const address = {
+            addressLine1: billingAddress.addressLine1,
+            addressLine2:
+              typeof billingAddress.addressLine2 === 'string' ? billingAddress.addressLine2 : null,
+            suburb: billingAddress.suburb,
+            state: billingAddress.state,
+            postcode: billingAddress.postcode,
+          };
+          await transaction.customer.update({ where: { id: current.customerId }, data: address });
+          await transaction.customerAddress.upsert({
+            where: {
+              customerId_type: { customerId: current.customerId, type: AddressType.BILLING },
+            },
+            create: { customerId: current.customerId, type: AddressType.BILLING, ...address },
+            update: address,
+          });
+          await transaction.auditLog.create({
+            data: {
+              action: 'CUSTOMER_BILLING_ADDRESS_UPDATED',
+              entityType: 'ServiceRelocation',
+              entityId: id,
+              metadata: { customerId: current.customerId, stage: 'NEW_SERVICE_ACTIVATED' },
+            },
+          });
+        }
         await transaction.customerAddress.upsert({
           where: {
             customerId_type: { customerId: current.customerId, type: AddressType.SERVICE },
@@ -1409,6 +1561,7 @@ export class RelocationsService {
     await this.prisma.$transaction(async (transaction) => {
       const existing = await transaction.serviceRelocation.findUnique({ where: { id } });
       if (!existing) throw new NotFoundException('Relocation request not found.');
+      this.assertApproved(existing);
       if (
         !existing.newServiceActivatedAt ||
         existing.provisioningStatus !== ServiceProvisioningStatus.COMPLETED
@@ -1446,9 +1599,16 @@ export class RelocationsService {
 
   async processDisconnection(id: string, ignoreSchedule = false): Promise<void> {
     const claimed = await this.prisma.$transaction(async (transaction) => {
+      const identity = await transaction.serviceRelocation.findUnique({
+        where: { id },
+        select: { subscriptionId: true },
+      });
+      if (!identity) return null;
+      await this.lockSubscription(transaction, identity.subscriptionId);
       const initial = await transaction.serviceRelocation.findUnique({ where: { id } });
       if (
         !initial ||
+        initial.reviewDecision !== RequestReviewDecision.APPROVED ||
         initial.oldServiceDisconnectionStatus === CancellationProviderStatus.COMPLETED
       ) {
         return null;
@@ -1472,7 +1632,6 @@ export class RelocationsService {
       ) {
         return null;
       }
-      await this.lockSubscription(transaction, initial.subscriptionId);
       const now = new Date();
       const updated = await transaction.serviceRelocation.update({
         where: { id },
@@ -1527,6 +1686,7 @@ export class RelocationsService {
       await this.prisma.serviceRelocation.updateMany({
         where: {
           id,
+          reviewDecision: RequestReviewDecision.APPROVED,
           status: ServiceRelocationStatus.PARTIALLY_COMPLETED,
           oldServiceDisconnectionStatus: CancellationProviderStatus.PENDING,
         },
@@ -1542,6 +1702,7 @@ export class RelocationsService {
         const updated = await transaction.serviceRelocation.updateMany({
           where: {
             id,
+            reviewDecision: RequestReviewDecision.APPROVED,
             oldServiceDisconnectionStatus: CancellationProviderStatus.PENDING,
           },
           data: {
@@ -1599,6 +1760,7 @@ export class RelocationsService {
       });
       if (
         !current ||
+        current.reviewDecision !== RequestReviewDecision.APPROVED ||
         !(
           [
             ServiceRelocationStatus.SCHEDULED,
@@ -1695,7 +1857,14 @@ export class RelocationsService {
         where: {
           subscriptionId,
           status: {
-            in: ['REQUESTED', 'SCHEDULED', 'PROCESSING', 'DISCONNECTION_PENDING', 'FAILED'],
+            in: [
+              'PENDING_REVIEW',
+              'REQUESTED',
+              'SCHEDULED',
+              'PROCESSING',
+              'DISCONNECTION_PENDING',
+              'FAILED',
+            ],
           },
         },
       }),
@@ -1726,7 +1895,14 @@ export class RelocationsService {
         where: {
           subscriptionId,
           status: {
-            in: ['REQUESTED', 'SCHEDULED', 'PROCESSING', 'DISCONNECTION_PENDING', 'FAILED'],
+            in: [
+              'PENDING_REVIEW',
+              'REQUESTED',
+              'SCHEDULED',
+              'PROCESSING',
+              'DISCONNECTION_PENDING',
+              'FAILED',
+            ],
           },
         },
       }),
@@ -1762,10 +1938,6 @@ export class RelocationsService {
         state: legacy.state,
         postcode: legacy.postcode,
       },
-    });
-    await transaction.subscription.update({
-      where: { id: subscription.id },
-      data: { currentServiceAddressId: created.id },
     });
     return created;
   }
@@ -1845,6 +2017,8 @@ export class RelocationsService {
       nextMockProvisioningOutcome,
       nextMockDisconnectionOutcome,
       statusBeforeManualReview,
+      reviewNotes,
+      reviewedByUserId,
       externalLocationId,
       requestedBy,
       cancelledBy,
@@ -1859,6 +2033,8 @@ export class RelocationsService {
     void nextMockProvisioningOutcome;
     void nextMockDisconnectionOutcome;
     void statusBeforeManualReview;
+    void reviewNotes;
+    void reviewedByUserId;
     void externalLocationId;
     void requestedBy;
     void cancelledBy;
@@ -1867,7 +2043,7 @@ export class RelocationsService {
       oldServiceAddress: this.publicAddress(relocation.oldServiceAddress),
       newServiceAddress: this.publicAddress(relocation.newServiceAddress),
       providerMode: this.provider.simulated ? 'SIMULATED' : 'LIVE',
-      canConfirm: relocation.status === ServiceRelocationStatus.AWAITING_CONFIRMATION,
+      canConfirm: false,
       canCancel:
         cancellableRelocationStatuses.includes(relocation.status) &&
         !relocation.newServiceActivatedAt,
@@ -1897,13 +2073,18 @@ export class RelocationsService {
       );
     return {
       canAddNote: ([Role.STAFF, Role.ADMIN, Role.SUPER_ADMIN] as Role[]).includes(actor.role),
-      canConfirm: isAdmin && relocation.status === ServiceRelocationStatus.AWAITING_CONFIRMATION,
+      canReview:
+        [Role.STAFF, Role.ADMIN, Role.SUPER_ADMIN].some((role) => role === actor.role) &&
+        relocation.status === ServiceRelocationStatus.PENDING_REVIEW &&
+        !relocation.reviewDecision,
+      canConfirm: false,
       canCancel:
         isAdmin &&
         cancellableRelocationStatuses.includes(relocation.status) &&
         !relocation.newServiceActivatedAt,
       canRetryQualification:
         isAdmin &&
+        relocation.reviewDecision === RequestReviewDecision.APPROVED &&
         !relocation.newServiceActivatedAt &&
         reschedulableRelocationStatuses.includes(relocation.status),
       canRetryProvisioning:
@@ -1930,10 +2111,15 @@ export class RelocationsService {
       canConfigureDemo: canSimulateProvisioning || canSimulateDisconnection,
       canSimulateProvisioning,
       canSimulateDisconnection,
-      canOverride: isSuperAdmin,
+      canOverride: isSuperAdmin && relocation.reviewDecision === RequestReviewDecision.APPROVED,
       maxProvisioningAttempts: this.maxProvisioningAttempts,
       maxDisconnectionAttempts: this.maxDisconnectionAttempts,
     };
+  }
+
+  private assertApproved(request: { reviewDecision: RequestReviewDecision | null }): void {
+    if (request.reviewDecision !== RequestReviewDecision.APPROVED)
+      throw new ConflictException('Employee approval is required before operational processing.');
   }
 
   private async requireInternalRelocation(id: string) {
@@ -1972,7 +2158,7 @@ export class RelocationsService {
   }
 
   private async notify(
-    event: 'REQUESTED' | 'CONFIRMED' | 'SCHEDULED' | 'FAILED' | 'COMPLETED',
+    event: 'REQUESTED' | 'REJECTED' | 'CONFIRMED' | 'SCHEDULED' | 'FAILED' | 'COMPLETED',
     relocation: RelocationRecord,
   ) {
     try {
@@ -1986,9 +2172,10 @@ export class RelocationsService {
         newAddress: this.formatAddress(relocation.newServiceAddress),
         planName: relocation.requestedPlan.name,
         requestedMoveDate: relocation.requestedMoveDate,
-        failureReason: relocation.failureReason,
+        failureReason: event === 'REJECTED' ? relocation.rejectionReason : relocation.failureReason,
         installationRequired: relocation.installationRequired,
         appointmentRequired: relocation.appointmentRequired,
+        newServiceActivated: Boolean(relocation.newServiceActivatedAt),
       });
     } catch (error: unknown) {
       this.logger.warn(

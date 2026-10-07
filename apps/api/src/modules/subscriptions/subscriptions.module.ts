@@ -1,3 +1,7 @@
+import { AccountLedgerModule } from '../account-ledger/account-ledger.module';
+import { CollectionController } from './collection.controller';
+import { CollectionPolicyService } from './collection-policy.service';
+import { CollectionService } from './collection.service';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { AuthorizationModule } from '../../common/authorization.module';
@@ -10,10 +14,18 @@ import { ProvisioningService } from './provisioning.service';
 import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 import { StripeModule } from '../payments/stripe.module';
 @Module({
-  imports: [AuthModule, AuthorizationModule, NotificationsModule, StripeModule],
-  controllers: [SubscriptionsController],
+  imports: [
+    AuthModule,
+    AuthorizationModule,
+    NotificationsModule,
+    StripeModule,
+    AccountLedgerModule,
+  ],
+  controllers: [SubscriptionsController, CollectionController],
   providers: [
     SubscriptionsService,
+    CollectionPolicyService,
+    CollectionService,
     SubscriptionLifecycleService,
     PaymentEligibilityService,
     ProvisioningService,

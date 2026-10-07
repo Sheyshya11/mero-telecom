@@ -1,0 +1,35 @@
+Case: TC04 - Duplicate Invoice Prevention
+Evidence: executed existing Jest unit/service tests with mocked dependencies.
+Full browser acceptance: blocked by Docker/WSL ERROR_NO_SYSTEM_RESOURCES.
+Started (UTC): 2026-10-06T13:20:08.8709223Z
+Command: jest --runInBand --verbose --no-colors --json --outputFile=D:\MeroTelecom\output\playwright\capstone-2026-10-06\TC04-jest.json --runTestsByPath src/modules/invoices/invoices.service.spec.ts
+
+(node:211844) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/modules/invoices/invoices.service.spec.ts
+  InvoicesService billing-period idempotency
+    √ blocks manual invoice generation for a Stripe recurring subscription (27 ms)
+    √ generates the first standard invoice for a billing period (4 ms)
+    √ applies ledger adjustments and reconciles the manual invoice total and GST (2 ms)
+    √ returns the existing DRAFT invoice instead of creating another (1 ms)
+    √ returns the existing ISSUED invoice instead of creating another
+    √ returns the existing PAID invoice instead of creating another
+    √ returns the existing OVERDUE invoice instead of creating another (1 ms)
+    √ returns the existing CANCELLED invoice instead of creating another (1 ms)
+    √ uses the subscription price snapshot after the catalogue price changes (1 ms)
+    √ allows the next billing period for the same subscription (1 ms)
+    √ allows another subscription to use the same billing period (2 ms)
+    √ returns the persisted invoice when concurrent creation hits the unique constraint (1 ms)
+    √ persists one invoice when manual and automated callers generate concurrently (2 ms)
+    √ does not expose a raw Prisma error when a unique conflict cannot be resolved (2 ms)
+    √ finds legacy monthly invoices that predate canonical period fields (2 ms)
+    √ returns null when the billing period has no existing invoice (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       16 passed, 16 total
+Snapshots:   0 total
+Time:        4.473 s
+Ran all test suites within paths "src/modules/invoices/invoices.service.spec.ts".
+Test results written to: ..\..\output\playwright\capstone-2026-10-06\TC04-jest.json
+
+Exit code: 0

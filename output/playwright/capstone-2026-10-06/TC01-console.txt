@@ -1,0 +1,31 @@
+Case: TC01 - Authentication and Role Access
+Evidence: executed existing Jest unit/service tests with mocked dependencies.
+Full browser acceptance: blocked by Docker/WSL ERROR_NO_SYSTEM_RESOURCES.
+Started (UTC): 2026-10-06T13:19:11.7265666Z
+Command: jest --runInBand --verbose --no-colors --json --outputFile=D:\MeroTelecom\output\playwright\capstone-2026-10-06\TC01-jest.json --runTestsByPath src/modules/auth/auth.service.spec.ts src/common/guards/roles.guard.spec.ts
+
+(node:216168) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/modules/auth/auth.service.spec.ts (12.996 s)
+  AuthService
+    √ issues an access token and persists a hashed refresh session for valid credentials (836 ms)
+    √ rejects an incorrect password without creating a refresh session (533 ms)
+    √ rejects an invited account until the customer creates a password
+    √ only authenticates an access token while its server session remains active (284 ms)
+
+PASS src/common/guards/roles.guard.spec.ts
+  RolesGuard
+    √ allows an admin assigned to an admin-only route (2 ms)
+    √ rejects staff from an admin-only route
+    √ explicitly allows a super admin to inherit an admin route (1 ms)
+    √ allows all authenticated roles when no role metadata is defined (1 ms)
+    √ allows a multi-role account when any assigned role is permitted (1 ms)
+
+Test Suites: 2 passed, 2 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        18.642 s
+Ran all test suites within paths "src/modules/auth/auth.service.spec.ts", "src/common/guards/roles.guard.spec.ts".
+Test results written to: ..\..\output\playwright\capstone-2026-10-06\TC01-jest.json
+
+Exit code: 0

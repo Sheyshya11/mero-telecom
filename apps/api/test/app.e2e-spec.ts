@@ -995,12 +995,12 @@ describe('Mero Telecom API (e2e)', () => {
     expect(scheduled.body).toEqual(
       expect.objectContaining({
         requestNumber: expect.stringMatching(/^CAN-\d{4}-\d{5}$/),
-        status: CancellationStatus.SCHEDULED,
+        status: CancellationStatus.PENDING_REVIEW,
         canRevoke: true,
       }),
     );
     expect(await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } })).toEqual(
-      expect.objectContaining({ status: SubscriptionStatus.CANCELLATION_PENDING }),
+      expect.objectContaining({ status: SubscriptionStatus.ACTIVE }),
     );
 
     const repeated = await request(app.getHttpServer())
@@ -1018,6 +1018,12 @@ describe('Mero Telecom API (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ targetPlanId: planId })
       .expect(409);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/admin/cancellations/${scheduled.body.requestNumber}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ reviewNotes: 'End-of-period review' })
+      .expect(201);
 
     const revoked = await request(app.getHttpServer())
       .post(`/api/v1/subscriptions/${subscription.id}/cancellation/revoke`)
@@ -1037,7 +1043,13 @@ describe('Mero Telecom API (e2e)', () => {
         confirmed: true,
       })
       .expect(201);
-    expect(immediate.body.status).toBe(CancellationStatus.DISCONNECTION_PENDING);
+    expect(immediate.body.status).toBe(CancellationStatus.PENDING_REVIEW);
+    const approvedImmediate = await request(app.getHttpServer())
+      .post(`/api/v1/admin/cancellations/${immediate.body.requestNumber}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(201);
+    expect(approvedImmediate.body.status).toBe(CancellationStatus.DISCONNECTION_PENDING);
 
     await request(app.getHttpServer())
       .post(`/api/v1/subscriptions/${subscription.id}/cancellation/revoke`)

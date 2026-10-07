@@ -184,7 +184,10 @@ describe('CancellationsService', () => {
       ),
     };
     const provider = { name: 'mock-wholesale', simulated: true };
-    const notifications = { sendCancellationNotification: jest.fn().mockResolvedValue({}) };
+    const notifications = {
+      sendCancellationNotification: jest.fn().mockResolvedValue({}),
+      resolveActionRequired: jest.fn().mockResolvedValue(undefined),
+    };
     const cache = { invalidate: jest.fn().mockResolvedValue(true) };
     const provisioning = { restoreService: jest.fn().mockResolvedValue(undefined) };
     const config = {

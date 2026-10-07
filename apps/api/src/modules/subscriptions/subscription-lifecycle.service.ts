@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -12,7 +13,6 @@ import {
   InvoiceStatus,
   PaymentProvider,
   PaymentStatus,
-  PlanChangeStatus,
   Prisma,
   ServiceProvisioningStatus,
   SubscriptionStatus,
@@ -26,6 +26,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import { StripeClientService } from '../payments/stripe-client.service';
 import { NotificationService } from '../notifications/notification.service';
+import { CollectionService } from './collection.service';
 import { PaymentEligibilityService } from './payment-eligibility.service';
 import { ProvisioningService } from './provisioning.service';
 import { assertSubscriptionTransition } from './subscription-lifecycle.policy';
@@ -73,6 +74,7 @@ export class SubscriptionLifecycleService {
     private readonly notifications: NotificationService,
     private readonly dashboardCache: AdminDashboardCacheService,
     stripeClient?: StripeClientService,
+    @Optional() private readonly collections?: CollectionService,
   ) {
     this.stripe = stripeClient?.client;
     const lifecycle = config.getOrThrow('overdueLifecycle');
@@ -115,7 +117,7 @@ export class SubscriptionLifecycleService {
           });
           return null;
         }
-        const payment = await transaction.payment.findFirst({
+        let payment = await transaction.payment.findFirst({
           where: {
             invoiceId: invoice.id,
             provider: PaymentProvider.STRIPE,
@@ -127,13 +129,32 @@ export class SubscriptionLifecycleService {
           },
           orderBy: { createdAt: 'desc' },
         });
+        if (!payment && invoice.stripeInvoiceId) {
+          payment = await transaction.payment.findFirst({
+            where: {
+              invoiceId: invoice.id,
+              provider: PaymentProvider.STRIPE,
+              providerPaymentId: `stripe-invoice:${invoice.stripeInvoiceId}`,
+              status: PaymentStatus.PENDING,
+            },
+          });
+        }
         if (
-          payment?.status === PaymentStatus.PENDING ||
-          payment?.status === PaymentStatus.PROCESSING
+          (input.providerSessionId ||
+            input.providerPaymentId ||
+            payment?.providerPaymentId === `stripe-invoice:${invoice.stripeInvoiceId}`) &&
+          (payment?.status === PaymentStatus.PENDING ||
+            payment?.status === PaymentStatus.PROCESSING)
         ) {
           await transaction.payment.update({
             where: { id: payment.id },
-            data: { status: PaymentStatus.FAILED },
+            data: {
+              status: PaymentStatus.FAILED,
+              ...(input.providerPaymentId &&
+              payment.providerPaymentId?.startsWith('stripe-invoice:')
+                ? { providerPaymentId: input.providerPaymentId }
+                : {}),
+            },
           });
         }
         await transaction.invoice.update({
@@ -252,252 +273,21 @@ export class SubscriptionLifecycleService {
   }
 
   async markDueInvoicesOverdue(now = new Date()): Promise<number> {
-    const invoices = await this.prisma.invoice.findMany({
-      where: {
-        OR: [
-          {
-            status: InvoiceStatus.ISSUED,
-            dueDate: { lt: now },
-            subscriptionId: { not: null },
-          },
-          {
-            status: InvoiceStatus.OVERDUE,
-            subscription: { is: { status: SubscriptionStatus.ACTIVE } },
-          },
-        ],
-      },
-      select: { id: true },
-      orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
-      take: this.batchSize,
-    });
-    let processed = 0;
-    for (const invoice of invoices) {
-      const result = await this.prisma.$transaction(
-        async (transaction) => {
-          const current = await transaction.invoice.findUnique({
-            where: { id: invoice.id },
-            include: lifecycleInvoiceInclude,
-          });
-          if (
-            !current ||
-            (current.status !== InvoiceStatus.ISSUED && current.status !== InvoiceStatus.OVERDUE)
-          ) {
-            return null;
-          }
-          return this.markPastDue(transaction, current, now);
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
-      if (result) processed += 1;
-      if (result?.statusChanged) {
-        await this.notify(result.invoice, 'OVERDUE_REMINDER', 'initial');
-      }
-    }
-    if (processed) await this.dashboardCache.invalidate();
-    return processed;
+    return this.collections!.markOverdue(now);
   }
 
   async handleConfirmedPayment(invoiceId: string): Promise<void> {
-    const result = await this.prisma.$transaction(
-      async (transaction) => {
-        const invoice = await transaction.invoice.findUnique({
-          where: { id: invoiceId },
-          include: lifecycleInvoiceInclude,
-        });
-        if (!invoice || invoice.status !== InvoiceStatus.PAID || !invoice.subscription) return null;
-        const subscription = invoice.subscription;
-        if (
-          subscription.status !== SubscriptionStatus.PAST_DUE &&
-          subscription.status !== SubscriptionStatus.SUSPENDED
-        ) {
-          return null;
-        }
-        if (
-          subscription.status === SubscriptionStatus.SUSPENDED &&
-          subscription.suspensionReason !== SuspensionReason.NON_PAYMENT
-        ) {
-          return null;
-        }
-        if (await this.eligibility.hasBlockingOutstandingBalance(subscription.id, transaction)) {
-          return null;
-        }
-        const restoredAt = new Date();
-        const wasSuspended = subscription.status === SubscriptionStatus.SUSPENDED;
-        assertSubscriptionTransition(subscription.status, SubscriptionStatus.ACTIVE);
-        const updated = await transaction.subscription.updateMany({
-          where: {
-            id: subscription.id,
-            status: subscription.status,
-            ...(wasSuspended ? { suspensionReason: SuspensionReason.NON_PAYMENT } : {}),
-          },
-          data: {
-            status: SubscriptionStatus.ACTIVE,
-            pastDueAt: null,
-            gracePeriodEndsAt: null,
-            suspensionReason: null,
-            reactivatedAt: restoredAt,
-            eligibleForTerminationAt: null,
-            terminationReviewQueuedAt: null,
-            overdueReminderStage: 0,
-            suspensionWarningSentAt: null,
-            provisioningStatus: wasSuspended ? ServiceProvisioningStatus.PENDING : undefined,
-            provisioningFailure: null,
-          },
-        });
-        if (updated.count !== 1) return null;
-        await transaction.auditLog.createMany({
-          data: [
-            {
-              action: wasSuspended
-                ? 'PAYMENT_RECEIVED_AFTER_SUSPENSION'
-                : 'PAYMENT_RECEIVED_WHILE_PAST_DUE',
-              entityType: 'Subscription',
-              entityId: subscription.id,
-              metadata: this.auditMetadata(invoice, {
-                previousStatus: subscription.status,
-                newStatus: SubscriptionStatus.ACTIVE,
-              }),
-            },
-            ...(wasSuspended
-              ? [
-                  {
-                    action: 'SERVICE_RESTORATION_REQUESTED',
-                    entityType: 'Subscription',
-                    entityId: subscription.id,
-                    metadata: this.auditMetadata(invoice, {
-                      previousStatus: subscription.status,
-                      newStatus: SubscriptionStatus.ACTIVE,
-                    }),
-                  },
-                ]
-              : []),
-          ],
-        });
-        return { invoice, wasSuspended, restoredAt };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
-    if (!result) return;
-    if (result.wasSuspended && result.invoice.subscription) {
-      await this.provisioning.restoreService(result.invoice.subscription.id, result.restoredAt);
-      await this.notify(
-        result.invoice,
-        'SERVICE_RESTORATION_REQUESTED',
-        result.restoredAt.toISOString(),
-      );
-    } else {
-      await this.notify(result.invoice, 'PAYMENT_RECEIVED', invoiceId);
-    }
-    await this.dashboardCache.invalidate();
+    await this.collections!.confirmedPayment(invoiceId);
+    await this.provisioning.reconcilePending(this.batchSize);
+    await this.collections!.deliver();
   }
 
   async suspendExpiredGracePeriods(now = new Date()): Promise<number> {
-    const subscriptions = await this.prisma.subscription.findMany({
-      where: {
-        status: SubscriptionStatus.PAST_DUE,
-        gracePeriodEndsAt: { lte: now },
-      },
-      select: { id: true },
-      orderBy: [{ gracePeriodEndsAt: 'asc' }, { id: 'asc' }],
-      take: this.batchSize,
-    });
-    let transitioned = 0;
-    for (const subscription of subscriptions) {
-      if (await this.suspendForNonPayment(subscription.id, now)) transitioned += 1;
-    }
-    return transitioned;
+    return this.collections!.suspend(now);
   }
 
   async processNotifications(now = new Date()): Promise<number> {
-    const subscriptions = await this.prisma.subscription.findMany({
-      where: { status: SubscriptionStatus.PAST_DUE, gracePeriodEndsAt: { gt: now } },
-      include: {
-        customer: true,
-        invoices: {
-          where: { status: InvoiceStatus.OVERDUE },
-          orderBy: { dueDate: 'asc' },
-          take: 1,
-        },
-      },
-      orderBy: [{ gracePeriodEndsAt: 'asc' }, { id: 'asc' }],
-      take: this.batchSize,
-    });
-    let sent = 0;
-    for (const subscription of subscriptions) {
-      const invoice = subscription.invoices[0];
-      if (!invoice || !subscription.pastDueAt || !subscription.gracePeriodEndsAt) continue;
-      const remaining = subscription.gracePeriodEndsAt.getTime() - now.getTime();
-      if (remaining <= 24 * 60 * 60 * 1000 && !subscription.suspensionWarningSentAt) {
-        const claimed = await this.prisma.subscription.updateMany({
-          where: { id: subscription.id, suspensionWarningSentAt: null },
-          data: { suspensionWarningSentAt: now },
-        });
-        if (claimed.count) {
-          const delivered = await this.notifyRecord(
-            subscription,
-            subscription.customer,
-            invoice,
-            'SUSPENSION_WARNING',
-            'warning',
-          );
-          if (!delivered) {
-            await this.prisma.subscription.updateMany({
-              where: { id: subscription.id, suspensionWarningSentAt: now },
-              data: { suspensionWarningSentAt: null },
-            });
-            continue;
-          }
-          await this.prisma.auditLog.create({
-            data: {
-              action: 'SUSPENSION_WARNING_SENT',
-              entityType: 'Subscription',
-              entityId: subscription.id,
-              metadata: {
-                invoiceId: invoice.id,
-                gracePeriodEndsAt: subscription.gracePeriodEndsAt,
-              },
-            },
-          });
-          sent += 1;
-        }
-        continue;
-      }
-      const elapsedDays = Math.floor(
-        (now.getTime() - subscription.pastDueAt.getTime()) / 86_400_000,
-      );
-      const stage = elapsedDays >= 6 ? 3 : elapsedDays >= 4 ? 2 : elapsedDays >= 1 ? 1 : 0;
-      if (stage <= subscription.overdueReminderStage) continue;
-      const claimed = await this.prisma.subscription.updateMany({
-        where: { id: subscription.id, overdueReminderStage: { lt: stage } },
-        data: { overdueReminderStage: stage },
-      });
-      if (claimed.count) {
-        const delivered = await this.notifyRecord(
-          subscription,
-          subscription.customer,
-          invoice,
-          'OVERDUE_REMINDER',
-          `day-${elapsedDays}`,
-        );
-        if (!delivered) {
-          await this.prisma.subscription.updateMany({
-            where: { id: subscription.id, overdueReminderStage: stage },
-            data: { overdueReminderStage: subscription.overdueReminderStage },
-          });
-          continue;
-        }
-        await this.prisma.auditLog.create({
-          data: {
-            action: 'OVERDUE_REMINDER_SENT',
-            entityType: 'Subscription',
-            entityId: subscription.id,
-            metadata: { invoiceId: invoice.id, reminderStage: stage, overdueDays: elapsedDays },
-          },
-        });
-        sent += 1;
-      }
-    }
-    return sent;
+    return this.collections!.warnings(now);
   }
 
   async queueTerminationReviews(now = new Date()): Promise<number> {
@@ -534,17 +324,23 @@ export class SubscriptionLifecycleService {
     return queued;
   }
 
-  async extendGracePeriod(id: string, days: number, actor: AuthenticatedUser) {
+  async extendGracePeriod(id: string, days: number, actor: AuthenticatedUser, reason: string) {
+    if (!Number.isInteger(days) || days < 1 || days > 30 || reason.trim().length < 3)
+      throw new BadRequestException(
+        'A grace extension requires 1-30 days and a meaningful reason.',
+      );
     const updated = await this.prisma.$transaction(
       async (transaction) => {
         const subscription = await transaction.subscription.findUnique({ where: { id } });
         if (!subscription) throw new NotFoundException('Subscription not found.');
         if (
-          subscription.status !== SubscriptionStatus.PAST_DUE ||
+          ![SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE].some(
+            (status) => status === subscription.status,
+          ) ||
           !subscription.gracePeriodEndsAt
         ) {
           throw new BadRequestException(
-            'Only a past-due subscription can have its grace period extended.',
+            'Only an active service with an overdue grace period can have its grace extended.',
           );
         }
         const gracePeriodEndsAt = addUtcDays(subscription.gracePeriodEndsAt, days);
@@ -555,14 +351,17 @@ export class SubscriptionLifecycleService {
         const changed = await transaction.subscription.updateMany({
           where: {
             id,
-            status: SubscriptionStatus.PAST_DUE,
+            status: subscription.status,
             gracePeriodEndsAt: subscription.gracePeriodEndsAt,
             eligibleForTerminationAt: subscription.eligibleForTerminationAt,
           },
           data: {
             gracePeriodEndsAt,
             eligibleForTerminationAt,
-            suspensionWarningSentAt: null,
+            graceExtendedUntil: gracePeriodEndsAt,
+            graceExtensionReason: reason,
+            graceExtendedBy: actor.id,
+            graceExtendedAt: new Date(),
           },
         });
         if (changed.count !== 1) {
@@ -571,11 +370,12 @@ export class SubscriptionLifecycleService {
         await transaction.auditLog.create({
           data: {
             actorUserId: actor.id,
-            action: 'OVERDUE_GRACE_PERIOD_EXTENDED',
+            action: 'GRACE_PERIOD_EXTENDED',
             entityType: 'Subscription',
             entityId: id,
             metadata: {
               days,
+              reason,
               previousEndsAt: subscription.gracePeriodEndsAt,
               gracePeriodEndsAt,
               previousEligibleForTerminationAt: subscription.eligibleForTerminationAt,
@@ -583,10 +383,26 @@ export class SubscriptionLifecycleService {
             },
           },
         });
+        const invoice = await transaction.invoice.findFirst({
+          where: { subscriptionId: id, status: InvoiceStatus.OVERDUE },
+          orderBy: { dueDate: 'asc' },
+        });
+        if (invoice)
+          await transaction.auditLog.create({
+            data: {
+              actorUserId: actor.id,
+              action: 'GRACE_PERIOD_EXTENSION_NOTIFICATION',
+              entityType: 'Invoice',
+              entityId: invoice.id,
+              notificationEvent: 'GRACE_PERIOD_EXTENDED',
+              metadata: { subscriptionId: id },
+            },
+          });
         return transaction.subscription.findUniqueOrThrow({ where: { id } });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await this.collections!.deliver();
     await this.dashboardCache.invalidate();
     return updated;
   }
@@ -718,194 +534,36 @@ export class SubscriptionLifecycleService {
     return updated;
   }
 
-  private async suspendForNonPayment(id: string, now: Date): Promise<boolean> {
-    const result = await this.prisma.$transaction(
-      async (transaction) => {
-        const subscription = await transaction.subscription.findUnique({
-          where: { id },
-          include: {
-            customer: true,
-            plan: true,
-            invoices: {
-              where: {
-                status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE] },
-                dueDate: { lte: now },
-              },
-              orderBy: { dueDate: 'asc' },
-              take: 1,
-            },
-          },
-        });
-        if (
-          !subscription ||
-          subscription.status !== SubscriptionStatus.PAST_DUE ||
-          !subscription.gracePeriodEndsAt ||
-          subscription.gracePeriodEndsAt > now ||
-          !subscription.invoices.length
-        ) {
-          return null;
-        }
-        const invoice = subscription.invoices[0];
-        if (
-          subscription.billingMode === BillingMode.STRIPE_RECURRING &&
-          invoice.stripeNextPaymentAttempt &&
-          invoice.stripeNextPaymentAttempt > now
-        ) {
-          return null;
-        }
-        const changed = await transaction.subscription.updateMany({
-          where: { id, status: SubscriptionStatus.PAST_DUE, gracePeriodEndsAt: { lte: now } },
-          data: {
-            status: SubscriptionStatus.SUSPENDED,
-            suspendedAt: now,
-            suspensionReason: SuspensionReason.NON_PAYMENT,
-            provisioningStatus: ServiceProvisioningStatus.PENDING,
-            provisioningFailure: null,
-          },
-        });
-        if (!changed.count) return null;
-        assertSubscriptionTransition(SubscriptionStatus.PAST_DUE, SubscriptionStatus.SUSPENDED);
-        await transaction.planChangeRequest.updateMany({
-          where: {
-            sourceSubscriptionId: id,
-            status: {
-              in: [
-                PlanChangeStatus.PENDING,
-                PlanChangeStatus.CHECKOUT_CREATED,
-                PlanChangeStatus.PROCESSING,
-                PlanChangeStatus.SCHEDULED,
-              ],
-            },
-          },
-          data: {
-            status: PlanChangeStatus.CANCELLED,
-            cancelledAt: now,
-            cancellationReason: 'SUBSCRIPTION_SUSPENDED_NON_PAYMENT',
-          },
-        });
-        await transaction.auditLog.create({
-          data: {
-            action: 'SERVICE_SUSPENDED_NON_PAYMENT',
-            entityType: 'Subscription',
-            entityId: id,
-            metadata: {
-              customerId: subscription.customerId,
-              invoiceId: invoice.id,
-              amountCents: invoice.totalCents,
-              previousStatus: SubscriptionStatus.PAST_DUE,
-              newStatus: SubscriptionStatus.SUSPENDED,
-              reason: SuspensionReason.NON_PAYMENT,
-            },
-          },
-        });
-        return { subscription, invoice };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
-    if (!result) return false;
-    await this.provisioning.suspendService(id, now);
-    await this.notifyRecord(
-      result.subscription,
-      result.subscription.customer,
-      result.invoice,
-      'SERVICE_SUSPENDED',
-      now.toISOString(),
-    );
-    await this.dashboardCache.invalidate();
-    return true;
-  }
-
   private async markPastDue(
     transaction: Prisma.TransactionClient,
     invoice: LifecycleInvoice,
     overdueAt: Date,
   ): Promise<{ invoice: LifecycleInvoice; statusChanged: boolean }> {
-    if (invoice.status === InvoiceStatus.PAID || invoice.status === InvoiceStatus.CANCELLED) {
+    if (
+      invoice.status === InvoiceStatus.PAID ||
+      invoice.status === InvoiceStatus.CANCELLED ||
+      invoice.dueDate >= overdueAt
+    )
       return { invoice, statusChanged: false };
-    }
-    const effectiveOverdueAt = invoice.overdueAt ?? overdueAt;
     await transaction.invoice.update({
       where: { id: invoice.id },
-      data: { status: InvoiceStatus.OVERDUE, overdueAt: effectiveOverdueAt },
+      data: { status: InvoiceStatus.OVERDUE, overdueAt: invoice.dueDate },
     });
-    if (!invoice.subscription || invoice.subscription.status !== SubscriptionStatus.ACTIVE) {
-      return {
-        invoice: { ...invoice, status: InvoiceStatus.OVERDUE, overdueAt: effectiveOverdueAt },
-        statusChanged: false,
-      };
-    }
-    const gracePeriodEndsAt = this.gracePeriodEndsAt(effectiveOverdueAt);
-    const eligibleForTerminationAt = this.eligibleForTerminationAt(effectiveOverdueAt);
-    assertSubscriptionTransition(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE);
-    const changed = await transaction.subscription.updateMany({
-      where: { id: invoice.subscription.id, status: SubscriptionStatus.ACTIVE },
-      data: {
-        status: SubscriptionStatus.PAST_DUE,
-        pastDueAt: effectiveOverdueAt,
-        gracePeriodEndsAt,
-        eligibleForTerminationAt,
-        overdueReminderStage: 0,
-        suspensionWarningSentAt: null,
-      },
-    });
-    if (changed.count) {
-      await transaction.planChangeRequest.updateMany({
-        where: {
-          sourceSubscriptionId: invoice.subscription.id,
-          status: {
-            in: [
-              PlanChangeStatus.PENDING,
-              PlanChangeStatus.CHECKOUT_CREATED,
-              PlanChangeStatus.PROCESSING,
-              PlanChangeStatus.SCHEDULED,
-            ],
-          },
+    if (invoice.status !== InvoiceStatus.OVERDUE)
+      await transaction.auditLog.upsert({
+        where: { deduplicationKey: `${invoice.id}-INVOICE_BECAME_OVERDUE` },
+        create: {
+          action: 'INVOICE_BECAME_OVERDUE',
+          entityType: 'Invoice',
+          entityId: invoice.id,
+          deduplicationKey: `${invoice.id}-INVOICE_BECAME_OVERDUE`,
+          metadata: { subscriptionId: invoice.subscriptionId },
         },
-        data: {
-          status: PlanChangeStatus.CANCELLED,
-          cancelledAt: effectiveOverdueAt,
-          cancellationReason: 'SUBSCRIPTION_PAST_DUE',
-        },
+        update: {},
       });
-      await transaction.auditLog.createMany({
-        data: [
-          {
-            action: 'SUBSCRIPTION_MARKED_PAST_DUE',
-            entityType: 'Subscription',
-            entityId: invoice.subscription.id,
-            metadata: this.auditMetadata(invoice, {
-              previousStatus: SubscriptionStatus.ACTIVE,
-              newStatus: SubscriptionStatus.PAST_DUE,
-            }),
-          },
-          {
-            action: 'GRACE_PERIOD_STARTED',
-            entityType: 'Subscription',
-            entityId: invoice.subscription.id,
-            metadata: this.auditMetadata(invoice, {
-              overdueAt: effectiveOverdueAt,
-              gracePeriodEndsAt,
-            }),
-          },
-        ],
-      });
-    }
     return {
-      invoice: {
-        ...invoice,
-        status: InvoiceStatus.OVERDUE,
-        overdueAt: effectiveOverdueAt,
-        subscription: invoice.subscription
-          ? {
-              ...invoice.subscription,
-              status: changed.count ? SubscriptionStatus.PAST_DUE : invoice.subscription.status,
-              pastDueAt: effectiveOverdueAt,
-              gracePeriodEndsAt,
-              eligibleForTerminationAt,
-            }
-          : null,
-      },
-      statusChanged: changed.count === 1,
+      invoice: { ...invoice, status: InvoiceStatus.OVERDUE, overdueAt: invoice.dueDate },
+      statusChanged: false,
     };
   }
 

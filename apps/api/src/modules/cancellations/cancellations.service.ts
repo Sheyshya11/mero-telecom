@@ -1,6 +1,13 @@
-import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  RequestReviewDecision,
   CancellationProviderOperation,
   CancellationProviderStatus,
   CancellationStatus,
@@ -22,6 +29,10 @@ import {
 } from '@prisma/client';
 import type Stripe from 'stripe';
 
+import {
+  assertEmployeeReviewer,
+  reviewTransaction,
+} from '../../common/workflow/request-review.policy';
 import { buildPaginationMeta, dateRange } from '../../common/pagination';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
@@ -45,6 +56,7 @@ const activePlanChangeStatuses: PlanChangeStatus[] = [
 ];
 
 const openCancellationStatuses: CancellationStatus[] = [
+  CancellationStatus.PENDING_REVIEW,
   CancellationStatus.REQUESTED,
   CancellationStatus.SCHEDULED,
   CancellationStatus.PROCESSING,
@@ -63,7 +75,16 @@ const cancellationInclude = {
       email: true,
     },
   },
-  subscription: { include: { plan: true } },
+  subscription: {
+    include: {
+      plan: true,
+      invoices: {
+        orderBy: { issueDate: 'desc' },
+        take: 1,
+        select: { invoiceNumber: true, status: true, totalCents: true },
+      },
+    },
+  },
   requestedBy: { select: { id: true, displayName: true, email: true } },
   revokedBy: { select: { id: true, displayName: true, email: true } },
   notes: {
@@ -199,9 +220,9 @@ export class CancellationsService {
       refundDestination: refund.refundAmountCents > 0 ? 'Original payment method' : null,
       billingMessage:
         type === CancellationType.END_OF_PERIOD
-          ? 'Your current billing period remains available until the scheduled service end. No new billing period will be opened after that date.'
+          ? 'Your service and billing continue while the request awaits review. If approved, cancellation is scheduled for the end of the current billing period at approval.'
           : refund.refundAmountCents > 0
-            ? 'This is an estimate. We recalculate the unused service after you confirm and automatically return the final amount to your original payment method once service termination succeeds.'
+            ? 'This is an estimate. We recalculate the unused service after employee approval and automatically return the final amount to your original payment method once service termination succeeds.'
             : (refund.noRefundReason ??
               'There is no refundable recurring payment for the current billing period.'),
       providerSimulation: this.provider.simulated,
@@ -264,10 +285,13 @@ export class CancellationsService {
               subscriptionId,
               status: {
                 in: [
+                  ServiceRelocationStatus.PENDING_REVIEW,
                   ServiceRelocationStatus.AWAITING_CONFIRMATION,
                   ServiceRelocationStatus.CONFIRMED,
                   ServiceRelocationStatus.PROVISIONING,
                   ServiceRelocationStatus.SCHEDULED,
+                  ServiceRelocationStatus.PARTIALLY_COMPLETED,
+                  ServiceRelocationStatus.MANUAL_REVIEW_REQUIRED,
                   ServiceRelocationStatus.FAILED,
                 ],
               },
@@ -295,10 +319,7 @@ export class CancellationsService {
             input.type,
             requestedAt,
           );
-          const status =
-            input.type === CancellationType.END_OF_PERIOD
-              ? CancellationStatus.SCHEDULED
-              : CancellationStatus.REQUESTED;
+          const status = CancellationStatus.PENDING_REVIEW;
           const providerOperation =
             subscription.status === SubscriptionStatus.PENDING
               ? CancellationProviderOperation.WITHDRAW_ACTIVATION
@@ -321,7 +342,7 @@ export class CancellationsService {
               providerName: this.provider.name,
               providerIdempotencyKey: `cancellation:${requestNumber}`,
               providerScenario: this.configuredScenario,
-              refundAmountCents: refundQuote.refundAmountCents,
+              refundAmountCents: 0,
               refundCalculation: this.refundCalculationJson(
                 refundQuote,
                 subscription.currentPeriodStart,
@@ -331,56 +352,10 @@ export class CancellationsService {
             },
             include: cancellationInclude,
           });
-          let finalRefundAmountCents = refundQuote.refundAmountCents;
-          if (refundQuote.refundAmountCents > 0 && refundQuote.paymentId) {
-            const refund = await this.refunds.createApprovedCancellationRefund(transaction, {
-              cancellationRequestId: request.id,
-              paymentId: refundQuote.paymentId,
-              subscriptionId: subscription.id,
-              requestedByUserId: actor.id,
-              amountCents: refundQuote.refundAmountCents,
-              metadata: this.refundCalculationJson(
-                refundQuote,
-                subscription.currentPeriodStart,
-                subscription.currentPeriodEnd,
-                requestedAt,
-              ),
-            });
-            finalRefundAmountCents = refund?.refundAmountCents ?? 0;
-            if (finalRefundAmountCents !== refundQuote.refundAmountCents) {
-              await transaction.cancellationRequest.update({
-                where: { id: request.id },
-                data: { refundAmountCents: finalRefundAmountCents },
-              });
-            }
-          }
-          assertSubscriptionTransition(
-            subscription.status,
-            SubscriptionStatus.CANCELLATION_PENDING,
-          );
-          const subscriptionUpdate = await transaction.subscription.updateMany({
-            where: { id: subscription.id, status: subscription.status },
-            data: { status: SubscriptionStatus.CANCELLATION_PENDING },
-          });
-          if (subscriptionUpdate.count !== 1) {
-            throw new ConflictException(
-              'The subscription changed while cancellation was requested.',
-            );
-          }
           await this.audit(transaction, request, actor, 'CANCELLATION_REQUESTED', {
             oldStatus: subscription.status,
-            newStatus: SubscriptionStatus.CANCELLATION_PENDING,
-          });
-          if (status === CancellationStatus.SCHEDULED) {
-            await this.audit(transaction, request, actor, 'CANCELLATION_SCHEDULED');
-          }
-          await this.audit(transaction, request, actor, 'CANCELLATION_REFUND_CALCULATED', {
-            calculatedProrationCents: refundQuote.calculatedProrationCents,
-            previousSuccessfulRefundCents: refundQuote.previousSuccessfulRefundCents,
-            remainingRefundableCents: refundQuote.remainingRefundableCents,
-            refundAmountCents: finalRefundAmountCents,
-            invoiceId: refundQuote.invoiceId,
-            paymentId: refundQuote.paymentId,
+            newStatus: subscription.status,
+            awaitingEmployeeReview: true,
           });
           const hydrated = await transaction.cancellationRequest.findUniqueOrThrow({
             where: { id: request.id },
@@ -402,26 +377,190 @@ export class CancellationsService {
       throw error;
     }
 
-    await this.synchronizeStripeCancellation(created.request);
-    if (created.reused) {
-      if (created.request.status === CancellationStatus.REQUESTED) {
-        await this.process(created.request.id);
-        return this.customerResponse(await this.load(created.request.id), true);
+    if (created.request.status === CancellationStatus.PENDING_REVIEW)
+      await this.notifyCustomer('REQUESTED', created.request);
+    await this.dashboardCache.invalidate();
+    return this.customerResponse(created.request, created.reused);
+  }
+
+  async approve(requestNumber: string, actor: AuthenticatedUser, reviewNotes?: string) {
+    assertEmployeeReviewer(actor);
+    const approvedAt = new Date();
+    const result = await reviewTransaction(this.prisma, async (tx) => {
+      const initial = await tx.cancellationRequest.findUnique({
+        where: { requestNumber },
+        select: { subscriptionId: true },
+      });
+      if (!initial) throw new NotFoundException('Cancellation request not found.');
+      await this.lockSubscription(tx, initial.subscriptionId);
+      const existing = await tx.cancellationRequest.findUniqueOrThrow({
+        where: { requestNumber },
+        include: cancellationInclude,
+      });
+      if (existing.reviewDecision === RequestReviewDecision.APPROVED)
+        return { request: existing, reused: true };
+      if (existing.status !== CancellationStatus.PENDING_REVIEW || existing.reviewDecision)
+        throw new ConflictException('This cancellation has already been reviewed or withdrawn.');
+      const subscription = existing.subscription;
+      assertSubscriptionTransition(subscription.status, SubscriptionStatus.CANCELLATION_PENDING);
+      const effectiveAt =
+        existing.type === CancellationType.END_OF_PERIOD
+          ? subscription.currentPeriodEnd
+          : approvedAt;
+      if (effectiveAt <= approvedAt && existing.type === CancellationType.END_OF_PERIOD)
+        throw new ConflictException(
+          'The billing period has ended. Refresh the service before approval.',
+        );
+      const quote = await this.calculateRefundQuote(tx, subscription, existing.type, approvedAt);
+      const status =
+        existing.type === CancellationType.END_OF_PERIOD
+          ? CancellationStatus.SCHEDULED
+          : CancellationStatus.REQUESTED;
+      const changed = await tx.cancellationRequest.updateMany({
+        where: {
+          id: existing.id,
+          version: existing.version,
+          status: CancellationStatus.PENDING_REVIEW,
+          reviewDecision: null,
+        },
+        data: {
+          status,
+          reviewDecision: RequestReviewDecision.APPROVED,
+          reviewedAt: approvedAt,
+          reviewedByUserId: actor.id,
+          reviewNotes: reviewNotes?.trim() || null,
+          effectiveAt,
+          subscriptionStatusBefore: subscription.status,
+          refundAmountCents: quote.refundAmountCents,
+          refundCalculation: this.refundCalculationJson(
+            quote,
+            subscription.currentPeriodStart,
+            subscription.currentPeriodEnd,
+            approvedAt,
+          ),
+          version: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1)
+        throw new ConflictException('This cancellation was reviewed by another employee.');
+      if (quote.refundAmountCents > 0 && quote.paymentId) {
+        const refund = await this.refunds.createApprovedCancellationRefund(tx, {
+          cancellationRequestId: existing.id,
+          paymentId: quote.paymentId,
+          subscriptionId: subscription.id,
+          requestedByUserId: existing.requestedByUserId,
+          amountCents: quote.refundAmountCents,
+          metadata: this.refundCalculationJson(
+            quote,
+            subscription.currentPeriodStart,
+            subscription.currentPeriodEnd,
+            approvedAt,
+          ),
+        });
+        await tx.cancellationRequest.update({
+          where: { id: existing.id },
+          data: { refundAmountCents: refund?.refundAmountCents ?? 0 },
+        });
       }
-      return this.customerResponse(created.request, true);
+      await tx.subscription.update({
+        where: { id: subscription.id },
+        data: { status: SubscriptionStatus.CANCELLATION_PENDING },
+      });
+      await this.audit(tx, existing, actor, 'CANCELLATION_APPROVED', {
+        oldStatus: existing.status,
+        newStatus: status,
+        decision: 'APPROVED',
+        reviewedAt: approvedAt.toISOString(),
+        reviewNotes: reviewNotes?.trim() || null,
+      });
+      if (status === CancellationStatus.SCHEDULED)
+        await this.audit(tx, existing, actor, 'CANCELLATION_SCHEDULED');
+      await this.audit(tx, existing, actor, 'CANCELLATION_REFUND_CALCULATED', {
+        refundAmountCents: quote.refundAmountCents,
+        paymentId: quote.paymentId,
+        invoiceId: quote.invoiceId,
+      });
+      return {
+        request: await tx.cancellationRequest.findUniqueOrThrow({
+          where: { id: existing.id },
+          include: cancellationInclude,
+        }),
+        reused: false,
+      };
+    });
+    if (!result.reused) {
+      await this.notifications.resolveActionRequired('CancellationRequest', result.request.id);
+      await this.notifyCustomer('APPROVED', result.request);
+      if (result.request.status === CancellationStatus.SCHEDULED)
+        await this.notifyCustomer('SCHEDULED', result.request);
+      await this.process(result.request.id);
+      await this.dashboardCache.invalidate();
     }
-    await this.notifyCustomer('REQUESTED', created.request);
-    if (created.request.status === CancellationStatus.SCHEDULED) {
-      await this.notifyCustomer('SCHEDULED', created.request);
+    return this.findOne(requestNumber, actor);
+  }
+
+  async reject(
+    requestNumber: string,
+    actor: AuthenticatedUser,
+    reason: string,
+    reviewNotes?: string,
+  ) {
+    assertEmployeeReviewer(actor);
+    if (reason.trim().length < 3)
+      throw new BadRequestException('A customer-safe rejection reason is required.');
+    const result = await reviewTransaction(this.prisma, async (tx) => {
+      const initial = await tx.cancellationRequest.findUnique({
+        where: { requestNumber },
+        select: { subscriptionId: true },
+      });
+      if (!initial) throw new NotFoundException('Cancellation request not found.');
+      await this.lockSubscription(tx, initial.subscriptionId);
+      const existing = await tx.cancellationRequest.findUniqueOrThrow({
+        where: { requestNumber },
+        include: cancellationInclude,
+      });
+      if (existing.reviewDecision === RequestReviewDecision.REJECTED)
+        return { request: existing, reused: true };
+      if (existing.status !== CancellationStatus.PENDING_REVIEW || existing.reviewDecision)
+        throw new ConflictException('This cancellation has already been reviewed or withdrawn.');
+      const changed = await tx.cancellationRequest.updateMany({
+        where: {
+          id: existing.id,
+          version: existing.version,
+          status: CancellationStatus.PENDING_REVIEW,
+          reviewDecision: null,
+        },
+        data: {
+          status: CancellationStatus.REJECTED,
+          reviewDecision: RequestReviewDecision.REJECTED,
+          reviewedByUserId: actor.id,
+          reviewedAt: new Date(),
+          reviewNotes: reviewNotes?.trim() || null,
+          rejectionReason: reason.trim(),
+          version: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1)
+        throw new ConflictException('This cancellation was reviewed by another employee.');
+      await this.audit(tx, existing, actor, 'CANCELLATION_REJECTED', {
+        reason: reason.trim(),
+        decision: 'REJECTED',
+        reviewNotes: reviewNotes?.trim() || null,
+      });
+      return {
+        request: await tx.cancellationRequest.findUniqueOrThrow({
+          where: { id: existing.id },
+          include: cancellationInclude,
+        }),
+        reused: false,
+      };
+    });
+    if (!result.reused) {
+      await this.notifications.resolveActionRequired('CancellationRequest', result.request.id);
+      await this.notifyCustomer('REJECTED', result.request);
     }
     await this.dashboardCache.invalidate();
-
-    if (created.request.status === CancellationStatus.REQUESTED) {
-      await this.process(created.request.id);
-      const refreshed = await this.load(created.request.id);
-      return this.customerResponse(refreshed, false);
-    }
-    return this.customerResponse(created.request, false);
+    return this.findOne(requestNumber, actor);
   }
 
   async findForCustomer(subscriptionId: string, actor: AuthenticatedUser) {
@@ -446,6 +585,8 @@ export class CancellationsService {
         if (!existing) throw new NotFoundException('Open cancellation request not found.');
         this.workflow.assertCanRevoke(existing, actor);
         if (
+          existing.status === CancellationStatus.SCHEDULED &&
+          existing.reviewDecision === RequestReviewDecision.APPROVED &&
           existing.subscription.billingMode === BillingMode.STRIPE_RECURRING &&
           existing.subscription.stripeSubscriptionId
         ) {
@@ -459,7 +600,7 @@ export class CancellationsService {
           where: {
             id: existing.id,
             version: existing.version,
-            status: CancellationStatus.SCHEDULED,
+            status: existing.status,
             providerStatus: CancellationProviderStatus.NOT_SUBMITTED,
           },
           data: {
@@ -474,13 +615,12 @@ export class CancellationsService {
             'This cancellation started processing before it could be revoked.',
           );
         }
-        const needsProvisioningRestore = await this.restoreAfterCancellation(
-          transaction,
-          existing,
-          revokedAt,
-        );
+        const needsProvisioningRestore =
+          existing.status === CancellationStatus.PENDING_REVIEW
+            ? false
+            : await this.restoreAfterCancellation(transaction, existing, revokedAt);
         await this.audit(transaction, existing, actor, 'CANCELLATION_REVOKED', {
-          oldStatus: CancellationStatus.SCHEDULED,
+          oldStatus: existing.status,
           newStatus: CancellationStatus.REVOKED,
         });
         const request = await transaction.cancellationRequest.findUniqueOrThrow({
@@ -494,6 +634,7 @@ export class CancellationsService {
     if (result.needsProvisioningRestore) {
       await this.provisioning.restoreService(subscriptionId, revokedAt);
     }
+    await this.notifications.resolveActionRequired('CancellationRequest', result.request.id);
     await this.notifyCustomer('REVOKED', result.request);
     await this.dashboardCache.invalidate();
     return this.customerResponse(result.request);
@@ -636,7 +777,17 @@ export class CancellationsService {
   async reconcileDue(now = new Date(), limit = this.batchSize): Promise<{ processed: number }> {
     const candidates = await this.prisma.cancellationRequest.findMany({
       where: {
+        reviewDecision: RequestReviewDecision.APPROVED,
         OR: [
+          { status: CancellationStatus.REQUESTED },
+          {
+            status: CancellationStatus.SCHEDULED,
+            stripeCancellationSyncedAt: null,
+            subscription: {
+              billingMode: BillingMode.STRIPE_RECURRING,
+              stripeSubscriptionId: { not: null },
+            },
+          },
           { status: CancellationStatus.SCHEDULED, effectiveAt: { lte: now } },
           {
             status: {
@@ -673,6 +824,37 @@ export class CancellationsService {
     scenarioOverride?: MockDisconnectionScenario,
     now = new Date(),
   ): Promise<boolean> {
+    const ready = await this.load(id);
+    if (
+      ready.reviewDecision !== RequestReviewDecision.APPROVED ||
+      [
+        CancellationStatus.PENDING_REVIEW,
+        CancellationStatus.REJECTED,
+        CancellationStatus.REVOKED,
+        CancellationStatus.COMPLETED,
+      ].some((status) => status === ready.status)
+    )
+      return false;
+    try {
+      await this.synchronizeStripeCancellation(ready);
+    } catch (error) {
+      const failed = await this.prisma.cancellationRequest.update({
+        where: { id },
+        data: {
+          failedReason: 'Approved cancellation is waiting for Stripe billing synchronization.',
+        },
+        include: cancellationInclude,
+      });
+      await this.notifyFailure(failed);
+      this.logger.warn(
+        JSON.stringify({
+          event: 'approved_cancellation_stripe_sync_failed',
+          cancellationRequestId: id,
+          error: error instanceof Error ? error.name : 'UnknownError',
+        }),
+      );
+      return false;
+    }
     const claimed = await this.claim(id, allowFailed, scenarioOverride, now);
     if (!claimed) return false;
     let result;
@@ -747,7 +929,7 @@ export class CancellationsService {
           where: { id },
           include: cancellationInclude,
         });
-        if (!request) return null;
+        if (!request || request.reviewDecision !== RequestReviewDecision.APPROVED) return null;
         if (request.status === CancellationStatus.SCHEDULED && request.effectiveAt > now)
           return null;
         const eligible: CancellationStatus[] = [
@@ -831,6 +1013,7 @@ export class CancellationsService {
         });
         if (
           !current ||
+          current.reviewDecision !== RequestReviewDecision.APPROVED ||
           current.version !== claimed.version ||
           current.status !== CancellationStatus.PROCESSING
         )
@@ -1087,6 +1270,11 @@ export class CancellationsService {
   }
 
   private async synchronizeStripeCancellation(request: CancellationRecord): Promise<void> {
+    if (
+      request.reviewDecision !== RequestReviewDecision.APPROVED ||
+      request.stripeCancellationSyncedAt
+    )
+      return;
     const subscription = request.subscription;
     if (
       subscription.billingMode !== BillingMode.STRIPE_RECURRING ||
@@ -1113,6 +1301,10 @@ export class CancellationsService {
         cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
         nextBillingAt: null,
       },
+    });
+    await this.prisma.cancellationRequest.update({
+      where: { id: request.id },
+      data: { stripeCancellationSyncedAt: new Date() },
     });
     await this.prisma.auditLog.create({
       data: {
@@ -1175,7 +1367,7 @@ export class CancellationsService {
   }
 
   private async notifyCustomer(
-    event: 'REQUESTED' | 'SCHEDULED' | 'REVOKED' | 'COMPLETED',
+    event: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'SCHEDULED' | 'REVOKED' | 'COMPLETED',
     request: CancellationRecord,
   ): Promise<void> {
     try {
@@ -1238,6 +1430,9 @@ export class CancellationsService {
       requestedAt: request.requestedAt,
       effectiveAt: request.effectiveAt,
       status: request.status,
+      reviewDecision: request.reviewDecision,
+      reviewedAt: request.reviewedAt,
+      rejectionReason: request.rejectionReason,
       completedAt: request.completedAt,
       revokedAt: request.revokedAt,
       refundAmountCents: request.refundAmountCents,
@@ -1254,9 +1449,10 @@ export class CancellationsService {
         : null,
       plan: request.subscription.plan,
       canRevoke:
-        request.status === CancellationStatus.SCHEDULED &&
-        request.providerStatus === CancellationProviderStatus.NOT_SUBMITTED &&
-        request.effectiveAt > new Date(),
+        request.status === CancellationStatus.PENDING_REVIEW ||
+        (request.status === CancellationStatus.SCHEDULED &&
+          request.providerStatus === CancellationProviderStatus.NOT_SUBMITTED &&
+          request.effectiveAt > new Date()),
       statusMessage: this.customerStatusMessage(request),
       reused,
     };
@@ -1274,20 +1470,29 @@ export class CancellationsService {
         failureReason: request.failedReason,
       },
       capabilities: {
+        canReview:
+          [Role.STAFF, Role.ADMIN, Role.SUPER_ADMIN].some((role) => role === actor.role) &&
+          request.status === CancellationStatus.PENDING_REVIEW &&
+          !request.reviewDecision,
         canRetry:
           (actor.role === Role.ADMIN || actor.role === Role.SUPER_ADMIN) &&
           request.status === CancellationStatus.FAILED,
         canRevoke:
           (actor.role === Role.ADMIN || actor.role === Role.SUPER_ADMIN) &&
-          request.status === CancellationStatus.SCHEDULED &&
-          request.providerStatus === CancellationProviderStatus.NOT_SUBMITTED &&
-          request.effectiveAt > new Date(),
+          (request.status === CancellationStatus.PENDING_REVIEW ||
+            (request.status === CancellationStatus.SCHEDULED &&
+              request.effectiveAt > new Date())) &&
+          request.providerStatus === CancellationProviderStatus.NOT_SUBMITTED,
         canEscalate: actor.role === Role.STAFF && request.status === CancellationStatus.FAILED,
       },
     };
   }
 
   private customerStatusMessage(request: CancellationRecord): string {
+    if (request.status === CancellationStatus.PENDING_REVIEW)
+      return 'Your cancellation request is awaiting employee review. Your service and billing continue normally until approval.';
+    if (request.status === CancellationStatus.REJECTED)
+      return 'Your cancellation request was not approved. Your existing service has not been changed.';
     if (request.status === CancellationStatus.SCHEDULED) {
       return `Your service is scheduled to end on ${this.formatDate(request.effectiveAt)}.`;
     }

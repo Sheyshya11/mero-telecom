@@ -1,0 +1,16 @@
+{
+  "superUserId": "6ed8229b-1bfb-4ca2-adaf-4c937fab5b03",
+  "planId": "88fa8a4f-9e67-43bc-b3c2-346275562245",
+  "move": {
+    "email": "move@merotelecom.test",
+    "userId": "cc494241-9051-4442-b776-416bf599a100",
+    "customerId": "46ef73d0-20ec-4898-b97a-934cf4476490",
+    "subscriptionId": "193c4187-4b06-4554-8ab0-64b7ce049cb2"
+  },
+  "cancel": {
+    "email": "cancel@merotelecom.test",
+    "userId": "b73338da-8a50-4766-948b-f1251ff54fcb",
+    "customerId": "0a3549ad-71dc-41ea-8fd8-291c05d8b3f9",
+    "subscriptionId": "7dcd7804-9da8-47bc-96dd-68c47a66ac40"
+  }
+}

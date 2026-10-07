@@ -69,6 +69,19 @@ export class DashboardService {
     private readonly health: HealthService,
   ) {}
 
+  async getServiceRequestReviewSummary() {
+    const [cancellations, relocations, refunds] = await Promise.all([
+      this.prisma.cancellationRequest.count({
+        where: { status: 'PENDING_REVIEW', reviewDecision: null },
+      }),
+      this.prisma.serviceRelocation.count({
+        where: { status: 'PENDING_REVIEW', reviewDecision: null },
+      }),
+      this.prisma.refund.count({ where: { status: RefundStatus.REQUESTED } }),
+    ]);
+    return { cancellations, relocations, refunds };
+  }
+
   async getAdminSummary(): Promise<AdminDashboardSummary> {
     const cached = await this.adminDashboardCache.get<AdminDashboardSummary>();
     if (cached) return cached;
@@ -867,11 +880,16 @@ export class DashboardService {
     if (currentSubscription?.status === SubscriptionStatus.SUSPENDED) {
       pendingAction = {
         type: 'SERVICE',
-        title: 'Service suspended',
+        title:
+          currentSubscription.suspensionReason === 'NON_PAYMENT' && outstandingInvoiceCents === 0
+            ? 'Payment received'
+            : 'Service suspended',
         description:
-          currentSubscription.suspensionReason === 'NON_PAYMENT'
-            ? `Your service is suspended due to ${formatMoney(outstandingInvoiceCents)} outstanding. Pay the complete overdue balance to begin restoration.`
-            : `Your service is suspended (${currentSubscription.suspensionReason?.toLowerCase().replaceAll('_', ' ') ?? 'reason under review'}). Contact support for assistance.`,
+          currentSubscription.suspensionReason === 'NON_PAYMENT' && outstandingInvoiceCents === 0
+            ? 'Your payment has been received. Your service restoration is being processed.'
+            : currentSubscription.suspensionReason === 'NON_PAYMENT'
+              ? `Your service is suspended due to ${formatMoney(outstandingInvoiceCents)} outstanding. Pay the complete overdue balance to begin restoration.`
+              : `Your service is suspended (${currentSubscription.suspensionReason?.toLowerCase().replaceAll('_', ' ') ?? 'reason under review'}). Contact support for assistance.`,
         actionLabel:
           currentSubscription.suspensionReason === 'NON_PAYMENT'
             ? 'Pay overdue balance'

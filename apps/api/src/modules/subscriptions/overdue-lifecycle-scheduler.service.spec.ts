@@ -22,6 +22,7 @@ describe('OverdueLifecycleSchedulerService', () => {
       config as never,
       lifecycle as never,
       provisioning as never,
+      { deliver: jest.fn().mockResolvedValue(0) } as never,
     );
 
     await expect(scheduler.reconcile()).resolves.toEqual({

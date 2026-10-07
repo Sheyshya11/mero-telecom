@@ -1,7 +1,13 @@
 import type { RenderedEmailTemplate } from './invoice-email.template';
 import { renderCommunicationEmail } from './communication-email-layout';
 
-export type CancellationEmailEvent = 'REQUESTED' | 'SCHEDULED' | 'REVOKED' | 'COMPLETED';
+export type CancellationEmailEvent =
+  | 'REQUESTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'SCHEDULED'
+  | 'REVOKED'
+  | 'COMPLETED';
 
 interface CancellationEmailData {
   brandLogoUrl: string;
@@ -22,14 +28,17 @@ export function renderCancellationEmail(data: CancellationEmailData): RenderedEm
   const date = formatDate(data.effectiveAt);
   const activationWithdrawal = data.providerOperation === 'WITHDRAW_ACTIVATION';
   const content = eventContent(data.event, date, data.providerSimulated, activationWithdrawal);
-  const refundSummary =
-    data.cancellationType === 'IMMEDIATE' && data.refundAmountCents > 0
+  const reviewOnly = data.event === 'REQUESTED' || data.event === 'REJECTED';
+  const refundSummary = reviewOnly
+    ? 'Refund assessment follows employee approval; no refund has been issued.'
+    : data.cancellationType === 'IMMEDIATE' && data.refundAmountCents > 0
       ? `Automatic refund: ${formatMoney(data.refundAmountCents)} · ${humanize(data.refundStatus ?? 'APPROVED')}`
       : data.cancellationType === 'IMMEDIATE'
         ? 'Automatic refund: No eligible current-period card payment'
         : 'Automatic refund: Not applicable; service continues to the paid period end';
-  const note =
-    data.cancellationType === 'IMMEDIATE' && data.refundAmountCents > 0
+  const note = reviewOnly
+    ? content.note
+    : data.cancellationType === 'IMMEDIATE' && data.refundAmountCents > 0
       ? data.event === 'COMPLETED'
         ? `Your ${formatMoney(data.refundAmountCents)} refund is ${humanize(data.refundStatus ?? 'PROCESSING').toLowerCase()} and will return to the original payment method. ${content.note}`
         : `A ${formatMoney(data.refundAmountCents)} prorated refund is reserved and will be sent to the original payment method after service termination succeeds.`
@@ -42,7 +51,7 @@ export function renderCancellationEmail(data: CancellationEmailData): RenderedEm
       content.intro,
       `Reference: ${data.requestNumber}`,
       `Plan: ${data.planName}`,
-      `${activationWithdrawal ? 'Requested withdrawal' : 'Service end'}: ${date}`,
+      `${reviewOnly ? 'Proposed service date' : activationWithdrawal ? 'Requested withdrawal' : 'Service end'}: ${date}`,
       refundSummary,
       '',
       note,
@@ -61,7 +70,14 @@ export function renderCancellationEmail(data: CancellationEmailData): RenderedEm
       tone: content.tone,
       details: [
         { label: 'Internet plan', value: data.planName },
-        { label: activationWithdrawal ? 'Requested withdrawal' : 'Service end', value: date },
+        {
+          label: reviewOnly
+            ? 'Proposed service date'
+            : activationWithdrawal
+              ? 'Requested withdrawal'
+              : 'Service end',
+          value: date,
+        },
         { label: 'Refund', value: refundSummary.replace('Automatic refund: ', '') },
       ],
       action: { label: 'View my internet service', url: data.dashboardUrl },
@@ -124,18 +140,37 @@ function eventContent(
     ? 'Development notice: this workflow uses an internal disconnection simulation. It is not confirmation of a real NBN or wholesale disconnection.'
     : 'Your invoices and payment history remain available in your account.';
   switch (event) {
+    case 'APPROVED':
+      return {
+        title: 'Cancellation request approved',
+        subjectSuffix: 'approved',
+        status: 'Approved',
+        tone: 'info' as const,
+        intro: 'Your cancellation request has been approved. Operational processing can now begin.',
+        note: 'Approval does not confirm that service disconnection has completed.',
+      };
+    case 'REJECTED':
+      return {
+        title: 'Cancellation request reviewed',
+        subjectSuffix: 'reviewed',
+        status: 'Not approved',
+        tone: 'info' as const,
+        intro:
+          'Your cancellation request was not approved. View the request for the reason. Your existing service has not been changed.',
+        note: 'Contact support if you need help with this decision.',
+      };
     case 'REQUESTED':
       return {
         title: activationWithdrawal
           ? 'Service order withdrawal received'
-          : 'Cancellation request received',
+          : 'Cancellation request submitted',
         subjectSuffix: activationWithdrawal ? 'withdrawal received' : 'request received',
-        status: 'Received',
+        status: 'Awaiting review',
         tone: 'info' as const,
         intro: activationWithdrawal
           ? 'We have received the request to withdraw your pending service order.'
-          : 'We have received your service cancellation request.',
-        note: 'Any eligible unused recurring service is calculated in cents and returned automatically after termination succeeds.',
+          : 'Your service cancellation request has been submitted and is awaiting employee review. Your service and billing continue normally until approval.',
+        note: 'No Stripe cancellation, service disconnection or refund occurs before approval.',
       };
     case 'SCHEDULED':
       return {

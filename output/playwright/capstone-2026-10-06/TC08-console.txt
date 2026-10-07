@@ -1,0 +1,49 @@
+Case: TC08 - Notifications
+Evidence: executed existing Jest unit/service tests with mocked dependencies.
+Full browser acceptance: blocked by Docker/WSL ERROR_NO_SYSTEM_RESOURCES.
+Started (UTC): 2026-10-06T13:20:25.7816375Z
+Command: jest --runInBand --verbose --no-colors --json --outputFile=D:\MeroTelecom\output\playwright\capstone-2026-10-06\TC08-jest.json --runTestsByPath src/modules/notifications/in-app-notification.service.spec.ts src/modules/notifications/notification.service.spec.ts
+
+(node:857080) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/modules/notifications/notification.service.spec.ts
+  NotificationService
+    √ redirects development email and attaches the authoritative invoice PDF (24 ms)
+    √ uses the customer address only in production (1 ms)
+    √ uses the customer-entered address in direct development mode (2 ms)
+    √ queues a password-free activation email through the safe development recipient (1 ms)
+    √ queues a deterministic plan-change email with billing details (1 ms)
+    √ queues password reset and password-changed messages through the encrypted email queue (2 ms)
+    √ queues escaped support updates for customers and the staff queue (2 ms)
+    √ queues private Internal Request notifications only to Staff and Admin recipients (2 ms)
+    √ routes a customer refund request to the customer and the Admin review queue (9 ms)
+    √ routes relocation updates to customers and only the responsible operational roles (3 ms)
+    √ routes only manual plan-change failures to the Admin work queue (2 ms)
+    √ routes support creation to the customer and shared Staff queue
+    √ keeps successful payments customer-only and escalates provisioning failures (1 ms)
+    √ distinguishes invoice settlement, payment review, and service-state failures (1 ms)
+    √ routes cancellation failures to operational roles even without an ops mailbox (1 ms)
+
+PASS src/modules/notifications/in-app-notification.service.spec.ts
+  InAppNotificationService
+    √ creates a notification only after verifying the recipient (3 ms)
+    √ returns the existing event notification when an idempotency key is repeated (1 ms)
+    √ rejects external and protocol-relative action URLs (13 ms)
+    √ retrieves only the authenticated user notifications with pagination and filters (1 ms)
+    √ returns an efficient unread count for the current user (1 ms)
+    √ marks one owned notification as read and blocks another user (1 ms)
+    √ marks all unread notifications for one user as read (1 ms)
+    √ resolves only unread ACTION_REQUIRED notifications for one workflow entity (1 ms)
+    √ deletes an owned notification and blocks unauthorized deletion (2 ms)
+    √ validates multiple recipients with one query and inserts in bulk (1 ms)
+    √ selects active recipients by actual RBAC roles (1 ms)
+    √ targets only active assigned users and ignores duplicate recipient IDs (1 ms)
+
+Test Suites: 2 passed, 2 total
+Tests:       27 passed, 27 total
+Snapshots:   0 total
+Time:        2.357 s
+Ran all test suites within paths "src/modules/notifications/in-app-notification.service.spec.ts", "src/modules/notifications/notification.service.spec.ts".
+Test results written to: ..\..\output\playwright\capstone-2026-10-06\TC08-jest.json
+
+Exit code: 0

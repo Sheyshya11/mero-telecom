@@ -385,9 +385,10 @@ describe('NotificationService', () => {
 
     expect(inApp.createForRoles).toHaveBeenNthCalledWith(
       1,
-      [Role.STAFF, Role.ADMIN],
+      [Role.STAFF, Role.ADMIN, Role.SUPER_ADMIN],
       expect.objectContaining({
-        type: 'RELOCATION_REQUESTED',
+        type: 'RELOCATION_REVIEW_REQUIRED',
+        severity: NotificationSeverity.ACTION_REQUIRED,
         actionUrl: '/control-centre/relocations/relocation-id',
       }),
     );
@@ -543,7 +544,7 @@ describe('NotificationService', () => {
       idempotencyKey: 'stripe-invoice-id',
     });
     expect(inApp.createForRoles).toHaveBeenCalledWith(
-      [Role.ADMIN],
+      [Role.ADMIN, Role.SUPER_ADMIN],
       expect.objectContaining({
         type: 'PAYMENT_REVIEW_REQUIRED',
         severity: NotificationSeverity.ACTION_REQUIRED,
@@ -562,7 +563,7 @@ describe('NotificationService', () => {
     });
     expect(inApp.createForUsers).not.toHaveBeenCalled();
     expect(inApp.createForRoles).toHaveBeenCalledWith(
-      [Role.ADMIN],
+      [Role.ADMIN, Role.SUPER_ADMIN],
       expect.objectContaining({
         type: 'SERVICE_STATE_CHANGE_FAILED',
         severity: NotificationSeverity.ACTION_REQUIRED,

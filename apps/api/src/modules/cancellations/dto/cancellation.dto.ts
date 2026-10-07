@@ -50,7 +50,9 @@ export class CreateCancellationDto {
   reasonDetails?: string;
 
   @IsBoolean()
-  @Equals(true, { message: 'You must confirm that you understand the service will stop.' })
+  @Equals(true, {
+    message: 'You must acknowledge that service cancellation requires employee approval.',
+  })
   confirmed!: boolean;
 }
 

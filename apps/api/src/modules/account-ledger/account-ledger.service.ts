@@ -527,6 +527,46 @@ export class AccountLedgerService {
     };
   }
 
+  async applyOverdueInvoiceCredits(
+    transaction: Prisma.TransactionClient,
+    invoice: { id: string; customerId: string; subscriptionId: string | null; totalCents: number },
+    outstandingCents = invoice.totalCents,
+  ) {
+    if (!invoice.subscriptionId || invoice.totalCents <= 0) return;
+    const existing = await transaction.creditApplication.aggregate({
+      where: { invoiceId: invoice.id, accountTransaction: { type: AccountTransactionType.CREDIT } },
+      _sum: { amountCents: true },
+    });
+    const applied = await this.allocateApplications(transaction, {
+      customerId: invoice.customerId,
+      subscriptionId: invoice.subscriptionId,
+      invoiceId: invoice.id,
+      type: AccountTransactionType.CREDIT,
+      requestedCents: outstandingCents + (existing._sum.amountCents ?? 0),
+      syncStatus: StripeSyncStatus.NOT_REQUIRED,
+    });
+    if (!applied.allocatedCents) return;
+    const totalCents = Math.max(0, invoice.totalCents - applied.allocatedCents);
+    const taxCents = Math.round(totalCents / 11);
+    await transaction.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        totalCents,
+        taxCents,
+        subtotalCents: totalCents - taxCents,
+        ...(totalCents === 0 ? { status: 'PAID', paidAt: new Date() } : {}),
+        items: {
+          create: {
+            description: 'Account credits applied to overdue invoice',
+            quantity: 1,
+            amountCents: -applied.allocatedCents,
+            unitPriceCents: -applied.allocatedCents,
+          },
+        },
+      },
+    });
+  }
+
   private async allocateApplications(
     transaction: Prisma.TransactionClient,
     input: {
@@ -558,6 +598,7 @@ export class AccountLedgerService {
         },
         stripeSyncStatus: input.syncStatus,
         remainingAmountCents: { gt: 0 },
+        applications: { none: { invoiceId: input.invoiceId } },
         ...(input.subscriptionId
           ? { OR: [{ subscriptionId: null }, { subscriptionId: input.subscriptionId }] }
           : {}),

@@ -11,9 +11,21 @@ export const validationSchema = Joi.object({
     .required(),
   ADMIN_DASHBOARD_CACHE_TTL_SECONDS: Joi.number().integer().min(5).max(3600).default(60),
   BUSINESS_TIMEZONE: Joi.string().max(100).default('Australia/Adelaide'),
+  OVERDUE_FIRST_REMINDER_DAYS: Joi.number().integer().min(1).max(365).default(1),
+  OVERDUE_SECOND_REMINDER_DAYS: Joi.number().integer().min(2).max(365).default(3),
+  OVERDUE_FINAL_WARNING_DAYS: Joi.number().integer().min(3).max(365).default(5),
+  OVERDUE_DEMO_DAY_MS: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.number().valid(86_400_000).default(86_400_000),
+    otherwise: Joi.number().integer().min(60_000).max(86_400_000).default(86_400_000),
+  }),
   OVERDUE_GRACE_PERIOD_DAYS: Joi.number().integer().min(1).max(30).default(7),
   NON_PAYMENT_TERMINATION_DAYS: Joi.number().integer().min(8).max(365).default(30),
-  OVERDUE_LIFECYCLE_INTERVAL_MS: Joi.number().integer().min(30_000).max(86_400_000).default(60_000),
+  OVERDUE_LIFECYCLE_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(30_000)
+    .max(86_400_000)
+    .default(3_600_000),
   OVERDUE_LIFECYCLE_BATCH_SIZE: Joi.number().integer().min(1).max(500).default(50),
   BILLING_PROVISIONING_MOCK_RESULT: Joi.string()
     .valid('SUCCESS', 'PENDING', 'FAILED')

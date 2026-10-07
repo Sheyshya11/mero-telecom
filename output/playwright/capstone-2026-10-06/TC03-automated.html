@@ -1,0 +1,81 @@
+<!doctype html><html><meta charset="utf-8"><title>TC03 - Automated test evidence</title><style>body{margin:0;background:#eef1f5;font:16px Arial,sans-serif;color:#172233}main{margin:32px auto;width:1120px;background:white;border:1px solid #ccd4de;border-radius:10px;overflow:hidden}header{padding:24px 30px;border-bottom:1px solid #ccd4de;background:#10243b;color:white}h1{font-size:28px;margin:9px 0}h2{font-size:18px;margin:0}.meta{padding:20px 30px;background:#f7fafc;line-height:1.6}.warning{margin:18px 30px;padding:14px;background:#fff4da;border:1px solid #dfbd73;border-radius:6px;line-height:1.5}.stats{display:flex;gap:38px;margin-top:12px}.stats b{font-size:24px;color:#14723d}pre{margin:20px 30px 28px;font:14px/1.65 Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}footer{padding:15px 30px;border-top:1px solid #ccd4de;color:#546477;font-size:13px}a{color:#1764aa}li{line-height:2}</style><main><header><h2>MERO TELECOM | EXECUTED AUTOMATED TEST EVIDENCE</h2><h1>TC03 — Subscription Management</h1>Existing Jest tests executed against project code</header><div class="meta">Run: 06 October 2026, 11:49 PM ACDT<br>Scope: <strong>unit/service tests with mocked dependencies</strong><div class="stats"><span><b>PASSED</b><br>Automated test run</span><span><b>42</b><br>Assertions passed</span><span><b>0</b><br>Assertions failed</span><span><b>18.65s</b><br>Elapsed time</span></div></div><div class="warning"><strong>Full browser acceptance is blocked.</strong> Docker/WSL failed with ERROR_NO_SYSTEM_RESOURCES and localhost:3000 refused the connection. This screenshot records an actual automated test run. It does not show the application workflow, a live payment, or live NBN/MNF provisioning.</div><pre>Case: TC03 - Subscription Management
+Evidence: executed existing Jest unit/service tests with mocked dependencies.
+Full browser acceptance: blocked by Docker/WSL ERROR_NO_SYSTEM_RESOURCES.
+Started (UTC): 2026-10-06T13:19:50.2035456Z
+Command: jest --runInBand --verbose --no-colors --json --outputFile=D:\MeroTelecom\output\playwright\capstone-2026-10-06\TC03-jest.json --runTestsByPath src/modules/subscriptions/subscriptions.service.spec.ts src/modules/payments/payments.service.spec.ts
+
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_cancelled_setup_race&quot;,&quot;type&quot;:&quot;checkout.session.completed&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_setup_compensation&quot;,&quot;type&quot;:&quot;checkout.session.completed&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07    WARN [PaymentsService] {&quot;event&quot;:&quot;recurring_setup_compensated&quot;,&quot;attemptId&quot;:&quot;192053e9-f7fa-4c96-a367-e3145eac6f9f&quot;,&quot;stripeSubscriptionId&quot;:&quot;sub_orphaned&quot;,&quot;error&quot;:&quot;ConflictException&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_public_paid_001&quot;,&quot;type&quot;:&quot;checkout.session.completed&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_public_paid_001&quot;,&quot;type&quot;:&quot;checkout.session.completed&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_public_expired_001&quot;,&quot;type&quot;:&quot;checkout.session.expired&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_phase13_001&quot;,&quot;type&quot;:&quot;checkout.session.completed&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_phase13_001&quot;,&quot;type&quot;:&quot;checkout.session.completed&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_plan_purchase_001&quot;,&quot;type&quot;:&quot;checkout.session.completed&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_phase16_distinct&quot;,&quot;type&quot;:&quot;checkout.session.completed&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_recurring_paid_001&quot;,&quot;type&quot;:&quot;invoice.paid&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_recurring_paid_001&quot;,&quot;type&quot;:&quot;invoice.paid&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07    WARN [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.rejected&quot;,&quot;reason&quot;:&quot;invalid_signature&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_invoice_payment_failed&quot;,&quot;type&quot;:&quot;checkout.session.async_payment_failed&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_customer_updated_payment_method&quot;,&quot;type&quot;:&quot;customer.updated&quot;}
+[Nest] 455256  - 06/10/2026, 23:50:07     LOG [PaymentsService] {&quot;event&quot;:&quot;stripe.webhook.received&quot;,&quot;eventId&quot;:&quot;evt_customer_updated_payment_method&quot;,&quot;type&quot;:&quot;customer.updated&quot;}
+(node:455256) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/modules/payments/payments.service.spec.ts (16.731 s)
+  PaymentsService
+    √ reconciles a completed recurring setup on return and exposes the saved card (16 ms)
+    √ refuses a completed setup when the customer cancelled after opening Checkout (7 ms)
+    √ cancels the remote subscription when local activation loses a race (2 ms)
+    √ recovers a new subscription card from the paid invoice when Stripe omits the subscription default (1 ms)
+    √ reconciles an owned paid Checkout before returning authenticated status (2 ms)
+    √ does not retrieve or disclose a Checkout Session that is not owned by the customer (75 ms)
+    √ creates a public Checkout from authoritative plan data without creating an account early (3 ms)
+    √ creates a new BECS subscription through Stripe Checkout configuration (1 ms)
+    √ rejects unavailable Direct Debit before consuming verified checkout addresses (2 ms)
+    √ resolves separate residential and billing addresses only from trusted tokens (2 ms)
+    √ creates one pending customer account and active subscription after a paid public webhook (11 ms)
+    √ records an expired public Checkout without creating a customer or subscription (2 ms)
+    √ creates a plan Checkout from the selected server-side plan without assigning it early (3 ms)
+    √ creates Checkout from server-side invoice values and never caller-supplied money (2 ms)
+    √ verifies a signed event and handles a repeated event without duplicate updates (3 ms)
+    √ atomically activates a selected plan when its signed payment webhook succeeds (3 ms)
+    √ records a distinct valid event for an already-succeeded Checkout Session (2 ms)
+    √ mirrors a recurring invoice payment once when Stripe retries the webhook (3 ms)
+    √ rejects an event whose signature cannot be verified (1 ms)
+    √ routes a signed invoice payment failure into the overdue lifecycle (1 ms)
+    √ returns only masked payment method details and protects the only recurring method (3 ms)
+    √ updates editable details on an owned Stripe payment method without accepting credentials (3 ms)
+    √ returns a reusable Link payment method instead of filtering it out as a non-card (2 ms)
+    √ accepts a reusable Link wallet from the card automatic-payment flow (2 ms)
+    √ mirrors the Stripe amount due after credit for a BECS recurring invoice (3 ms)
+    √ returns only safe masked BECS metadata (1 ms)
+    √ records BECS initiation as processing rather than paid (1 ms)
+    √ blocks removal of the only payment method for a protected recurring subscription (2 ms)
+    √ creates a Customer Portal session only for the authenticated customer (2 ms)
+    √ refuses to set a payment method owned by another Stripe customer (1 ms)
+    √ changes the customer and recurring subscription default without creating billing records (1 ms)
+    √ records a failed BECS intent as failed for the existing delinquency workflow (1 ms)
+    √ switches an automatic subscription from card to a verified BECS method (1 ms)
+    √ preserves the existing default when replacement setup did not succeed (1 ms)
+    √ removes a non-default card without changing or cancelling the recurring subscription (1 ms)
+    √ allows the final card to be removed after the recurring subscription is no longer current (2 ms)
+    √ synchronizes customer default changes once and retries the same open Stripe invoice (3 ms)
+
+PASS src/modules/subscriptions/subscriptions.service.spec.ts
+  SubscriptionsService
+    √ does not allow staff to approve a pending subscription manually (2 ms)
+    √ rejects an invalid lifecycle transition before updating the database
+    √ prevents direct active-to-cancelled updates outside the cancellation workflow
+    √ rejects an end date before the effective start date (14 ms)
+    √ checks a changed start date against the stored end date (1 ms)
+
+Test Suites: 2 passed, 2 total
+Tests:       42 passed, 42 total
+Snapshots:   0 total
+Time:        17.819 s
+Ran all test suites within paths &quot;src/modules/subscriptions/subscriptions.service.spec.ts&quot;, &quot;src/modules/payments/payments.service.spec.ts&quot;.
+Test results written to: ..\..\output\playwright\capstone-2026-10-06\TC03-jest.json
+
+Exit code: 0
+</pre><footer>Source: TC03-console.txt and TC03-jest.json. Screenshot captured in Chromium. Raw results are included.</footer></main></html>

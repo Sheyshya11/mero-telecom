@@ -1,0 +1,712 @@
+{
+  "runAt": "2026-10-06T14:05:57.961Z",
+  "frontend": "http://localhost:3000",
+  "backend": "http://localhost:3001/api/v1",
+  "isolatedDatabase": "capstone_evidence_20261006",
+  "assertions": [
+    {
+      "testCase": "TC01",
+      "name": "customer login",
+      "passed": true,
+      "details": {
+        "httpStatus": 200
+      }
+    },
+    {
+      "testCase": "TC01",
+      "name": "staff login",
+      "passed": true,
+      "details": {
+        "httpStatus": 200
+      }
+    },
+    {
+      "testCase": "TC01",
+      "name": "admin login",
+      "passed": true,
+      "details": {
+        "httpStatus": 200
+      }
+    },
+    {
+      "testCase": "TC01",
+      "name": "superadmin login",
+      "passed": true,
+      "details": {
+        "httpStatus": 200
+      }
+    },
+    {
+      "testCase": "TC01",
+      "name": "Invalid credentials rejected",
+      "passed": true,
+      "details": {
+        "httpStatus": 401
+      }
+    },
+    {
+      "testCase": "TC01",
+      "name": "customer administrative user access",
+      "passed": true,
+      "details": {
+        "expected": 403,
+        "actual": 403
+      }
+    },
+    {
+      "testCase": "TC01",
+      "name": "staff administrative user access",
+      "passed": true,
+      "details": {
+        "expected": 403,
+        "actual": 403
+      }
+    },
+    {
+      "testCase": "TC01",
+      "name": "admin administrative user access",
+      "passed": true,
+      "details": {
+        "expected": 200,
+        "actual": 200
+      }
+    },
+    {
+      "testCase": "TC01",
+      "name": "superadmin administrative user access",
+      "passed": true,
+      "details": {
+        "expected": 200,
+        "actual": 200
+      }
+    },
+    {
+      "testCase": "TC01",
+      "name": "admin Super Admin audit access",
+      "passed": true,
+      "details": {
+        "expected": 403,
+        "actual": 403
+      }
+    },
+    {
+      "testCase": "TC01",
+      "name": "superadmin Super Admin audit access",
+      "passed": true,
+      "details": {
+        "expected": 200,
+        "actual": 200
+      }
+    },
+    {
+      "testCase": "TC02",
+      "name": "AVAILABLE postcode coverage",
+      "passed": true,
+      "details": {
+        "httpStatus": 201,
+        "status": "AVAILABLE",
+        "address": {
+          "formattedAddress": "100 King William Street, Adelaide SA 5000, Australia",
+          "suburb": "Adelaide",
+          "stateCode": "SA",
+          "postcode": "5000"
+        }
+      }
+    },
+    {
+      "testCase": "TC02",
+      "name": "NOT_AVAILABLE postcode coverage",
+      "passed": true,
+      "details": {
+        "httpStatus": 201,
+        "status": "NOT_AVAILABLE",
+        "address": {
+          "formattedAddress": "15 King William Street, Rosewater SA 5013, Australia",
+          "suburb": "Rosewater",
+          "stateCode": "SA",
+          "postcode": "5013"
+        }
+      }
+    },
+    {
+      "testCase": "TC03",
+      "name": "Single purchased Family 100 subscription; later cancellation pending from TC05",
+      "passed": true,
+      "details": {
+        "count": 1,
+        "status": "CANCELLATION_PENDING",
+        "plan": "Family 100",
+        "billingMode": "STRIPE_RECURRING"
+      }
+    },
+    {
+      "testCase": "TC03",
+      "name": "Stripe sandbox payment persisted and invoice paid",
+      "passed": true,
+      "details": {
+        "provider": "STRIPE",
+        "status": "SUCCEEDED",
+        "amountCents": 7900,
+        "currency": "AUD",
+        "invoiceNumber": "INV-2026-000004",
+        "invoiceStatus": "PAID",
+        "last4": null
+      }
+    },
+    {
+      "testCase": "TC04",
+      "name": "Concurrent repeat October requests reuse one invoice",
+      "passed": true,
+      "details": {
+        "before": 1,
+        "after": 1,
+        "periodStart": "2026-10-01T00:00:00.000Z",
+        "periodEnd": "2026-10-31T00:00:00.000Z",
+        "repeats": [
+          {
+            "httpStatus": 201,
+            "id": "49fc462b-eda4-43af-bbfb-84ad715cc29c",
+            "invoiceNumber": "INV-2026-000005",
+            "generationResult": "EXISTING"
+          },
+          {
+            "httpStatus": 201,
+            "id": "49fc462b-eda4-43af-bbfb-84ad715cc29c",
+            "invoiceNumber": "INV-2026-000005",
+            "generationResult": "EXISTING"
+          }
+        ]
+      }
+    },
+    {
+      "testCase": "TC05",
+      "name": "Customer refund persisted and administrative review recorded",
+      "passed": true,
+      "details": {
+        "status": "UNDER_REVIEW",
+        "amountCents": 7900,
+        "customerReason": "TC05 capstone test: please review this sandbox payment refund request.",
+        "internalNote": "TC05 reviewed the sandbox payment request. Administrative review verified."
+      }
+    },
+    {
+      "testCase": "TC05",
+      "name": "Cancellation approved and scheduled while paid service remains active",
+      "passed": true,
+      "details": {
+        "requestNumber": "CAN-2026-00001",
+        "status": "SCHEDULED",
+        "decision": "APPROVED",
+        "effectiveAt": "2026-11-06T13:43:23.000Z",
+        "subscriptionStatusBeforeRequest": "ACTIVE",
+        "subscriptionStatus": "CANCELLATION_PENDING",
+        "endDate": null,
+        "cancelAtPeriodEnd": true,
+        "stripeSynced": true
+      }
+    },
+    {
+      "testCase": "TC06",
+      "name": "Move request reviewed and scheduled with original service active",
+      "passed": true,
+      "details": {
+        "status": "SCHEDULED",
+        "qualificationStatus": "AVAILABLE",
+        "requestedMoveDate": "2026-10-10T00:00:00.000Z",
+        "decision": "APPROVED",
+        "provider": "MOCK_MNF",
+        "oldServiceStatus": "ACTIVE"
+      }
+    },
+    {
+      "testCase": "TC07",
+      "name": "Linked support escalated Staff to Admin to Super Admin",
+      "passed": true,
+      "details": {
+        "requestNumber": "IR-2026-00001",
+        "supportCaseId": "0ad53606-f81f-4e17-b2e8-14f2d44cbcfc",
+        "status": "PENDING",
+        "currentLevel": "SUPER_ADMIN",
+        "requester": "staff@merotelecom.test",
+        "admin": "admin@merotelecom.test",
+        "escalator": "admin@merotelecom.test",
+        "superAdmin": "superadmin@merotelecom.test",
+        "events": [
+          {
+            "eventType": "CREATED",
+            "actorRole": "STAFF",
+            "fromLevel": null,
+            "toLevel": "ADMIN",
+            "createdAt": "2026-10-06T13:49:41.875Z"
+          },
+          {
+            "eventType": "ASSIGNED",
+            "actorRole": "ADMIN",
+            "fromLevel": null,
+            "toLevel": "ADMIN",
+            "createdAt": "2026-10-06T13:50:23.621Z"
+          },
+          {
+            "eventType": "REVIEW_STARTED",
+            "actorRole": "ADMIN",
+            "fromLevel": "ADMIN",
+            "toLevel": "ADMIN",
+            "createdAt": "2026-10-06T13:50:41.684Z"
+          },
+          {
+            "eventType": "MESSAGE_SENT",
+            "actorRole": "ADMIN",
+            "fromLevel": "ADMIN",
+            "toLevel": "ADMIN",
+            "createdAt": "2026-10-06T13:51:23.573Z"
+          },
+          {
+            "eventType": "ESCALATED",
+            "actorRole": "ADMIN",
+            "fromLevel": "ADMIN",
+            "toLevel": "SUPER_ADMIN",
+            "createdAt": "2026-10-06T13:51:23.578Z"
+          },
+          {
+            "eventType": "ASSIGNED",
+            "actorRole": "SUPER_ADMIN",
+            "fromLevel": null,
+            "toLevel": "SUPER_ADMIN",
+            "createdAt": "2026-10-06T13:51:55.262Z"
+          }
+        ]
+      }
+    },
+    {
+      "testCase": "TC08",
+      "name": "Refund request reaches employee",
+      "passed": true,
+      "details": [
+        {
+          "type": "REFUND_REQUESTED",
+          "title": "New refund request",
+          "recipient": "superadmin@merotelecom.test"
+        }
+      ]
+    },
+    {
+      "testCase": "TC08",
+      "name": "Move reaches employee",
+      "passed": true,
+      "details": [
+        {
+          "type": "RELOCATION_REVIEW_REQUIRED",
+          "title": "Move home request requires review",
+          "recipient": "superadmin@merotelecom.test"
+        }
+      ]
+    },
+    {
+      "testCase": "TC08",
+      "name": "Escalation reaches Super Admin",
+      "passed": true,
+      "details": [
+        {
+          "type": "SUPPORT_ESCALATED",
+          "title": "Support request escalated",
+          "recipient": "superadmin@merotelecom.test"
+        }
+      ]
+    },
+    {
+      "testCase": "TC08",
+      "name": "Billing payment reaches customer",
+      "passed": true,
+      "details": [
+        {
+          "type": "PAYMENT_SUCCESS",
+          "title": "Payment successful",
+          "recipient": "newcustomer@merotelecom.test"
+        },
+        {
+          "type": "PAYMENT_SUCCESS",
+          "title": "Payment successful",
+          "recipient": "newcustomer@merotelecom.test"
+        }
+      ]
+    },
+    {
+      "testCase": "TC08",
+      "name": "Refund acknowledgement reaches customer",
+      "passed": true,
+      "details": [
+        {
+          "type": "REFUND_REQUESTED",
+          "title": "Refund request submitted",
+          "recipient": "newcustomer@merotelecom.test"
+        }
+      ]
+    },
+    {
+      "testCase": "TC08",
+      "name": "Move approval reaches customer",
+      "passed": true,
+      "details": [
+        {
+          "type": "RELOCATION_PROVISIONING",
+          "title": "Move home scheduled",
+          "recipient": "move@merotelecom.test"
+        }
+      ]
+    },
+    {
+      "testCase": "TC08",
+      "name": "Invoice generation reaches customer",
+      "passed": true,
+      "details": [
+        {
+          "type": "INVOICE_CREATED",
+          "title": "New invoice available",
+          "recipient": "customer@merotelecom.test"
+        }
+      ]
+    },
+    {
+      "testCase": "TC08",
+      "name": "Browser mark-as-read persisted",
+      "passed": true,
+      "details": {
+        "title": "Service cancellation scheduled",
+        "isRead": true
+      }
+    },
+    {
+      "testCase": "TC08",
+      "name": "API notification list belongs only to logged-in customer",
+      "passed": true,
+      "details": {
+        "httpStatus": 200,
+        "count": 8
+      }
+    },
+    {
+      "testCase": "TC08",
+      "name": "Another user cannot mark customer notification read",
+      "passed": true,
+      "details": {
+        "httpStatus": 404
+      }
+    }
+  ],
+  "evidence": {
+    "supportedCoverage": {
+      "available": true,
+      "status": "AVAILABLE",
+      "message": "Mero Telecom service is estimated to be available at this address. Final serviceability may require confirmation. This is a Mero Telecom database estimate, not official nbn confirmation.",
+      "address": {
+        "formattedAddress": "100 King William Street, Adelaide SA 5000, Australia",
+        "suburb": "Adelaide",
+        "stateCode": "SA",
+        "postcode": "5000"
+      },
+      "qualification": {
+        "technology": "FTTP",
+        "maximumSpeedMbps": 1000,
+        "source": "DATABASE_ESTIMATE",
+        "checkedAt": "2026-10-06T14:05:57.765Z"
+      },
+      "plans": [
+        {
+          "id": "88fa8a4f-9e67-43bc-b3c2-346275562245",
+          "name": "Essential 50",
+          "description": "Reliable everyday internet for a connected household.",
+          "downloadMbps": 50,
+          "uploadMbps": 20,
+          "monthlyCents": 6900
+        },
+        {
+          "id": "c0eae566-97f7-48d4-a2ad-841ec32d28f9",
+          "name": "Family 100",
+          "description": "Extra capacity for streaming, gaming, and working from home.",
+          "downloadMbps": 100,
+          "uploadMbps": 20,
+          "monthlyCents": 7900
+        },
+        {
+          "id": "d9622731-cff7-4a8e-9c4e-86ef1bca2632",
+          "name": "Business 250",
+          "description": "High-performance connectivity for small businesses.",
+          "downloadMbps": 250,
+          "uploadMbps": 25,
+          "monthlyCents": 10900
+        }
+      ]
+    },
+    "unsupportedCoverage": {
+      "available": false,
+      "status": "NOT_AVAILABLE",
+      "message": "Mero Telecom has no active service record for this exact postcode. This is a Mero Telecom database estimate, not official nbn confirmation.",
+      "address": {
+        "formattedAddress": "15 King William Street, Rosewater SA 5013, Australia",
+        "suburb": "Rosewater",
+        "stateCode": "SA",
+        "postcode": "5013"
+      },
+      "qualification": {
+        "technology": null,
+        "maximumSpeedMbps": null,
+        "source": "DATABASE_ESTIMATE",
+        "checkedAt": "2026-10-06T14:05:57.796Z"
+      },
+      "plans": []
+    },
+    "checkout": {
+      "environment": "Stripe sandbox (4242 test card)",
+      "invoice": "INV-2026-000004",
+      "subscriptionStatus": "CANCELLATION_PENDING"
+    },
+    "invoiceDuplicateCheck": {
+      "before": 1,
+      "after": 1,
+      "periodStart": "2026-10-01T00:00:00.000Z",
+      "periodEnd": "2026-10-31T00:00:00.000Z",
+      "repeats": [
+        {
+          "httpStatus": 201,
+          "id": "49fc462b-eda4-43af-bbfb-84ad715cc29c",
+          "invoiceNumber": "INV-2026-000005",
+          "generationResult": "EXISTING"
+        },
+        {
+          "httpStatus": 201,
+          "id": "49fc462b-eda4-43af-bbfb-84ad715cc29c",
+          "invoiceNumber": "INV-2026-000005",
+          "generationResult": "EXISTING"
+        }
+      ]
+    },
+    "relocationLimitation": "Partial pass: customer submission, address qualification, employee review and scheduling verified. NBN/MNF provisioning and physical activation/disconnection are simulated and were not tested against live providers.",
+    "notifications": [
+      {
+        "id": "e37d8a71-4fb8-4198-b230-a26952f3b039",
+        "recipient": "customer@merotelecom.test",
+        "type": "PAYMENT_REMINDER",
+        "title": "Payment overdue",
+        "isRead": false,
+        "actionUrl": "/customer/invoices?invoiceId=e81282ee-ed06-4078-a70f-6aa81fdaaf34",
+        "createdAt": "2026-10-06T13:34:57.874Z"
+      },
+      {
+        "id": "26ff33cc-e442-46ed-9fa6-098aaaf0689b",
+        "recipient": "newcustomer@merotelecom.test",
+        "type": "PAYMENT_SUCCESS",
+        "title": "Payment successful",
+        "isRead": false,
+        "actionUrl": "/customer/invoices",
+        "createdAt": "2026-10-06T13:43:30.608Z"
+      },
+      {
+        "id": "d251236b-175e-41b0-b9df-777d17069cff",
+        "recipient": "newcustomer@merotelecom.test",
+        "type": "INVOICE_CREATED",
+        "title": "New invoice available",
+        "isRead": false,
+        "actionUrl": "/customer/invoices",
+        "createdAt": "2026-10-06T13:43:31.820Z"
+      },
+      {
+        "id": "1cb34017-6018-4ed4-a7f4-9eb53f823264",
+        "recipient": "newcustomer@merotelecom.test",
+        "type": "INVOICE_PAID",
+        "title": "Invoice paid",
+        "isRead": false,
+        "actionUrl": "/customer/invoices",
+        "createdAt": "2026-10-06T13:43:32.077Z"
+      },
+      {
+        "id": "9d3033bb-f826-4ff0-9254-74943ca1e5f2",
+        "recipient": "newcustomer@merotelecom.test",
+        "type": "PAYMENT_SUCCESS",
+        "title": "Payment successful",
+        "isRead": false,
+        "actionUrl": "/customer/invoices",
+        "createdAt": "2026-10-06T13:43:32.971Z"
+      },
+      {
+        "id": "82e81801-01a7-499c-91aa-1132dfd61986",
+        "recipient": "newcustomer@merotelecom.test",
+        "type": "REFUND_REQUESTED",
+        "title": "Refund request submitted",
+        "isRead": false,
+        "actionUrl": "/customer/refunds",
+        "createdAt": "2026-10-06T13:44:42.292Z"
+      },
+      {
+        "id": "e219c590-acba-49eb-bca5-20099a8beade",
+        "recipient": "admin@merotelecom.test",
+        "type": "REFUND_REQUESTED",
+        "title": "New refund request",
+        "isRead": true,
+        "actionUrl": "/control-centre/refunds/4ecf40bc-3562-42fc-80a4-d0945178fd84",
+        "createdAt": "2026-10-06T13:44:42.313Z"
+      },
+      {
+        "id": "f8bd35af-570f-490c-863e-061c6c96b0fc",
+        "recipient": "superadmin@merotelecom.test",
+        "type": "REFUND_REQUESTED",
+        "title": "New refund request",
+        "isRead": true,
+        "actionUrl": "/control-centre/refunds/4ecf40bc-3562-42fc-80a4-d0945178fd84",
+        "createdAt": "2026-10-06T13:44:42.313Z"
+      },
+      {
+        "id": "b6090740-6089-4efe-b2be-da44b13e155b",
+        "recipient": "newcustomer@merotelecom.test",
+        "type": "CANCELLATION_REQUESTED",
+        "title": "Cancellation request submitted",
+        "isRead": false,
+        "actionUrl": "/customer/subscription",
+        "createdAt": "2026-10-06T13:45:27.719Z"
+      },
+      {
+        "id": "e62bcea3-30cd-494c-927b-60930eb24316",
+        "recipient": "staff@merotelecom.test",
+        "type": "CANCELLATION_REVIEW_REQUIRED",
+        "title": "Cancellation request requires review",
+        "isRead": true,
+        "actionUrl": "/control-centre/cancellations?request=CAN-2026-00001",
+        "createdAt": "2026-10-06T13:45:27.732Z"
+      },
+      {
+        "id": "95720434-ef32-4d44-8f83-6e557a9c580d",
+        "recipient": "admin@merotelecom.test",
+        "type": "CANCELLATION_REVIEW_REQUIRED",
+        "title": "Cancellation request requires review",
+        "isRead": true,
+        "actionUrl": "/control-centre/cancellations?request=CAN-2026-00001",
+        "createdAt": "2026-10-06T13:45:27.732Z"
+      },
+      {
+        "id": "6eb1a4b7-0cfa-4196-8cba-a0c07ca066e5",
+        "recipient": "superadmin@merotelecom.test",
+        "type": "CANCELLATION_REVIEW_REQUIRED",
+        "title": "Cancellation request requires review",
+        "isRead": true,
+        "actionUrl": "/control-centre/cancellations?request=CAN-2026-00001",
+        "createdAt": "2026-10-06T13:45:27.732Z"
+      },
+      {
+        "id": "d6e75d9e-622e-4974-974c-646126ea7362",
+        "recipient": "move@merotelecom.test",
+        "type": "RELOCATION_REQUESTED",
+        "title": "Move home request submitted",
+        "isRead": false,
+        "actionUrl": "/customer/subscription/moving-home",
+        "createdAt": "2026-10-06T13:47:06.372Z"
+      },
+      {
+        "id": "fa02c979-1330-4f05-824a-925825c8e4fb",
+        "recipient": "superadmin@merotelecom.test",
+        "type": "RELOCATION_REVIEW_REQUIRED",
+        "title": "Move home request requires review",
+        "isRead": true,
+        "actionUrl": "/control-centre/relocations/8d98cb8f-eb7d-472e-a1a1-ccadd0da6d62",
+        "createdAt": "2026-10-06T13:47:06.383Z"
+      },
+      {
+        "id": "1c219e5d-9195-4550-afd9-89b69bc86f67",
+        "recipient": "admin@merotelecom.test",
+        "type": "RELOCATION_REVIEW_REQUIRED",
+        "title": "Move home request requires review",
+        "isRead": true,
+        "actionUrl": "/control-centre/relocations/8d98cb8f-eb7d-472e-a1a1-ccadd0da6d62",
+        "createdAt": "2026-10-06T13:47:06.383Z"
+      },
+      {
+        "id": "cf8e14bc-f054-4bb2-8a2b-5ba9f9eafee6",
+        "recipient": "staff@merotelecom.test",
+        "type": "RELOCATION_REVIEW_REQUIRED",
+        "title": "Move home request requires review",
+        "isRead": true,
+        "actionUrl": "/control-centre/relocations/8d98cb8f-eb7d-472e-a1a1-ccadd0da6d62",
+        "createdAt": "2026-10-06T13:47:06.383Z"
+      },
+      {
+        "id": "204714fe-f339-42ab-94dd-0f14ade6bb40",
+        "recipient": "move@merotelecom.test",
+        "type": "SUPPORT_REQUEST_CREATED",
+        "title": "Support request created",
+        "isRead": false,
+        "actionUrl": "/customer/support/SUP-2026-00001",
+        "createdAt": "2026-10-06T13:48:34.977Z"
+      },
+      {
+        "id": "85f991fa-36c0-4acc-8534-33e8847a356f",
+        "recipient": "staff@merotelecom.test",
+        "type": "SUPPORT_REQUEST_CREATED",
+        "title": "New support request",
+        "isRead": true,
+        "actionUrl": "/control-centre/support/SUP-2026-00001",
+        "createdAt": "2026-10-06T13:48:34.985Z"
+      },
+      {
+        "id": "229285ef-a637-44cc-a284-ba9a4c1dce17",
+        "recipient": "move@merotelecom.test",
+        "type": "SUPPORT_ESCALATED",
+        "title": "Support request escalated",
+        "isRead": false,
+        "actionUrl": "/customer/support/SUP-2026-00001",
+        "createdAt": "2026-10-06T13:49:41.894Z"
+      },
+      {
+        "id": "555550df-0a80-4afa-a26f-0d0f91f9d2a3",
+        "recipient": "admin@merotelecom.test",
+        "type": "SUPPORT_ESCALATED",
+        "title": "Support request escalated",
+        "isRead": true,
+        "actionUrl": "/control-centre/internal-requests/IR-2026-00001",
+        "createdAt": "2026-10-06T13:49:41.896Z"
+      },
+      {
+        "id": "8e69b872-74a2-4bdb-8738-10c11d7c7d4f",
+        "recipient": "superadmin@merotelecom.test",
+        "type": "SUPPORT_ESCALATED",
+        "title": "Support request escalated",
+        "isRead": true,
+        "actionUrl": "/control-centre/internal-requests/IR-2026-00001",
+        "createdAt": "2026-10-06T13:51:23.618Z"
+      },
+      {
+        "id": "049dc6c0-5b86-4506-808a-673a57475887",
+        "recipient": "customer@merotelecom.test",
+        "type": "INVOICE_CREATED",
+        "title": "New invoice available",
+        "isRead": false,
+        "actionUrl": "/customer/invoices",
+        "createdAt": "2026-10-06T13:52:55.574Z"
+      },
+      {
+        "id": "aebaa240-f1d5-4d34-89f5-1393e1a64ba9",
+        "recipient": "newcustomer@merotelecom.test",
+        "type": "CANCELLATION_APPROVED",
+        "title": "Cancellation request approved",
+        "isRead": false,
+        "actionUrl": "/customer/subscription",
+        "createdAt": "2026-10-06T13:59:00.705Z"
+      },
+      {
+        "id": "61fcc54c-b146-4c18-b589-2ad0b24a22f8",
+        "recipient": "newcustomer@merotelecom.test",
+        "type": "CANCELLATION_SCHEDULED",
+        "title": "Service cancellation scheduled",
+        "isRead": true,
+        "actionUrl": "/customer/subscription",
+        "createdAt": "2026-10-06T13:59:00.720Z"
+      },
+      {
+        "id": "aa4b67f8-53a1-49f8-9201-5bce7543e06d",
+        "recipient": "move@merotelecom.test",
+        "type": "RELOCATION_PROVISIONING",
+        "title": "Move home scheduled",
+        "isRead": false,
+        "actionUrl": "/customer/subscription/moving-home",
+        "createdAt": "2026-10-06T13:59:52.894Z"
+      }
+    ]
+  }
+}

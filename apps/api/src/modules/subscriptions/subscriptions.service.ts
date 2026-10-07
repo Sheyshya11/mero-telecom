@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { payableCents } from './collection.service';
 import { Prisma, Role, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { buildPaginationMeta, dateRange } from '../../common/pagination';
@@ -26,7 +27,7 @@ const include = {
   invoices: {
     where: { status: { in: ['ISSUED', 'OVERDUE'] } },
     orderBy: { dueDate: 'asc' },
-    include: { payments: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    include: { payments: { orderBy: { createdAt: 'desc' } } },
   },
   provisioningRequests: { orderBy: { createdAt: 'desc' }, take: 1 },
 } satisfies Prisma.SubscriptionInclude;
@@ -108,7 +109,20 @@ export class SubscriptionsService {
     return {
       data: data.map((subscription) => ({
         ...subscription,
-        remindersSent: reminderCounts.get(subscription.id) ?? 0,
+        invoices: subscription.invoices.map((invoice) => ({
+          ...invoice,
+          outstandingCents: payableCents(invoice),
+        })),
+        remindersSent:
+          (reminderCounts.get(subscription.id) ?? 0) +
+          subscription.invoices.reduce(
+            (sum, invoice) =>
+              sum +
+              Number(!!invoice.firstReminderSentAt) +
+              Number(!!invoice.secondReminderSentAt) +
+              Number(!!invoice.finalWarningSentAt),
+            0,
+          ),
       })),
       meta: buildPaginationMeta(query, total),
     };

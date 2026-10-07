@@ -1,5 +1,6 @@
 'use client';
 
+import { RequestReviewQueue } from '../service-requests/request-review-queue';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
@@ -169,6 +170,7 @@ export function AdminDashboardView() {
             <p className={styles.heroAsideValue}>{user.email}</p>
           </div>
         </section>
+        <RequestReviewQueue />
 
         <section aria-label="Business metrics" className={styles.metricGrid}>
           <Metric
@@ -366,9 +368,7 @@ export function AdminDashboardView() {
                           <Cell fill={subscriptionStatusColors[entry.status]} key={entry.status} />
                         ))}
                       </Pie>
-                      <Tooltip
-                        contentStyle={chartTooltipStyle}
-                      />
+                      <Tooltip contentStyle={chartTooltipStyle} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

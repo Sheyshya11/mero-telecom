@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { apiRequest } from '../../lib/api/client';
 import { useAuth } from '../auth/auth-provider';
@@ -11,7 +11,8 @@ import type { RelocationStatus, ServiceAddress, ServiceRelocation } from './relo
 
 const statuses: Array<{ label: string; value: '' | RelocationStatus }> = [
   { label: 'All statuses', value: '' },
-  { label: 'Awaiting confirmation', value: 'AWAITING_CONFIRMATION' },
+  { label: 'Awaiting review', value: 'PENDING_REVIEW' },
+  { label: 'Not approved', value: 'REJECTED' },
   { label: 'Provisioning', value: 'PROVISIONING' },
   { label: 'Scheduled', value: 'SCHEDULED' },
   { label: 'Partially completed', value: 'PARTIALLY_COMPLETED' },
@@ -33,6 +34,10 @@ export function RelocationManagement() {
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
   const [page, setPage] = useState(1);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('status') === 'PENDING_REVIEW')
+      setStatus('PENDING_REVIEW');
+  }, []);
   const params = new URLSearchParams({ limit: '20', page: String(page) });
   if (status) params.set('status', status);
   if (provisioningStatus) params.set('provisioningStatus', provisioningStatus);
@@ -338,6 +343,9 @@ export function formatDate(value: string) {
 }
 
 export function friendly(value: string) {
+  if (value === 'PENDING_REVIEW') return 'Awaiting review';
+  if (value === 'REJECTED') return 'Not approved';
+  if (value === 'CONFIRMED') return 'Approved';
   return value
     .replaceAll('_', ' ')
     .toLowerCase()

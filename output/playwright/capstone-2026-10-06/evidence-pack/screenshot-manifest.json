@@ -1,0 +1,156 @@
+[
+  {
+    "testCase": "TC01",
+    "file": "TC01/TC01-a-customer-dashboard.png",
+    "sha256": "f2f0d93617433342cb6c542f27612d428cb960622559fd1879bd8ca08534820a",
+    "sizeBytes": 304332,
+    "capturedUtc": "2026-10-06T13:36:05.144422+00:00"
+  },
+  {
+    "testCase": "TC01",
+    "file": "TC01/TC01-b-staff-dashboard.png",
+    "sha256": "4416897e9ad543cd72887e02816635e3489d4219b81e42246b26dccc0887045d",
+    "sizeBytes": 186490,
+    "capturedUtc": "2026-10-06T13:38:00.083015+00:00"
+  },
+  {
+    "testCase": "TC01",
+    "file": "TC01/TC01-c-admin-dashboard.png",
+    "sha256": "7961e5d047b5a62556567f8027a9f306fc3c93801a3124b3f99e49649e91d17f",
+    "sizeBytes": 396296,
+    "capturedUtc": "2026-10-06T13:38:02.505855+00:00"
+  },
+  {
+    "testCase": "TC01",
+    "file": "TC01/TC01-d-super-admin-dashboard.png",
+    "sha256": "058b4a4f9fa3dbf093aac4ab84d6dd5ec92361bb407f57d8a3cdf2a2b38ab98f",
+    "sizeBytes": 469075,
+    "capturedUtc": "2026-10-06T13:38:04.905798+00:00"
+  },
+  {
+    "testCase": "TC02",
+    "file": "TC02/TC02-a-supported-coverage.png",
+    "sha256": "9e0c5da4b71b6bac84c4ef71f22caefd6cc349622bba29bf1dff281624fa3320",
+    "sizeBytes": 128617,
+    "capturedUtc": "2026-10-06T13:39:34.682463+00:00"
+  },
+  {
+    "testCase": "TC02",
+    "file": "TC02/TC02-b-unsupported-coverage.png",
+    "sha256": "0011e6dc99664677489f70ef2b74e5ef4e9c50e4b6a8fe1854b58a8ad41c0ffe",
+    "sizeBytes": 94571,
+    "capturedUtc": "2026-10-06T13:40:13.010398+00:00"
+  },
+  {
+    "testCase": "TC03",
+    "file": "TC03/TC03-a-plan-selection.png",
+    "sha256": "77f91be75ff3668f046703b226fb75aa2c720d22a85654f0a1040176a52743df",
+    "sizeBytes": 166475,
+    "capturedUtc": "2026-10-06T13:40:35.802088+00:00"
+  },
+  {
+    "testCase": "TC03",
+    "file": "TC03/TC03-b-stripe-sandbox-checkout.png",
+    "sha256": "2517e727d57b1db66cfaac92968ea84490ddcff8748ba2f42e9cfe4f4dcc6fae",
+    "sizeBytes": 55627,
+    "capturedUtc": "2026-10-06T13:43:22.996917+00:00"
+  },
+  {
+    "testCase": "TC03",
+    "file": "TC03/TC03-c-paid-active-subscription.png",
+    "sha256": "5a58d074d1de364861e01274ba1037347f37b99a4535eab98c20d8a50d7def04",
+    "sizeBytes": 325017,
+    "capturedUtc": "2026-10-06T13:44:03.232667+00:00"
+  },
+  {
+    "testCase": "TC04",
+    "file": "TC04/TC04-duplicate-october-invoice-prevented.png",
+    "sha256": "46a4ce5d70558bf632228a3aa8860216598baf69a85eec7251bba336a3c749e1",
+    "sizeBytes": 239219,
+    "capturedUtc": "2026-10-06T13:53:38.757299+00:00"
+  },
+  {
+    "testCase": "TC05",
+    "file": "TC05/TC05-b-cancellation-awaiting-review.png",
+    "sha256": "ab817d9e8e16029066db74b8c588844e27b2451028be4ba39883f9f2da29655d",
+    "sizeBytes": 43051,
+    "capturedUtc": "2026-10-06T13:45:49.586886+00:00"
+  },
+  {
+    "testCase": "TC05",
+    "file": "TC05/TC05-c-administrative-refund-review.png",
+    "sha256": "4976849cf0fcb2f02dca46f998ddb22626eab7c323c703ef10bd85296375565b",
+    "sizeBytes": 262480,
+    "capturedUtc": "2026-10-06T13:58:05.349786+00:00"
+  },
+  {
+    "testCase": "TC05",
+    "file": "TC05/TC05-d-administrative-cancellation-review.png",
+    "sha256": "c27a26a33fb1f875ceed24fb729864713071bf1fccd200352d703ed42abd78df",
+    "sizeBytes": 339368,
+    "capturedUtc": "2026-10-06T14:11:24.004010+00:00"
+  },
+  {
+    "testCase": "TC05",
+    "file": "TC05/TC05-e-customer-refund-under-review.png",
+    "sha256": "e606e2e4f652cc4eb5abab8345564617bf726db99080dbf71f930f6d02ade7b6",
+    "sizeBytes": 142988,
+    "capturedUtc": "2026-10-06T14:03:14.890972+00:00"
+  },
+  {
+    "testCase": "TC06",
+    "file": "TC06/TC06-a-customer-relocation-request.png",
+    "sha256": "da48996f8508da0f1c99609ef7ddd04207a3bcaad6a4553bc3bf15bf2e2f4e06",
+    "sizeBytes": 122189,
+    "capturedUtc": "2026-10-06T13:47:25.025700+00:00"
+  },
+  {
+    "testCase": "TC06",
+    "file": "TC06/TC06-b-administrative-relocation-monitoring.png",
+    "sha256": "12acbfd6d2948eaef32fcc3669508c407b40a9b96ec2ecf4af6138df94af53ca",
+    "sizeBytes": 498223,
+    "capturedUtc": "2026-10-06T13:59:55.007561+00:00"
+  },
+  {
+    "testCase": "TC07",
+    "file": "TC07/TC07-a-staff-to-admin-request.png",
+    "sha256": "6ab738893d999567f61ec5cc01589cbbc4c7f679266e4f2397a22a5426ef8181",
+    "sizeBytes": 210888,
+    "capturedUtc": "2026-10-06T13:49:43.782876+00:00"
+  },
+  {
+    "testCase": "TC07",
+    "file": "TC07/TC07-b-admin-to-super-admin.png",
+    "sha256": "e88232050fe3683c8ba1264b384467b9af74896784735838d472681b603fa763",
+    "sizeBytes": 299356,
+    "capturedUtc": "2026-10-06T14:08:58.792590+00:00"
+  },
+  {
+    "testCase": "TC07",
+    "file": "TC07/TC07-c-super-admin-review.png",
+    "sha256": "0cf4d53c121c2129831667c558e433ed15c1f4e8e4484de907e456627ac3da7f",
+    "sizeBytes": 295450,
+    "capturedUtc": "2026-10-06T13:51:56.816996+00:00"
+  },
+  {
+    "testCase": "TC08",
+    "file": "TC08/TC08-a-super-admin-event-notifications.png",
+    "sha256": "47751b6df61c81d070de2758c54402d3d38c4e124b7389fdb441c13b72850e13",
+    "sizeBytes": 162242,
+    "capturedUtc": "2026-10-06T14:00:28.345710+00:00"
+  },
+  {
+    "testCase": "TC08",
+    "file": "TC08/TC08-b-customer-billing-refund-notifications.png",
+    "sha256": "3fbf8c20374abf8b2781e3f89fa2df70dd733592e02362d1bb90b6d3e3f27e68",
+    "sizeBytes": 250438,
+    "capturedUtc": "2026-10-06T14:01:18.729160+00:00"
+  },
+  {
+    "testCase": "TC08",
+    "file": "TC08/TC08-c-notification-marked-read.png",
+    "sha256": "d5cc0d8bfd97de60aa716197d05cf46d17d77df9cf6942e2475652ceb99d7b46",
+    "sizeBytes": 248986,
+    "capturedUtc": "2026-10-06T14:01:20.858217+00:00"
+  }
+]

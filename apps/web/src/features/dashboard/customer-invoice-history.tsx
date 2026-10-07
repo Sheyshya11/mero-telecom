@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { DataTablePagination, useTableQueryParams } from '../../components/data-table';
@@ -21,6 +22,15 @@ interface InvoiceListResponse {
 export function CustomerInvoiceHistory() {
   const { accessToken, isLoading, user } = useAuth();
   const table = useTableQueryParams([]);
+  const [invoiceId, setInvoiceId] = useState<string | null>(null);
+  useEffect(() => {
+    setInvoiceId(new URLSearchParams(window.location.search).get('invoiceId'));
+  }, []);
+  const linkedInvoice = useQuery({
+    queryKey: ['customer-linked-invoice', invoiceId],
+    queryFn: () => apiRequest<CustomerInvoiceApi>(`/invoices/me/${invoiceId}`, {}, accessToken),
+    enabled: Boolean(accessToken && invoiceId && user && hasRole(user, 'CUSTOMER')),
+  });
   const invoicesQuery = useQuery({
     queryKey: ['customer-invoices', table.query],
     queryFn: () => apiRequest<InvoiceListResponse>(`/invoices/me?${table.query}`, {}, accessToken),
@@ -48,10 +58,33 @@ export function CustomerInvoiceHistory() {
       <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-semibold tracking-wide text-primary">BILLING · INVOICES</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">Invoice history</h1>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
+            Invoice history
+          </h1>
           <p className="mt-2 text-muted-foreground">Invoices issued to your customer account.</p>
         </div>
       </header>
+      {linkedInvoice.data ? (
+        <section
+          className="mt-6 rounded-xl border border-border bg-card p-5"
+          aria-label="Selected invoice"
+        >
+          <h2 className="font-semibold">Selected invoice: {linkedInvoice.data.invoiceNumber}</h2>
+          <table className="mt-3 w-full">
+            <tbody>
+              <InvoiceRow
+                invoice={{
+                  ...linkedInvoice.data,
+                  paymentStatus: linkedInvoice.data.payments[0]?.status ?? null,
+                  payment: linkedInvoice.data.payments[0] ?? null,
+                }}
+              />
+            </tbody>
+          </table>
+        </section>
+      ) : linkedInvoice.isError ? (
+        <p role="alert">This invoice is unavailable to your account.</p>
+      ) : null}
       <section className="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         {invoices.length ? (
           <div className="overflow-x-auto">

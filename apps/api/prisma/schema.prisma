@@ -102,6 +102,8 @@ enum ServiceProvisioningStatus {
 }
 
 enum ServiceRelocationStatus {
+  PENDING_REVIEW
+  REJECTED
   AWAITING_CONFIRMATION
   CONFIRMED
   PROVISIONING
@@ -135,7 +137,14 @@ enum CancellationReason {
   OTHER
 }
 
+enum RequestReviewDecision {
+  APPROVED
+  REJECTED
+}
+
 enum CancellationStatus {
+  PENDING_REVIEW
+  REJECTED
   REQUESTED
   SCHEDULED
   PROCESSING
@@ -204,6 +213,25 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
+}
+
+enum CollectionStage {
+  NONE
+  FIRST_REMINDER
+  SECOND_REMINDER
+  FINAL_WARNING
+  SUSPENSION_SCHEDULED
+  SUSPENDED
+  RESOLVED
+}
+
+model CollectionPolicy {
+  id                 String   @id @default("default") @db.VarChar(32)
+  firstReminderDays  Int      @default(1)
+  secondReminderDays Int      @default(3)
+  finalWarningDays   Int      @default(5)
+  suspensionDays     Int      @default(7)
+  updatedAt          DateTime @updatedAt
 }
 
 enum InvoiceCollectionStatus {
@@ -875,6 +903,11 @@ model Subscription {
   terminationReviewQueuedAt DateTime?
   overdueReminderStage      Int                          @default(0)
   suspensionWarningSentAt   DateTime?
+  graceExtendedUntil        DateTime?
+  graceExtensionReason      String?                      @db.VarChar(1000)
+  graceExtendedBy           String?                      @db.Uuid
+  graceExtendedAt           DateTime?
+  collectionHoldReason      String?                      @db.VarChar(1000)
   provisioningStatus        ServiceProvisioningStatus?
   provisioningFailure       String?                      @db.VarChar(500)
   currentServiceAddressId   String?                      @db.Uuid
@@ -949,7 +982,7 @@ model ServiceRelocation {
   serviceClass                         String?                     @db.VarChar(50)
   installationRequired                 Boolean?
   appointmentRequired                  Boolean?
-  status                               ServiceRelocationStatus     @default(AWAITING_CONFIRMATION)
+  status                               ServiceRelocationStatus     @default(PENDING_REVIEW)
   statusBeforeManualReview             ServiceRelocationStatus?
   provisioningStatus                   ServiceProvisioningStatus?
   oldServiceDisconnectionStatus        CancellationProviderStatus?
@@ -977,6 +1010,13 @@ model ServiceRelocation {
   lastAttemptAt                        DateTime?
   lastDisconnectionAttemptAt           DateTime?
   version                              Int                         @default(0)
+  reviewDecision                       RequestReviewDecision?
+  reviewedByUserId                     String?                     @db.Uuid
+  reviewedAt                           DateTime?
+  reviewNotes                          String?                     @db.VarChar(2000)
+  rejectionReason                      String?                     @db.VarChar(2000)
+  requestedBillingAddress              Json?
+  customerComments                     String?                     @db.VarChar(2000)
   createdAt                            DateTime                    @default(now())
   updatedAt                            DateTime                    @updatedAt
   customer                             Customer                    @relation(fields: [customerId], references: [id], onDelete: Restrict)
@@ -1012,20 +1052,22 @@ model ServiceRelocationNote {
 }
 
 model ServiceProvisioningRequest {
-  id             String                    @id @default(uuid()) @db.Uuid
-  subscriptionId String                    @db.Uuid
-  action         ServiceProvisioningAction
-  status         ServiceProvisioningStatus @default(PENDING)
-  idempotencyKey String                    @unique @db.VarChar(180)
-  provider       String                    @default("MOCK") @db.VarChar(50)
-  attemptCount   Int                       @default(0)
-  failureReason  String?                   @db.VarChar(500)
-  requestedAt    DateTime                  @default(now())
-  lastAttemptAt  DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime                  @updatedAt
-  subscription   Subscription              @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  id                      String                    @id @default(uuid()) @db.Uuid
+  subscriptionId          String                    @db.Uuid
+  action                  ServiceProvisioningAction
+  status                  ServiceProvisioningStatus @default(PENDING)
+  idempotencyKey          String                    @unique @db.VarChar(180)
+  collectionInvoiceId     String?                   @db.Uuid
+  notificationDeliveredAt DateTime?
+  provider                String                    @default("MOCK") @db.VarChar(50)
+  attemptCount            Int                       @default(0)
+  failureReason           String?                   @db.VarChar(500)
+  requestedAt             DateTime                  @default(now())
+  lastAttemptAt           DateTime?
+  completedAt             DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  subscription            Subscription              @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
 
   @@index([status, updatedAt, id])
   @@index([subscriptionId, createdAt])
@@ -1037,44 +1079,50 @@ model CancellationRequestSequence {
 }
 
 model CancellationRequest {
-  id                       String                        @id @default(uuid()) @db.Uuid
-  requestNumber            String                        @unique @db.VarChar(32)
-  subscriptionId           String                        @db.Uuid
-  customerId               String                        @db.Uuid
-  type                     CancellationType
-  reason                   CancellationReason
-  reasonDetails            String?                       @db.VarChar(2000)
-  requestedAt              DateTime                      @default(now())
-  requestedByUserId        String                        @db.Uuid
-  requestedByRole          Role
-  effectiveAt              DateTime
-  status                   CancellationStatus            @default(REQUESTED)
-  providerOperation        CancellationProviderOperation
-  subscriptionStatusBefore SubscriptionStatus
-  providerName             String                        @default("MOCK_NBN") @db.VarChar(50)
-  providerIdempotencyKey   String                        @unique @db.VarChar(150)
-  providerDisconnectionId  String?                       @unique @db.VarChar(255)
-  providerStatus           CancellationProviderStatus    @default(NOT_SUBMITTED)
-  providerScenario         MockDisconnectionScenario?
-  providerPayload          Json?
-  providerLastCheckedAt    DateTime?
-  failedReason             String?                       @db.VarChar(500)
-  processingStartedAt      DateTime?
-  completedAt              DateTime?
-  revokedAt                DateTime?
-  revokedByUserId          String?                       @db.Uuid
-  attemptCount             Int                           @default(0)
-  version                  Int                           @default(0)
-  refundAmountCents        Int                           @default(0)
-  refundCalculation        Json?
-  createdAt                DateTime                      @default(now())
-  updatedAt                DateTime                      @updatedAt
-  subscription             Subscription                  @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
-  customer                 Customer                      @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  requestedBy              User                          @relation("CancellationRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
-  revokedBy                User?                         @relation("CancellationRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
-  notes                    CancellationNote[]
-  refund                   Refund?
+  id                         String                        @id @default(uuid()) @db.Uuid
+  requestNumber              String                        @unique @db.VarChar(32)
+  subscriptionId             String                        @db.Uuid
+  customerId                 String                        @db.Uuid
+  type                       CancellationType
+  reason                     CancellationReason
+  reasonDetails              String?                       @db.VarChar(2000)
+  requestedAt                DateTime                      @default(now())
+  requestedByUserId          String                        @db.Uuid
+  requestedByRole            Role
+  effectiveAt                DateTime
+  status                     CancellationStatus            @default(PENDING_REVIEW)
+  providerOperation          CancellationProviderOperation
+  subscriptionStatusBefore   SubscriptionStatus
+  providerName               String                        @default("MOCK_NBN") @db.VarChar(50)
+  providerIdempotencyKey     String                        @unique @db.VarChar(150)
+  providerDisconnectionId    String?                       @unique @db.VarChar(255)
+  providerStatus             CancellationProviderStatus    @default(NOT_SUBMITTED)
+  providerScenario           MockDisconnectionScenario?
+  providerPayload            Json?
+  providerLastCheckedAt      DateTime?
+  failedReason               String?                       @db.VarChar(500)
+  processingStartedAt        DateTime?
+  completedAt                DateTime?
+  revokedAt                  DateTime?
+  revokedByUserId            String?                       @db.Uuid
+  attemptCount               Int                           @default(0)
+  version                    Int                           @default(0)
+  refundAmountCents          Int                           @default(0)
+  refundCalculation          Json?
+  reviewDecision             RequestReviewDecision?
+  reviewedByUserId           String?                       @db.Uuid
+  reviewedAt                 DateTime?
+  reviewNotes                String?                       @db.VarChar(2000)
+  rejectionReason            String?                       @db.VarChar(2000)
+  stripeCancellationSyncedAt DateTime?
+  createdAt                  DateTime                      @default(now())
+  updatedAt                  DateTime                      @updatedAt
+  subscription               Subscription                  @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  customer                   Customer                      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  requestedBy                User                          @relation("CancellationRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  revokedBy                  User?                         @relation("CancellationRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  notes                      CancellationNote[]
+  refund                     Refund?
 
   @@index([customerId, createdAt, id])
   @@index([subscriptionId, createdAt])
@@ -1121,6 +1169,11 @@ model Invoice {
   issuedAt                   DateTime?
   paidAt                     DateTime?
   overdueAt                  DateTime?
+  collectionStage            CollectionStage         @default(NONE)
+  firstReminderSentAt        DateTime?
+  secondReminderSentAt       DateTime?
+  finalWarningSentAt         DateTime?
+  suspensionScheduledAt      DateTime?
   collectionStatus           InvoiceCollectionStatus @default(NONE)
   stripeAttemptCount         Int                     @default(0)
   stripeNextPaymentAttempt   DateTime?
@@ -1144,6 +1197,7 @@ model Invoice {
   @@unique([subscriptionId, billingPeriodStart, billingPeriodEnd])
   @@index([createdAt, id])
   @@index([customerId, status])
+  @@index([collectionStage, dueDate])
   @@index([dueDate, status])
   @@index([issuedAt, status])
   @@index([subscriptionId])
@@ -1505,17 +1559,21 @@ model PasswordResetToken {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid()) @db.Uuid
-  actorUserId String?  @db.Uuid
-  action      String   @db.VarChar(100)
-  entityType  String   @db.VarChar(100)
-  entityId    String   @db.VarChar(100)
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  actor       User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  deduplicationKey        String?   @unique @db.VarChar(190)
+  notificationEvent       String?   @db.VarChar(80)
+  notificationDeliveredAt DateTime?
+  id                      String    @id @default(uuid()) @db.Uuid
+  actorUserId             String?   @db.Uuid
+  action                  String    @db.VarChar(100)
+  entityType              String    @db.VarChar(100)
+  entityId                String    @db.VarChar(100)
+  metadata                Json?
+  createdAt               DateTime  @default(now())
+  actor                   User?     @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId])
   @@index([actorUserId, createdAt])
+  @@index([notificationEvent, notificationDeliveredAt], map: "AuditLog_collection_delivery_idx")
   @@index([createdAt, id])
 }
 

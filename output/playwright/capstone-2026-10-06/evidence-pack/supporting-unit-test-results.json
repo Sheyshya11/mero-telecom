@@ -1,0 +1,117 @@
+[
+  {
+    "id": "TC01",
+    "name": "Authentication and Role Access",
+    "startedUtc": "2026-10-06T13:19:11.7265666Z",
+    "durationSeconds": 25.73,
+    "passed": 9,
+    "failed": 0,
+    "pending": 0,
+    "suites": 2,
+    "paths": [
+      "src/modules/auth/auth.service.spec.ts",
+      "src/common/guards/roles.guard.spec.ts"
+    ],
+    "evidenceScope": "Supplemental existing Jest unit/service tests with mocked dependencies."
+  },
+  {
+    "id": "TC02",
+    "name": "Coverage Checking",
+    "startedUtc": "2026-10-06T13:19:37.6043791Z",
+    "durationSeconds": 12.59,
+    "passed": 23,
+    "failed": 0,
+    "pending": 0,
+    "suites": 2,
+    "paths": [
+      "src/modules/coverage/coverage.service.spec.ts",
+      "src/modules/coverage/database-qualification.provider.spec.ts"
+    ],
+    "evidenceScope": "Supplemental existing Jest unit/service tests with mocked dependencies."
+  },
+  {
+    "id": "TC03",
+    "name": "Subscription Management",
+    "startedUtc": "2026-10-06T13:19:50.2035456Z",
+    "durationSeconds": 18.65,
+    "passed": 42,
+    "failed": 0,
+    "pending": 0,
+    "suites": 2,
+    "paths": [
+      "src/modules/subscriptions/subscriptions.service.spec.ts",
+      "src/modules/payments/payments.service.spec.ts"
+    ],
+    "evidenceScope": "Supplemental existing Jest unit/service tests with mocked dependencies."
+  },
+  {
+    "id": "TC04",
+    "name": "Duplicate Invoice Prevention",
+    "startedUtc": "2026-10-06T13:20:08.8709223Z",
+    "durationSeconds": 5.27,
+    "passed": 16,
+    "failed": 0,
+    "pending": 0,
+    "suites": 1,
+    "paths": "src/modules/invoices/invoices.service.spec.ts",
+    "evidenceScope": "Supplemental existing Jest unit/service tests with mocked dependencies."
+  },
+  {
+    "id": "TC05",
+    "name": "Cancellation and Refund",
+    "startedUtc": "2026-10-06T13:20:14.1462747Z",
+    "durationSeconds": 4.69,
+    "passed": 26,
+    "failed": 0,
+    "pending": 0,
+    "suites": 3,
+    "paths": [
+      "src/modules/cancellations/cancellations.service.spec.ts",
+      "src/modules/cancellations/cancellation-workflow-policy.service.spec.ts",
+      "src/modules/refunds/refund-policy.service.spec.ts"
+    ],
+    "evidenceScope": "Supplemental existing Jest unit/service tests with mocked dependencies."
+  },
+  {
+    "id": "TC06",
+    "name": "Service Relocation",
+    "startedUtc": "2026-10-06T13:20:18.8397729Z",
+    "durationSeconds": 4.77,
+    "passed": 22,
+    "failed": 0,
+    "pending": 0,
+    "suites": 2,
+    "paths": [
+      "src/modules/relocations/relocations.service.spec.ts",
+      "src/modules/relocations/providers/mock-relocation.provider.spec.ts"
+    ],
+    "evidenceScope": "Supplemental existing Jest unit/service tests with mocked dependencies."
+  },
+  {
+    "id": "TC07",
+    "name": "Ticket Escalation",
+    "startedUtc": "2026-10-06T13:20:23.6294254Z",
+    "durationSeconds": 2.15,
+    "passed": 5,
+    "failed": 0,
+    "pending": 0,
+    "suites": 1,
+    "paths": "src/common/workflow/ticket-workflow-policy.service.spec.ts",
+    "evidenceScope": "Supplemental existing Jest unit/service tests with mocked dependencies."
+  },
+  {
+    "id": "TC08",
+    "name": "Notifications",
+    "startedUtc": "2026-10-06T13:20:25.7816375Z",
+    "durationSeconds": 3.26,
+    "passed": 27,
+    "failed": 0,
+    "pending": 0,
+    "suites": 2,
+    "paths": [
+      "src/modules/notifications/in-app-notification.service.spec.ts",
+      "src/modules/notifications/notification.service.spec.ts"
+    ],
+    "evidenceScope": "Supplemental existing Jest unit/service tests with mocked dependencies."
+  }
+]

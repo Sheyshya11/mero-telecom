@@ -1,0 +1,30 @@
+PASS TC01: customer login {"httpStatus":200}
+PASS TC01: staff login {"httpStatus":200}
+PASS TC01: admin login {"httpStatus":200}
+PASS TC01: superadmin login {"httpStatus":200}
+PASS TC01: Invalid credentials rejected {"httpStatus":401}
+PASS TC01: customer administrative user access {"expected":403,"actual":403}
+PASS TC01: staff administrative user access {"expected":403,"actual":403}
+PASS TC01: admin administrative user access {"expected":200,"actual":200}
+PASS TC01: superadmin administrative user access {"expected":200,"actual":200}
+PASS TC01: admin Super Admin audit access {"expected":403,"actual":403}
+PASS TC01: superadmin Super Admin audit access {"expected":200,"actual":200}
+PASS TC02: AVAILABLE postcode coverage {"httpStatus":201,"status":"AVAILABLE","address":{"formattedAddress":"100 King William Street, Adelaide SA 5000, Australia","suburb":"Adelaide","stateCode":"SA","postcode":"5000"}}
+PASS TC02: NOT_AVAILABLE postcode coverage {"httpStatus":201,"status":"NOT_AVAILABLE","address":{"formattedAddress":"15 King William Street, Rosewater SA 5013, Australia","suburb":"Rosewater","stateCode":"SA","postcode":"5013"}}
+PASS TC03: Single purchased Family 100 subscription; later cancellation pending from TC05 {"count":1,"status":"CANCELLATION_PENDING","plan":"Family 100","billingMode":"STRIPE_RECURRING"}
+PASS TC03: Stripe sandbox payment persisted and invoice paid {"provider":"STRIPE","status":"SUCCEEDED","amountCents":7900,"currency":"AUD","invoiceNumber":"INV-2026-000004","invoiceStatus":"PAID","last4":null}
+PASS TC04: Concurrent repeat October requests reuse one invoice {"before":1,"after":1,"periodStart":"2026-10-01T00:00:00.000Z","periodEnd":"2026-10-31T00:00:00.000Z","repeats":[{"httpStatus":201,"id":"49fc462b-eda4-43af-bbfb-84ad715cc29c","invoiceNumber":"INV-2026-000005","generationResult":"EXISTING"},{"httpStatus":201,"id":"49fc462b-eda4-43af-bbfb-84ad715cc29c","invoiceNumber":"INV-2026-000005","generationResult":"EXISTING"}]}
+PASS TC05: Customer refund persisted and administrative review recorded {"status":"UNDER_REVIEW","amountCents":7900,"customerReason":"TC05 capstone test: please review this sandbox payment refund request.","internalNote":"TC05 reviewed the sandbox payment request. Administrative review verified."}
+PASS TC05: Cancellation approved and scheduled while paid service remains active {"requestNumber":"CAN-2026-00001","status":"SCHEDULED","decision":"APPROVED","effectiveAt":"2026-11-06T13:43:23.000Z","subscriptionStatusBeforeRequest":"ACTIVE","subscriptionStatus":"CANCELLATION_PENDING","endDate":null,"cancelAtPeriodEnd":true,"stripeSynced":true}
+PASS TC06: Move request reviewed and scheduled with original service active {"status":"SCHEDULED","qualificationStatus":"AVAILABLE","requestedMoveDate":"2026-10-10T00:00:00.000Z","decision":"APPROVED","provider":"MOCK_MNF","oldServiceStatus":"ACTIVE"}
+PASS TC07: Linked support escalated Staff to Admin to Super Admin {"requestNumber":"IR-2026-00001","supportCaseId":"0ad53606-f81f-4e17-b2e8-14f2d44cbcfc","status":"PENDING","currentLevel":"SUPER_ADMIN","requester":"staff@merotelecom.test","admin":"admin@merotelecom.test","escalator":"admin@merotelecom.test","superAdmin":"superadmin@merotelecom.test","events":[{"eventType":"CREATED","actorRole":"STAFF","fromLevel":null,"toLevel":"ADMIN","createdAt":"2026-10-06T13:49:41.875Z"},{"eventType":"ASSIGNED","actorRole":"ADMIN","fromLevel":null,"toLevel":"ADMIN","createdAt":"2026-10-06T13:50:23.621Z"},{"eventType":"REVIEW_STARTED","actorRole":"ADMIN","fromLevel":"ADMIN","toLevel":"ADMIN","createdAt":"2026-10-06T13:50:41.684Z"},{"eventType":"MESSAGE_SENT","actorRole":"ADMIN","fromLevel":"ADMIN","toLevel":"ADMIN","createdAt":"2026-10-06T13:51:23.573Z"},{"eventType":"ESCALATED","actorRole":"ADMIN","fromLevel":"ADMIN","toLevel":"SUPER_ADMIN","createdAt":"2026-10-06T13:51:23.578Z"},{"eventType":"ASSIGNED","actorRole":"SUPER_ADMIN","fromLevel":null,"toLevel":"SUPER_ADMIN","createdAt":"2026-10-06T13:51:55.262Z"}]}
+PASS TC08: Refund request reaches employee [{"type":"REFUND_REQUESTED","title":"New refund request","recipient":"superadmin@merotelecom.test"}]
+PASS TC08: Move reaches employee [{"type":"RELOCATION_REVIEW_REQUIRED","title":"Move home request requires review","recipient":"superadmin@merotelecom.test"}]
+PASS TC08: Escalation reaches Super Admin [{"type":"SUPPORT_ESCALATED","title":"Support request escalated","recipient":"superadmin@merotelecom.test"}]
+PASS TC08: Billing payment reaches customer [{"type":"PAYMENT_SUCCESS","title":"Payment successful","recipient":"newcustomer@merotelecom.test"},{"type":"PAYMENT_SUCCESS","title":"Payment successful","recipient":"newcustomer@merotelecom.test"}]
+PASS TC08: Refund acknowledgement reaches customer [{"type":"REFUND_REQUESTED","title":"Refund request submitted","recipient":"newcustomer@merotelecom.test"}]
+PASS TC08: Move approval reaches customer [{"type":"RELOCATION_PROVISIONING","title":"Move home scheduled","recipient":"move@merotelecom.test"}]
+PASS TC08: Invoice generation reaches customer [{"type":"INVOICE_CREATED","title":"New invoice available","recipient":"customer@merotelecom.test"}]
+PASS TC08: Browser mark-as-read persisted {"title":"Service cancellation scheduled","isRead":true}
+PASS TC08: API notification list belongs only to logged-in customer {"httpStatus":200,"count":8}
+PASS TC08: Another user cannot mark customer notification read {"httpStatus":404}

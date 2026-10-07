@@ -2,6 +2,12 @@ import { renderCommunicationEmail } from './communication-email-layout';
 import type { RenderedEmailTemplate } from './invoice-email.template';
 
 export type OverdueEmailEvent =
+  | 'FIRST_REMINDER'
+  | 'SECOND_REMINDER'
+  | 'FINAL_WARNING'
+  | 'MANUAL_REMINDER'
+  | 'GRACE_PERIOD_EXTENDED'
+  | 'SERVICE_RESTORED'
   | 'PAYMENT_FAILED'
   | 'PAYMENT_AUTHENTICATION_REQUIRED'
   | 'OVERDUE_REMINDER'
@@ -42,7 +48,10 @@ export function renderOverdueEmail(data: OverdueEmailData): RenderedEmailTemplat
     { label: 'Original due date', value: formatDate(data.dueDate) },
   ];
   if (data.gracePeriodEndsAt) {
-    details.push({ label: 'Grace period ends', value: formatDate(data.gracePeriodEndsAt) });
+    details.push({
+      label: 'Suspension date / grace period ends',
+      value: formatDate(data.gracePeriodEndsAt),
+    });
   }
   if (data.suspendedAt) {
     details.push({ label: 'Suspended', value: formatDate(data.suspendedAt) });
@@ -93,6 +102,61 @@ const copy: Record<
     note: string;
   }
 > = {
+  FIRST_REMINDER: {
+    subject: 'Your Mero Telecom invoice is overdue',
+    title: 'Payment overdue',
+    status: 'Overdue',
+    tone: 'warning',
+    intro: 'Please pay your outstanding invoice to keep your account up to date.',
+    action: 'Pay now',
+    note: 'Contact support if you need more time to pay.',
+  },
+  SECOND_REMINDER: {
+    subject: 'Payment reminder',
+    title: 'Payment reminder',
+    status: 'Overdue',
+    tone: 'warning',
+    intro: 'Your invoice remains unpaid. Please make payment to avoid service interruption.',
+    action: 'Pay now',
+    note: 'Your service remains available during the grace period.',
+  },
+  FINAL_WARNING: {
+    subject: 'Final payment warning',
+    title: 'Final payment warning',
+    status: 'Suspension scheduled',
+    tone: 'danger',
+    intro:
+      'Please pay by the suspension date shown below to avoid suspension of your internet service.',
+    action: 'Pay now',
+    note: 'A processing payment will be checked before suspension.',
+  },
+  MANUAL_REMINDER: {
+    subject: 'Payment reminder from Mero Telecom',
+    title: 'Payment reminder',
+    status: 'Overdue',
+    tone: 'warning',
+    intro: 'Please review and pay your outstanding invoice.',
+    action: 'Pay now',
+    note: 'Contact support if you need assistance.',
+  },
+  GRACE_PERIOD_EXTENDED: {
+    subject: 'Payment grace period extended',
+    title: 'Payment grace period extended',
+    status: 'Grace period extended',
+    tone: 'info',
+    intro: 'Your payment grace period has been extended to the date below.',
+    action: 'View invoice',
+    note: 'Your service remains available during this grace period.',
+  },
+  SERVICE_RESTORED: {
+    subject: 'Your Mero Telecom service has been restored',
+    title: 'Service restored',
+    status: 'Active',
+    tone: 'success',
+    intro: 'Your payment has been received and your internet service has been restored.',
+    action: 'View account',
+    note: 'Thank you for bringing your account up to date.',
+  },
   PAYMENT_AUTHENTICATION_REQUIRED: {
     subject: 'Authenticate your Mero Telecom payment',
     title: 'Payment authentication required',
@@ -106,10 +170,9 @@ const copy: Record<
   PAYMENT_FAILED: {
     subject: 'Payment unsuccessful — action required',
     title: 'We could not process your payment',
-    status: 'Past due',
+    status: 'Payment unsuccessful',
     tone: 'warning',
-    intro:
-      'Your internet service remains available during the grace period. Please pay the overdue balance to avoid suspension.',
+    intro: "We couldn't process your automatic payment. Please review your payment method.",
     action: 'Pay invoice',
     note: 'Do not email card details. Use the secure billing page to retry payment.',
   },

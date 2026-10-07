@@ -291,6 +291,7 @@ export class NotificationService {
     userId?: string | null;
     installationRequired?: boolean | null;
     appointmentRequired?: boolean | null;
+    newServiceActivated?: boolean;
   }): Promise<InvoiceEmailResult> {
     const recipient = this.invoiceRecipient(input.customerEmail);
     const template = renderRelocationEmail({
@@ -308,8 +309,15 @@ export class NotificationService {
         REQUESTED: {
           type: 'RELOCATION_REQUESTED',
           severity: NotificationSeverity.INFO,
-          title: 'Relocation request received',
-          message: "We've received your request to move your service.",
+          title: 'Move home request submitted',
+          message: 'Your move home request has been submitted and is awaiting review.',
+        },
+        REJECTED: {
+          type: 'RELOCATION_REJECTED',
+          severity: NotificationSeverity.INFO,
+          title: 'Move home request reviewed',
+          message:
+            'Your move home request could not be approved. View the request for more information.',
         },
         CONFIRMED: {
           type:
@@ -332,8 +340,12 @@ export class NotificationService {
         SCHEDULED: {
           type: 'RELOCATION_PROVISIONING',
           severity: NotificationSeverity.INFO,
-          title: 'New service being prepared',
-          message: "We're preparing your service at your new address.",
+          title: input.newServiceActivated ? 'New service address active' : 'Move home scheduled',
+          message: input.newServiceActivated
+            ? 'Your new service is active. The move will be completed when the old service is disconnected.'
+            : 'Your move home request is approved and scheduled for ' +
+              this.formatDate(input.requestedMoveDate) +
+              '. Your existing service continues until provisioning succeeds.',
         },
         COMPLETED: {
           type: 'RELOCATION_COMPLETED',
@@ -362,10 +374,10 @@ export class NotificationService {
       }
     }
     if (input.event === 'REQUESTED') {
-      await this.recordForRoles([Role.STAFF, Role.ADMIN], {
-        type: 'RELOCATION_REQUESTED',
+      await this.recordForRoles([Role.STAFF, Role.ADMIN, Role.SUPER_ADMIN], {
+        type: 'RELOCATION_REVIEW_REQUIRED',
         severity: NotificationSeverity.ACTION_REQUIRED,
-        title: 'New relocation request',
+        title: 'Move home request requires review',
         message: 'A customer has requested a service relocation.',
         actionUrl: '/control-centre/relocations/' + input.relocationRequestId,
         entityType: 'ServiceRelocation',
@@ -427,7 +439,8 @@ export class NotificationService {
       ...input,
       brandLogoUrl: this.brandLogoUrl(),
       dashboardUrl:
-        input.actionUrl ?? `${this.configService.getOrThrow('app').frontendUrl}/customer/dashboard`,
+        input.actionUrl ??
+        `${this.configService.getOrThrow('app').frontendUrl}/customer/invoices?invoiceId=${input.invoiceId ?? ''}`,
     });
     if (input.userId) {
       const customerDetails: Partial<
@@ -436,6 +449,42 @@ export class NotificationService {
           { type: string; severity: NotificationSeverity; title: string; message: string }
         >
       > = {
+        FIRST_REMINDER: {
+          type: 'PAYMENT_REMINDER',
+          severity: NotificationSeverity.WARNING,
+          title: 'Payment overdue',
+          message: `Your invoice of ${formatCollectionAmount(input)} is overdue. Please make payment to keep your account up to date.`,
+        },
+        SECOND_REMINDER: {
+          type: 'PAYMENT_REMINDER',
+          severity: NotificationSeverity.WARNING,
+          title: 'Payment reminder',
+          message: `Your invoice of ${formatCollectionAmount(input)} remains unpaid. Please make payment to avoid service interruption.`,
+        },
+        MANUAL_REMINDER: {
+          type: 'PAYMENT_REMINDER',
+          severity: NotificationSeverity.WARNING,
+          title: 'Payment reminder',
+          message: `Your invoice of ${formatCollectionAmount(input)} remains unpaid. Please review your invoice.`,
+        },
+        FINAL_WARNING: {
+          type: 'FINAL_PAYMENT_WARNING',
+          severity: NotificationSeverity.CRITICAL,
+          title: 'Final payment warning',
+          message: `Your invoice of ${formatCollectionAmount(input)} remains unpaid. Please pay by ${formatCollectionDate(input.gracePeriodEndsAt)} to avoid suspension of your internet service.`,
+        },
+        GRACE_PERIOD_EXTENDED: {
+          type: 'PAYMENT_GRACE_PERIOD_EXTENDED',
+          severity: NotificationSeverity.INFO,
+          title: 'Payment grace period extended',
+          message: `Your payment grace period has been extended until ${formatCollectionDate(input.gracePeriodEndsAt)}.`,
+        },
+        SERVICE_RESTORED: {
+          type: 'SERVICE_RESTORED',
+          severity: NotificationSeverity.SUCCESS,
+          title: 'Service restored',
+          message: 'Your payment has been received and your internet service has been restored.',
+        },
         PAYMENT_FAILED: {
           type: 'PAYMENT_FAILED',
           severity: NotificationSeverity.ACTION_REQUIRED,
@@ -455,10 +504,10 @@ export class NotificationService {
           message: 'Your internet service has been suspended.',
         },
         SERVICE_RESTORATION_REQUESTED: {
-          type: 'SERVICE_RESTORED',
-          severity: NotificationSeverity.SUCCESS,
-          title: 'Service restored',
-          message: 'Your internet service has been restored.',
+          type: 'PAYMENT_SUCCESS',
+          severity: NotificationSeverity.INFO,
+          title: 'Payment received',
+          message: "We've received your payment. Your service restoration is being processed.",
         },
         PAYMENT_RECEIVED: {
           type: 'INVOICE_PAID',
@@ -469,26 +518,36 @@ export class NotificationService {
       };
       const details = customerDetails[input.event];
       if (details) {
-        await this.recordInApp({
-          userId: input.userId,
-          ...details,
-          actionUrl: '/customer/invoices',
-          entityType: 'Invoice',
-          entityId: input.invoiceId ?? input.invoiceNumber,
-          deduplicationKey:
-            'lifecycle-' +
-            input.subscriptionId +
-            '-' +
-            input.event.toLowerCase() +
-            '-' +
-            input.idempotencySuffix,
-        });
+        await this.recordInApp(
+          {
+            userId: input.userId,
+            ...details,
+            actionUrl:
+              input.event === 'PAYMENT_FAILED'
+                ? '/customer/subscription'
+                : `/customer/invoices?invoiceId=${input.invoiceId ?? ''}`,
+            entityType: 'Invoice',
+            entityId: input.invoiceId ?? input.invoiceNumber,
+            deduplicationKey:
+              'lifecycle-' +
+              input.subscriptionId +
+              '-' +
+              input.event.toLowerCase() +
+              '-' +
+              input.idempotencySuffix,
+          },
+          true,
+        );
       }
     }
     const result = await this.emailQueue.enqueue(
       { to: recipient, ...template },
-      { purpose: input.event, subscriptionId: input.subscriptionId },
-      `overdue-${input.subscriptionId}-${input.idempotencySuffix}`,
+      {
+        purpose: input.event,
+        subscriptionId: input.subscriptionId,
+        ...(input.invoiceId ? { invoiceId: input.invoiceId } : {}),
+      },
+      `overdue-${input.subscriptionId}-${input.event.toLowerCase()}-${input.idempotencySuffix}`,
     );
     return { recipient, messageId: `queued:${result.jobId}` };
   }
@@ -523,8 +582,22 @@ export class NotificationService {
       REQUESTED: {
         type: 'CANCELLATION_REQUESTED',
         severity: NotificationSeverity.INFO,
-        title: 'Cancellation request received',
-        message: "We've received your cancellation request.",
+        title: 'Cancellation request submitted',
+        message: 'Your cancellation request has been submitted and is awaiting review.',
+      },
+      APPROVED: {
+        type: 'CANCELLATION_APPROVED',
+        severity: NotificationSeverity.INFO,
+        title: 'Cancellation request approved',
+        message:
+          'Your cancellation request has been approved. We will notify you when processing is complete.',
+      },
+      REJECTED: {
+        type: 'CANCELLATION_REJECTED',
+        severity: NotificationSeverity.INFO,
+        title: 'Cancellation request reviewed',
+        message:
+          'Your cancellation request was not approved. View the request for more information.',
       },
       SCHEDULED: {
         type: 'CANCELLATION_SCHEDULED',
@@ -552,6 +625,19 @@ export class NotificationService {
         entityId: input.cancellationRequestId,
         deduplicationKey:
           'cancellation-' + input.cancellationRequestId + '-' + input.event.toLowerCase(),
+      });
+    }
+    if (input.event === 'REQUESTED') {
+      await this.recordForRoles([Role.STAFF, Role.ADMIN, Role.SUPER_ADMIN], {
+        type: 'CANCELLATION_REVIEW_REQUIRED',
+        severity: NotificationSeverity.ACTION_REQUIRED,
+        title: 'Cancellation request requires review',
+        message: 'A customer has requested cancellation of their service.',
+        actionUrl:
+          '/control-centre/cancellations?request=' + encodeURIComponent(input.requestNumber),
+        entityType: 'CancellationRequest',
+        entityId: input.cancellationRequestId,
+        deduplicationKey: 'cancellation-review-' + input.cancellationRequestId,
       });
     }
     const purpose = `CANCELLATION_${input.event}` as const;
@@ -793,16 +879,20 @@ export class NotificationService {
     invoiceId: string;
     idempotencyKey: string;
   }): Promise<void> {
-    await this.recordForRoles([Role.ADMIN], {
-      type: 'PAYMENT_REVIEW_REQUIRED',
-      severity: NotificationSeverity.ACTION_REQUIRED,
-      title: 'Payment requires attention',
-      message: 'A customer payment issue requires manual review.',
-      actionUrl: '/control-centre/invoices',
-      entityType: 'Invoice',
-      entityId: input.invoiceId,
-      deduplicationKey: 'payment-review-' + input.idempotencyKey,
-    });
+    await this.recordForRoles(
+      [Role.ADMIN, Role.SUPER_ADMIN],
+      {
+        type: 'PAYMENT_REVIEW_REQUIRED',
+        severity: NotificationSeverity.ACTION_REQUIRED,
+        title: 'Payment requires attention',
+        message: 'A customer payment issue requires manual review.',
+        actionUrl: '/control-centre/invoices',
+        entityType: 'Invoice',
+        entityId: input.invoiceId,
+        deduplicationKey: 'payment-review-' + input.idempotencyKey,
+      },
+      true,
+    );
   }
 
   async sendProfileUpdated(input: { userId: string; eventId: string }): Promise<void> {
@@ -848,14 +938,17 @@ export class NotificationService {
                 title: 'Service ready',
                 message: 'Your service has been successfully provisioned.',
               };
-      await this.recordInApp({
-        userId: input.userId,
-        ...details,
-        actionUrl: '/customer/subscription',
-        entityType: 'Subscription',
-        entityId: input.subscriptionId,
-        deduplicationKey: 'provisioning-success-' + input.provisioningRequestId,
-      });
+      await this.recordInApp(
+        {
+          userId: input.userId,
+          ...details,
+          actionUrl: '/customer/subscription',
+          entityType: 'Subscription',
+          entityId: input.subscriptionId,
+          deduplicationKey: 'provisioning-success-' + input.provisioningRequestId,
+        },
+        true,
+      );
       return;
     }
     if (input.succeeded) return;
@@ -887,16 +980,41 @@ export class NotificationService {
       ]);
       return;
     }
-    await this.recordForRoles([Role.ADMIN], {
-      type: 'SERVICE_STATE_CHANGE_FAILED',
-      severity: NotificationSeverity.ACTION_REQUIRED,
-      title: 'Service update failed',
-      message: "A customer's service state could not be updated automatically.",
-      actionUrl: '/control-centre/services',
-      entityType: 'Subscription',
-      entityId: input.subscriptionId,
-      deduplicationKey: 'service-state-change-failed-' + input.provisioningRequestId,
-    });
+    if (input.action === 'RESTORE' && input.userId)
+      await this.recordInApp(
+        {
+          userId: input.userId,
+          type: 'PAYMENT_SUCCESS',
+          severity: NotificationSeverity.INFO,
+          title: 'Payment received',
+          message: "We've received your payment. Your service restoration is being processed.",
+          actionUrl: '/customer/subscription',
+          entityType: 'Subscription',
+          entityId: input.subscriptionId,
+          deduplicationKey: 'restoration-pending-' + input.provisioningRequestId,
+        },
+        true,
+      );
+    await this.recordForRoles(
+      [Role.ADMIN, Role.SUPER_ADMIN],
+      {
+        type: 'SERVICE_STATE_CHANGE_FAILED',
+        severity: NotificationSeverity.ACTION_REQUIRED,
+        title:
+          input.action === 'SUSPEND'
+            ? 'Automatic suspension failed'
+            : 'Automatic service restoration failed',
+        message:
+          input.action === 'SUSPEND'
+            ? 'A customer service could not be automatically suspended after the overdue grace period expired.'
+            : 'Payment was received for a suspended customer, but the service could not be restored automatically.',
+        actionUrl: '/control-centre/services',
+        entityType: 'Subscription',
+        entityId: input.subscriptionId,
+        deduplicationKey: 'service-state-change-failed-' + input.provisioningRequestId,
+      },
+      true,
+    );
   }
 
   async sendActivationReviewRequired(input: {
@@ -1389,8 +1507,11 @@ export class NotificationService {
     return { recipient, messageId: `queued:${result.jobId}` };
   }
 
-  private async recordInApp(input: CreateInAppNotificationInput): Promise<void> {
-    if (!this.inApp) return;
+  private async recordInApp(input: CreateInAppNotificationInput, strict = false): Promise<void> {
+    if (!this.inApp) {
+      if (strict) throw new Error('Notification persistence is unavailable.');
+      return;
+    }
     try {
       await this.inApp.createNotification(input);
     } catch (error: unknown) {
@@ -1400,24 +1521,41 @@ export class NotificationService {
           error: error instanceof Error ? error.name : 'UnknownError',
         }),
       );
+      if (strict) throw error;
     }
   }
 
-  private async recordForRoles(roles: readonly Role[], input: InAppPayload): Promise<void> {
-    if (!this.inApp) return;
+  private async recordForRoles(
+    roles: readonly Role[],
+    input: InAppPayload,
+    strict = false,
+  ): Promise<void> {
+    if (!this.inApp) {
+      if (strict) throw new Error('Notification persistence is unavailable.');
+      return;
+    }
     try {
       await this.inApp.createForRoles(roles, input);
     } catch (error: unknown) {
       this.logInAppFailure(error);
+      if (strict) throw error;
     }
   }
 
-  private async recordForUsers(userIds: readonly string[], input: InAppPayload): Promise<void> {
-    if (!this.inApp) return;
+  private async recordForUsers(
+    userIds: readonly string[],
+    input: InAppPayload,
+    strict = false,
+  ): Promise<void> {
+    if (!this.inApp) {
+      if (strict) throw new Error('Notification persistence is unavailable.');
+      return;
+    }
     try {
       await this.inApp.createForUsers(userIds, input);
     } catch (error: unknown) {
       this.logInAppFailure(error);
+      if (strict) throw error;
     }
   }
 
@@ -1452,4 +1590,18 @@ export class NotificationService {
       this.configService.getOrThrow('app').frontendUrl,
     ).toString();
   }
+}
+
+function formatCollectionAmount(input: { amountCents: number; currency: string }) {
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: input.currency }).format(
+    input.amountCents / 100,
+  );
+}
+function formatCollectionDate(value?: Date | null) {
+  return value
+    ? new Intl.DateTimeFormat('en-AU', {
+        timeZone: 'Australia/Adelaide',
+        dateStyle: 'long',
+      }).format(value)
+    : 'the date shown in your invoice';
 }

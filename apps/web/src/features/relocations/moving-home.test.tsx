@@ -188,10 +188,10 @@ describe('MovingHome', () => {
         } as never;
       }
       if (path === `/subscriptions/${subscriptionId}/relocations` && options?.method === 'POST') {
-        return { id: 'relocation-id' } as never;
+        return { id: 'relocation-id', status: 'PENDING_REVIEW' } as never;
       }
       if (path === '/relocations/relocation-id/confirm') {
-        return { id: 'relocation-id', status: 'CONFIRMED' } as never;
+        return { id: 'relocation-id', status: 'PENDING_REVIEW' } as never;
       }
       throw new Error(`Unexpected request: ${path}`);
     });
@@ -231,7 +231,7 @@ describe('MovingHome', () => {
     });
     expect(sameAsService).toBeChecked();
     await user.click(sameAsService);
-    const confirm = screen.getByRole('button', { name: 'Confirm move' });
+    const confirm = screen.getByRole('button', { name: 'Submit Move Home Request' });
     expect(confirm).toBeDisabled();
 
     await user.type(screen.getByRole('combobox', { name: 'Billing address' }), '40 Billing');
@@ -254,6 +254,11 @@ describe('MovingHome', () => {
         }),
       );
     });
-    expect(await screen.findByText('Your relocation is confirmed')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Your move home request is awaiting review'),
+    ).toBeInTheDocument();
+    expect(apiRequestMock.mock.calls.some(([path]) => String(path).endsWith('/confirm'))).toBe(
+      false,
+    );
   });
 });

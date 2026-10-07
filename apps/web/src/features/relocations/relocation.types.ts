@@ -1,6 +1,8 @@
 import type { CoveragePlan, CoverageResult } from '../coverage/coverage.types';
 
 export type RelocationStatus =
+  | 'PENDING_REVIEW'
+  | 'REJECTED'
   | 'AWAITING_CONFIRMATION'
   | 'CONFIRMED'
   | 'PROVISIONING'
@@ -34,8 +36,15 @@ export interface ServiceRelocation {
   id: string;
   subscriptionId: string;
   status: RelocationStatus;
+  reviewDecision?: 'APPROVED' | 'REJECTED' | null;
+  reviewedAt?: string | null;
+  reviewedByUserId?: string | null;
+  reviewNotes?: string | null;
+  rejectionReason?: string | null;
+  customerComments?: string | null;
   requestedMoveDate: string;
   requestedOldServiceDisconnectionDate: string | null;
+  qualification?: { source?: string };
   qualificationStatus: CoverageResult['status'];
   provisioningStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | null;
   oldServiceDisconnectionStatus:
@@ -124,6 +133,7 @@ export interface RelocationEscalation {
 
 export interface RelocationCapabilities {
   canAddNote: boolean;
+  canReview?: boolean;
   canConfirm: boolean;
   canCancel: boolean;
   canRetryQualification: boolean;

@@ -22,11 +22,19 @@ export type EmailPurpose =
   | 'SUBSCRIPTION_CONFIRMATION'
   | 'PAYMENT_FAILED'
   | 'PAYMENT_AUTHENTICATION_REQUIRED'
+  | 'FIRST_REMINDER'
+  | 'SECOND_REMINDER'
+  | 'FINAL_WARNING'
+  | 'MANUAL_REMINDER'
+  | 'GRACE_PERIOD_EXTENDED'
+  | 'SERVICE_RESTORED'
   | 'OVERDUE_REMINDER'
   | 'SUSPENSION_WARNING'
   | 'SERVICE_SUSPENDED'
   | 'PAYMENT_RECEIVED'
   | 'SERVICE_RESTORATION_REQUESTED'
+  | 'CANCELLATION_APPROVED'
+  | 'CANCELLATION_REJECTED'
   | 'CANCELLATION_REQUESTED'
   | 'CANCELLATION_SCHEDULED'
   | 'CANCELLATION_REVOKED'
@@ -36,6 +44,7 @@ export type EmailPurpose =
   | 'PLAN_CHANGE_APPLIED'
   | 'PLAN_CHANGE_CANCELLED'
   | 'PLAN_CHANGE_FAILED'
+  | 'RELOCATION_REJECTED'
   | 'RELOCATION_REQUESTED'
   | 'RELOCATION_CONFIRMED'
   | 'RELOCATION_SCHEDULED'
@@ -103,6 +112,7 @@ interface EmailJobContext {
   cancellationRequestId?: string;
   relocationRequestId?: string;
   subscriptionId?: string;
+  invoiceId?: string;
 }
 
 interface EmailJobPayload {
@@ -214,7 +224,25 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
     const job = await this.queue.add(
       context.purpose,
       { encryptedPayload: this.encrypt({ message, context }) },
-      { jobId: idempotencyKey },
+      {
+        jobId: idempotencyKey,
+        ...([
+          'CANCELLATION_REQUESTED',
+          'CANCELLATION_APPROVED',
+          'CANCELLATION_REJECTED',
+          'RELOCATION_REQUESTED',
+          'RELOCATION_REJECTED',
+          'FIRST_REMINDER',
+          'SECOND_REMINDER',
+          'FINAL_WARNING',
+          'MANUAL_REMINDER',
+          'GRACE_PERIOD_EXTENDED',
+          'SERVICE_SUSPENDED',
+          'SERVICE_RESTORED',
+        ].some((event) => event === context.purpose)
+          ? { removeOnComplete: false, removeOnFail: false }
+          : {}),
+      },
     );
     if (!job.id) {
       throw new ServiceUnavailableException('Email could not be queued. Please try again.');
@@ -226,6 +254,23 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
     job: Job<EncryptedEmailJob, EmailJobResult, EmailPurpose>,
   ): Promise<EmailJobResult> {
     const payload = this.decrypt(job.data.encryptedPayload);
+    if (
+      payload.context.invoiceId &&
+      ['FIRST_REMINDER', 'SECOND_REMINDER', 'FINAL_WARNING', 'MANUAL_REMINDER'].some(
+        (event) => event === payload.context.purpose,
+      )
+    ) {
+      const invoice = await this.prisma.invoice.findUnique({
+        where: { id: payload.context.invoiceId },
+      });
+      if (
+        !invoice ||
+        invoice.status === 'PAID' ||
+        invoice.status === 'CANCELLED' ||
+        invoice.totalCents <= 0
+      )
+        return { messageId: 'skipped-resolved-collection', skipped: true };
+    }
     if (payload.context.invitationId) {
       const invitation = await this.prisma.accountInvitation.findUnique({
         where: { id: payload.context.invitationId },

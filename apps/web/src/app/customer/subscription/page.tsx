@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../../components/ui/alert-dialog';
+import { CollectionBanner } from '../../../features/invoices/collection-banner';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { hasRole } from '../../../features/auth/auth-navigation';
 import { CustomerCancellation } from '../../../features/cancellations/customer-cancellation';
@@ -579,6 +580,7 @@ export default function CustomerSubscriptionPage() {
 
   return (
     <main className="workspace-page mx-auto min-h-screen max-w-4xl px-6 py-10">
+      <CollectionBanner />
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
         <div>
           <p className="text-sm font-semibold tracking-wide text-primary">MY INTERNET</p>

@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog';
 import { ApiError, apiRequest } from '../../lib/api/client';
+import { RequestReviewControls } from '../service-requests/request-review-controls';
 import { useAuth } from '../auth/auth-provider';
 import { formatAddress, formatDate, friendly, StatusBadge } from './relocation-management';
 import type { ServiceRelocation } from './relocation.types';
@@ -71,11 +72,17 @@ export function RelocationDetail({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['relocation-detail', relocationId] }),
         queryClient.invalidateQueries({ queryKey: ['relocations'] }),
+        queryClient.invalidateQueries({ queryKey: ['service-request-review-queue'] }),
+        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
       ]);
     },
-    onError: (cause) => {
+    onError: async (cause) => {
       setNotice(null);
       setError(cause instanceof ApiError ? cause.message : 'The relocation action failed.');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['relocation-detail', relocationId] }),
+        queryClient.invalidateQueries({ queryKey: ['service-request-review-queue'] }),
+      ]);
     },
   });
 
@@ -146,7 +153,7 @@ export function RelocationDetail({
         <Summary label="Overall status" value={<StatusBadge value={data.status} />} />
         <Summary label="Requested move" value={formatDate(data.requestedMoveDate)} />
         <Summary label="Selected plan" value={data.requestedPlan.name} />
-        <Summary label="Provider mode" value={friendly(data.providerMode ?? 'LIVE')} />
+        <Summary label="Provider mode" value={friendly(data.providerMode ?? 'UNKNOWN')} />
       </section>
 
       {data.escalation ? (
@@ -174,6 +181,12 @@ export function RelocationDetail({
         >
           <Detail label="New address" value={formatAddress(data.newServiceAddress)} />
           <Detail label="Qualification" value={<StatusBadge value={data.qualificationStatus} />} />
+          <Detail
+            label="Qualification source"
+            value={
+              data.qualification?.source ? friendly(data.qualification.source) : 'Not supplied'
+            }
+          />
           <Detail label="Technology" value={data.newServiceAddress.technology ?? 'Not supplied'} />
           <Detail
             label="Service class"
@@ -293,6 +306,31 @@ export function RelocationDetail({
         </OperationalSection>
       </div>
 
+      {capabilities?.canReview ? (
+        <RequestReviewControls
+          key={data.id}
+          kind="Move"
+          busy={action.isPending}
+          onDecision={(decision, body) => action.mutate({ endpoint: decision, body })}
+        />
+      ) : null}
+      {data.customerComments ? (
+        <section className="my-4 rounded-xl border border-border p-4">
+          <h3 className="font-semibold">Customer comments</h3>
+          <p>{data.customerComments}</p>
+        </section>
+      ) : null}
+      {data.reviewDecision ? (
+        <section className="my-4 rounded-xl border border-border p-4 text-sm">
+          <p>
+            Decision: {friendly(data.reviewDecision)}{' '}
+            {data.reviewedAt ? `on ${formatDate(data.reviewedAt)}` : ''}
+          </p>
+          <p>Reviewer: {data.reviewedByUserId ?? 'Legacy workflow'}</p>
+          {data.rejectionReason ? <p>Customer reason: {data.rejectionReason}</p> : null}
+          {data.reviewNotes ? <p>Internal notes: {data.reviewNotes}</p> : null}
+        </section>
+      ) : null}
       {capabilities?.canConfirm ||
       capabilities?.canRetryQualification ||
       capabilities?.canRetryProvisioning ||
@@ -310,10 +348,10 @@ export function RelocationDetail({
               <button
                 className="button-primary"
                 disabled={action.isPending}
-                onClick={() => action.mutate({ endpoint: 'confirm' })}
+                onClick={() => action.mutate({ endpoint: 'approve' })}
                 type="button"
               >
-                Confirm relocation
+                Approve Move
               </button>
             ) : null}
             {capabilities.canRetryQualification ? (
@@ -500,7 +538,6 @@ export function RelocationDetail({
                   onChange={(event) => setTargetStatus(event.target.value)}
                   value={targetStatus}
                 >
-                  <option value="AWAITING_CONFIRMATION">Awaiting confirmation</option>
                   <option value="CONFIRMED">Confirmed</option>
                   <option value="SCHEDULED">Scheduled</option>
                   <option value="FAILED">Failed</option>

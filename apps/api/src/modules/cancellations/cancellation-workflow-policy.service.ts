@@ -77,9 +77,10 @@ export class CancellationWorkflowPolicyService {
       throw new ForbiddenException('You do not have permission to revoke this cancellation.');
     }
     if (
-      record.status !== CancellationStatus.SCHEDULED ||
+      (record.status !== CancellationStatus.PENDING_REVIEW &&
+        record.status !== CancellationStatus.SCHEDULED) ||
       record.providerStatus !== CancellationProviderStatus.NOT_SUBMITTED ||
-      record.effectiveAt <= now
+      (record.status !== CancellationStatus.PENDING_REVIEW && record.effectiveAt <= now)
     ) {
       throw new ConflictException(
         'This cancellation is already being processed. Please contact Mero Telecom support.',

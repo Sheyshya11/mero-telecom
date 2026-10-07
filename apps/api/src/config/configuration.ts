@@ -17,6 +17,10 @@ export interface AppConfig {
     timezone: string;
   };
   overdueLifecycle: {
+    firstReminderDays: number;
+    secondReminderDays: number;
+    finalWarningDays: number;
+    dayMilliseconds: number;
     gracePeriodDays: number;
     terminationDays: number;
     schedulerIntervalMilliseconds: number;
@@ -149,9 +153,16 @@ export default (): AppConfig => ({
     timezone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Adelaide',
   },
   overdueLifecycle: {
+    firstReminderDays: Number(process.env.OVERDUE_FIRST_REMINDER_DAYS ?? 1),
+    secondReminderDays: Number(process.env.OVERDUE_SECOND_REMINDER_DAYS ?? 3),
+    finalWarningDays: Number(process.env.OVERDUE_FINAL_WARNING_DAYS ?? 5),
+    dayMilliseconds:
+      process.env.NODE_ENV === 'production'
+        ? 86_400_000
+        : Number(process.env.OVERDUE_DEMO_DAY_MS ?? 86_400_000),
     gracePeriodDays: Number(process.env.OVERDUE_GRACE_PERIOD_DAYS ?? 7),
     terminationDays: Number(process.env.NON_PAYMENT_TERMINATION_DAYS ?? 30),
-    schedulerIntervalMilliseconds: Number(process.env.OVERDUE_LIFECYCLE_INTERVAL_MS ?? 60_000),
+    schedulerIntervalMilliseconds: Number(process.env.OVERDUE_LIFECYCLE_INTERVAL_MS ?? 3_600_000),
     batchSize: Number(process.env.OVERDUE_LIFECYCLE_BATCH_SIZE ?? 50),
     provisioningMockResult: (process.env.BILLING_PROVISIONING_MOCK_RESULT ?? 'SUCCESS') as
       | 'SUCCESS'

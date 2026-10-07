@@ -1,4 +1,6 @@
 export type CancellationTimelineStatus =
+  | 'PENDING_REVIEW'
+  | 'REJECTED'
   | 'REQUESTED'
   | 'SCHEDULED'
   | 'PROCESSING'
@@ -30,6 +32,19 @@ export function CancellationTimeline({
         complete={requested}
         label="Cancellation requested"
         detail={formatDateTime(requestedAt)}
+      />
+      <TimelineItem
+        complete={!['PENDING_REVIEW', 'REJECTED', 'REVOKED'].includes(status)}
+        label="Employee review"
+        detail={
+          status === 'PENDING_REVIEW'
+            ? 'Awaiting review; service remains unchanged'
+            : status === 'REJECTED'
+              ? 'Request not approved; service remains unchanged'
+              : status === 'REVOKED'
+                ? 'Request withdrawn'
+                : 'Approved'
+        }
       />
       {scheduled ? (
         <TimelineItem
