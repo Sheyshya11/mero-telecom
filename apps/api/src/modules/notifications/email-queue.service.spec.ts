@@ -37,11 +37,13 @@ jest.mock('bullmq', () => ({
   },
 }));
 
-function createService(invitationStatus = AccountInvitationStatus.PENDING) {
+function createService(invitationStatus = AccountInvitationStatus.PENDING, producerOnly = false) {
   const emailProvider = {
     send: jest.fn().mockResolvedValue({ messageId: 'provider-message-id' }),
   };
   const prisma = {
+    invoice: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    collectionPolicy: { findUnique: jest.fn().mockResolvedValue(null) },
     accountInvitation: {
       findUnique: jest.fn().mockResolvedValue({
         status: invitationStatus,
@@ -64,6 +66,14 @@ function createService(invitationStatus = AccountInvitationStatus.PENDING) {
           },
         };
       }
+      if (key === 'overdueLifecycle')
+        return {
+          firstReminderDays: 1,
+          secondReminderDays: 3,
+          finalWarningDays: 5,
+          gracePeriodDays: 7,
+          dayMilliseconds: 86400000,
+        };
       if (key === 'redis') return { url: 'redis://localhost:6380' };
       if (key === 'jwt') return { refreshSecret: 'unused-refresh-secret' };
       throw new Error(`Unexpected config key: ${key}`);
@@ -74,7 +84,8 @@ function createService(invitationStatus = AccountInvitationStatus.PENDING) {
     emailProvider as EmailProvider,
     prisma as unknown as PrismaService,
   );
-  service.onModuleInit();
+  if (producerOnly) service.initializeProducer();
+  else service.onModuleInit();
   return { emailProvider, prisma, service };
 }
 
@@ -86,6 +97,26 @@ describe('EmailQueueService', () => {
     );
     mockQueueClose.mockResolvedValue(undefined);
     mockWorkerClose.mockResolvedValue(undefined);
+  });
+
+  it('can enqueue from a script without starting a competing delivery worker', async () => {
+    const { service } = createService(AccountInvitationStatus.PENDING, true);
+    expect(mockWorkerOn).not.toHaveBeenCalled();
+    await expect(
+      service.enqueue(
+        {
+          to: 'customer@example.com',
+          subject: 'Reminder',
+          text: 'Reminder',
+          html: '<p>Reminder</p>',
+        },
+        { purpose: 'SECOND_REMINDER' },
+        'seed-job',
+      ),
+    ).resolves.toEqual({ jobId: 'seed-job', recipient: 'customer@example.com' });
+    await service.onModuleDestroy();
+    expect(mockQueueClose).toHaveBeenCalledTimes(1);
+    expect(mockWorkerClose).not.toHaveBeenCalled();
   });
 
   it('queues encrypted PII with deterministic IDs and exponential retries', async () => {
@@ -212,4 +243,136 @@ describe('EmailQueueService', () => {
       }),
     });
   });
+  it.each(['FINAL_WARNING', 'RECOVERY_FINAL_WARNING'] as const)(
+    'suppresses %s queued before a later confirmed payment',
+    async (purpose) => {
+      const { service, prisma, emailProvider } = createService();
+      prisma.invoice.findUnique.mockResolvedValue({
+        status: 'OVERDUE',
+        totalCents: 7990,
+        payments: [{ amountCents: 7990, status: 'SUCCEEDED' }],
+      });
+      await service.enqueue(
+        { to: 'customer@example.com', subject: 'Final', text: 'Old', html: 'Old' },
+        { purpose, invoiceId: 'invoice' },
+        'reminder',
+      );
+      const result = await mockProcessor({
+        id: 'reminder',
+        name: purpose,
+        data: mockQueueAdd.mock.calls[0][1],
+        opts: { attempts: 3 },
+        attemptsMade: 0,
+      });
+      expect(result).toEqual({ messageId: 'skipped-resolved-collection', skipped: true });
+      expect(emailProvider.send).not.toHaveBeenCalled();
+    },
+  );
+  it('suppresses a delayed final email with an expired effective deadline', async () => {
+    const { service, prisma, emailProvider } = createService();
+    prisma.invoice.findUnique.mockResolvedValue({
+      status: 'OVERDUE',
+      totalCents: 7990,
+      payments: [],
+      dueDate: new Date('2000-01-01'),
+      subscription: { status: 'ACTIVE', graceExtendedUntil: null },
+      finalWarningSentAt: new Date('2000-01-06'),
+    });
+    await service.enqueue(
+      { to: 'customer@example.com', subject: 'Final', text: 'Old', html: 'Old' },
+      { purpose: 'FINAL_WARNING', invoiceId: 'invoice' },
+      'reminder',
+    );
+    expect(
+      await mockProcessor({
+        id: 'reminder',
+        name: 'FINAL_WARNING',
+        data: mockQueueAdd.mock.calls[0][1],
+        opts: { attempts: 3 },
+        attemptsMade: 0,
+      }),
+    ).toEqual({ messageId: 'skipped-expired-collection-deadline', skipped: true });
+    expect(emailProvider.send).not.toHaveBeenCalled();
+  });
+  it('renders queued final email again with the current admin deadline and partial balance', async () => {
+    const { service, prisma, emailProvider } = createService();
+    prisma.invoice.findUnique.mockResolvedValue({
+      invoiceNumber: 'INV',
+      currency: 'AUD',
+      status: 'OVERDUE',
+      totalCents: 7990,
+      payments: [{ amountCents: 2000, status: 'SUCCEEDED' }],
+      dueDate: new Date('2100-01-01'),
+      customer: { firstName: 'Sam', lastName: 'Customer' },
+      subscription: {
+        status: 'ACTIVE',
+        graceExtendedUntil: new Date('2100-01-12'),
+        collectionHoldReason: 'Expired dispute',
+        collectionHoldUntil: new Date('2000-01-01'),
+      },
+      finalWarningSentAt: new Date('2100-01-06'),
+    });
+    await service.enqueue(
+      {
+        to: 'customer@example.com',
+        subject: 'Old final',
+        text: 'Old deadline',
+        html: 'Old deadline',
+      },
+      {
+        purpose: 'FINAL_WARNING',
+        invoiceId: 'invoice',
+        collectionEmail: {
+          brandLogoUrl: 'https://mero.test/logo',
+          dashboardUrl: 'https://mero.test/customer/invoices?invoiceId=invoice',
+        },
+      },
+      'reminder',
+    );
+    await mockProcessor({
+      id: 'reminder',
+      name: 'FINAL_WARNING',
+      data: mockQueueAdd.mock.calls[0][1],
+      opts: { attempts: 3 },
+      attemptsMade: 0,
+    });
+    expect(emailProvider.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'FINAL NOTICE — service suspension scheduled for 12 January 2100',
+        text: expect.stringContaining('$59.90'),
+      }),
+    );
+    expect(emailProvider.send.mock.calls[0][0].text).not.toContain('Old deadline');
+  });
+  it.each(['FIRST_REMINDER', 'SECOND_REMINDER', 'FINAL_WARNING', 'RECOVERY_FINAL_WARNING'])(
+    'suppresses queued %s while collection is on hold',
+    async (purpose) => {
+      const { service, prisma, emailProvider } = createService();
+      prisma.invoice.findUnique.mockResolvedValue({
+        status: 'OVERDUE',
+        totalCents: 7990,
+        payments: [],
+        subscription: {
+          status: 'ACTIVE',
+          collectionHoldReason: 'Billing dispute',
+          collectionHoldUntil: new Date('2100-01-01'),
+        },
+      });
+      await service.enqueue(
+        { to: 'customer@example.com', subject: 'Warning', text: 'Warning', html: 'Warning' },
+        { purpose, invoiceId: 'invoice' },
+        'held-warning',
+      );
+      expect(
+        await mockProcessor({
+          id: 'held-warning',
+          name: purpose,
+          data: mockQueueAdd.mock.calls[0][1],
+          opts: { attempts: 3 },
+          attemptsMade: 0,
+        }),
+      ).toEqual({ messageId: 'skipped-active-collection-hold', skipped: true });
+      expect(emailProvider.send).not.toHaveBeenCalled();
+    },
+  );
 });

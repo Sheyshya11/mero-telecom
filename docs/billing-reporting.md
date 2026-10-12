@@ -43,3 +43,5 @@ Refunds are cash movements; plan-change credits are non-cash adjustments and are
 ## Exports
 
 CSV, XLSX, and PDF exports invoke the same report methods and filters as the dashboard. They include the organisation, report, reporting period, timezone, generated timestamp, generating user, and active filters.
+
+Browser exports use the authenticated same-origin `/api/admin/billing/reports/:reportType/export` proxy. It forwards the selected format and filters to the reporting API, preserves API errors and disables caching of financial exports. Successful responses transfer as binary data without attachment headers so download-manager extensions cannot consume the response before the app receives it; the original MIME type is restored on the downloadable browser Blob. PDF downloads are checked for non-empty PDF content; the browser Blob URL stays available until the download has started.

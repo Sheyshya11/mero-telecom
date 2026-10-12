@@ -117,4 +117,109 @@ describe('Notification centre API (e2e)', () => {
       .set('Authorization', `Bearer ${attackerToken}`)
       .expect(404);
   });
+  it('projects paid and cancelled invoice resolution without resolving another invoice or changing read history', async () => {
+    const owner = await createUser(Role.CUSTOMER, 'settlement-owner');
+    const other = await createUser(Role.CUSTOMER, 'settlement-other');
+    const customerIds: string[] = [];
+    try {
+      for (const user of [owner, other]) {
+        const customer = await prisma.customer.create({
+          data: {
+            userId: user.id,
+            customerNumber: 'N-' + user.id.slice(0, 20),
+            email: user.email,
+            firstName: 'Notification',
+            lastName: 'Test',
+            phone: '0400000000',
+            addressLine1: '1 Test Road',
+            suburb: 'Adelaide',
+            state: 'SA',
+            postcode: '5000',
+          },
+        });
+        customerIds.push(customer.id);
+      }
+      const paidAt = new Date('2026-10-10T01:00:00Z');
+      const invoices = [];
+      for (const [index, status] of (['PAID', 'OVERDUE', 'CANCELLED', 'PAID'] as const).entries()) {
+        invoices.push(
+          await prisma.invoice.create({
+            data: {
+              customerId: customerIds[index === 3 ? 1 : 0],
+              invoiceNumber: 'NOTIFICATION-' + index + '-' + owner.id.slice(0, 8),
+              issueDate: paidAt,
+              dueDate: paidAt,
+              totalCents: 7990,
+              subtotalCents: 7264,
+              taxCents: 726,
+              status,
+              paidAt: status === 'PAID' ? paidAt : null,
+            },
+          }),
+        );
+      }
+      await prisma.notification.createMany({
+        data: invoices.map((invoice) => ({
+          userId: owner.id,
+          type: 'FINAL_PAYMENT_WARNING',
+          severity: NotificationSeverity.CRITICAL,
+          title: 'Original final notice',
+          message: 'Pay now to avoid suspension.',
+          entityType: 'Invoice',
+          entityId: invoice.id,
+          actionUrl: '/customer/invoices',
+        })),
+      });
+      const token = await login(owner.email);
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/notifications')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      const byInvoice = new Map(
+        response.body.data.map((notice: { entityId: string }) => [notice.entityId, notice]),
+      );
+      expect(byInvoice.get(invoices[0].id)).toMatchObject({
+        isRead: false,
+        title: 'Original final notice',
+        invoiceResolution: {
+          status: 'PAID',
+          invoiceId: invoices[0].id,
+          resolvedAt: paidAt.toISOString(),
+        },
+        actionUrl: '/customer/invoices?invoiceId=' + invoices[0].id,
+      });
+      expect(byInvoice.get(invoices[1].id)).not.toHaveProperty('invoiceResolution');
+      expect(byInvoice.get(invoices[2].id)).toHaveProperty('invoiceResolution.status', 'CANCELLED');
+      expect(byInvoice.get(invoices[3].id)).not.toHaveProperty('invoiceResolution');
+      // Confirm a later payment updates an existing final notice without rewriting history.
+      await prisma.invoice.update({
+        where: { id: invoices[1].id },
+        data: { status: 'PAID', paidAt },
+      });
+      const refreshed = await request(app.getHttpServer())
+        .get('/api/v1/notifications')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(
+        refreshed.body.data.find(
+          (notice: { entityId: string }) => notice.entityId === invoices[1].id,
+        ),
+      ).toMatchObject({
+        isRead: false,
+        invoiceResolution: { status: 'PAID', invoiceId: invoices[1].id },
+      });
+      expect(await prisma.notification.count({ where: { userId: owner.id, isRead: false } })).toBe(
+        4,
+      );
+      expect(
+        await prisma.notification.count({
+          where: { userId: owner.id, message: 'Pay now to avoid suspension.' },
+        }),
+      ).toBe(4);
+    } finally {
+      await prisma.notification.deleteMany({ where: { userId: { in: [owner.id, other.id] } } });
+      await prisma.invoice.deleteMany({ where: { customerId: { in: customerIds } } });
+      await prisma.customer.deleteMany({ where: { id: { in: customerIds } } });
+    }
+  });
 });

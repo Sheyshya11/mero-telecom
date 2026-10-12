@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import PDFDocument from 'pdfkit';
 
 import type { BillingReportExportDocument, ReportRow } from '../billing-report-export.types';
 import { BillingReportType } from '../dto/billing-report-query.dto';
@@ -117,5 +118,104 @@ describe('BillingReportPdfService', () => {
 
     expect(buffer.subarray(0, 5).toString('ascii')).toBe('%PDF-');
     expect(pageCount(buffer)).toBe(3);
+  });
+
+  describe('revenue trend chart', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    function chart(rows: ReportRow[]) {
+      const document = new PDFDocument();
+      document.on('data', () => undefined);
+      const lineTo = jest.spyOn(document, 'lineTo');
+      const moveTo = jest.spyOn(document, 'moveTo');
+      const text = jest.spyOn(document, 'text');
+      const circle = jest.spyOn(document, 'circle');
+      const renderer = service as unknown as {
+        revenueChart(
+          document: PDFKit.PDFDocument,
+          rows: ReportRow[],
+          x: number,
+          y: number,
+          width: number,
+          height: number,
+        ): void;
+      };
+      renderer.revenueChart(document, rows, 40, 465, 515, 150);
+      document.end();
+      return { lineTo, moveTo, text, circle };
+    }
+
+    it.each([
+      ['mixed collections and refunds', [7900, -30000, 15800]],
+      ['refund-only period', [-7647, -10000, -5000]],
+    ])('keeps every series point inside the chart for a %s', (_, amounts) => {
+      const drawing = chart(
+        amounts.map((amount, index) => ({
+          period: `2026-10-${String(index + 1).padStart(2, '0')}`,
+          grossBilledCents: index === 0 ? 7900 : 0,
+          netCashCollectedCents: amount,
+        })),
+      );
+      const points = [...drawing.moveTo.mock.calls, ...drawing.lineTo.mock.calls];
+      expect(points.length).toBeGreaterThan(0);
+      for (const [x, y] of points) {
+        expect(x).toBeGreaterThanOrEqual(40);
+        expect(x).toBeLessThanOrEqual(555);
+        expect(y).toBeGreaterThanOrEqual(465);
+        expect(y).toBeLessThanOrEqual(615);
+      }
+      const labels = drawing.text.mock.calls.map(([value]) => String(value));
+      expect(labels.some((value) => value.startsWith('-$'))).toBe(true);
+      expect(labels).toContain('$0');
+    });
+
+    it('draws visible data points for a single-day selection', () => {
+      const drawing = chart([
+        { period: '2026-10-11', grossBilledCents: 7900, netCashCollectedCents: -7647 },
+      ]);
+      const points = drawing.circle.mock.calls.filter(([, y]) => y >= 485);
+      expect(points).toHaveLength(2);
+      expect(points.every(([, y, radius]) => y <= 615 && radius > 0)).toBe(true);
+    });
+
+    it('uses distinct, accurate currency ticks for an all-zero period', () => {
+      const drawing = chart([
+        { period: '2026-10-11', grossBilledCents: 0, netCashCollectedCents: 0 },
+      ]);
+      const labels = drawing.text.mock.calls
+        .map(([value]) => String(value))
+        .filter((value) => value.startsWith('$'));
+      expect(labels).toContain('$0.00');
+      expect(labels).toContain('$1.00');
+      expect(new Set(labels).size).toBe(labels.length);
+    });
+
+    it('spaces date labels apart across a dense reporting period, including its last day', () => {
+      const rows = Array.from({ length: 32 }, (_, index) => ({
+        period: new Date(Date.UTC(2026, 7, index + 1)).toISOString().slice(0, 10),
+        grossBilledCents: 7900,
+        netCashCollectedCents: index === 15 ? -7647 : 0,
+      }));
+      const drawing = chart(rows);
+      const labels = drawing.text.mock.calls.filter(([value]) => /^2026-/.test(String(value)));
+      expect(labels[0][0]).toBe(rows[0].period);
+      expect(labels[labels.length - 1][0]).toBe(rows[31].period);
+      for (let index = 1; index < labels.length; index += 1) {
+        const previous = labels[index - 1];
+        expect(
+          Number(previous[1]) + Number((previous[3] as PDFKit.Mixins.TextOptions).width),
+        ).toBeLessThanOrEqual(Number(labels[index][1]));
+      }
+    });
+
+    it('generates the complete PDF when refunds exceed collections', async () => {
+      const report = input([]);
+      report.revenue = {
+        trend: [{ period: '2026-08-01', grossBilledCents: 7900, netCashCollectedCents: -30000 }],
+      };
+      const buffer = await service.render(report);
+      expect(buffer.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+      expect(pageCount(buffer)).toBe(3);
+    });
   });
 });

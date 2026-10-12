@@ -22,15 +22,15 @@ Stripe owns recurring charge execution, saved payment methods, recurring invoice
    - `payment_method.updated`
    - `payment_method.detached`
    - the existing refund events
-5. Store the restricted test API key and webhook signing secret in the deployment secret store. Never commit them.
+5. Store the restricted test API key and webhook signing secret in the deployment secret store. Never commit them. Automatic configuration of a legacy plan requires Price read/write and Product write permissions on that key.
 
-For the demo seed, the three optional `STRIPE_PRICE_*` variables populate the Price mapping. Existing seeded subscriptions remain `MANUAL`; sign in as that customer and use **Enable automatic payments** to demonstrate the migration path without charging the already-paid period twice.
+For the demo seed, the three optional `STRIPE_PRICE_*` variables populate the Price mapping. Existing seeded subscriptions remain `MANUAL`; sign in as that customer and use **Enable automatic payments** to demonstrate the migration path without charging the already-paid period twice. If a legacy or staff-created plan has no Price mapping, this action creates an active monthly AUD Stripe Price matching the plan amount, saves its mapping, and records an audit entry. A stable lookup key and idempotency key allow interrupted or concurrent setup requests to reuse the same Price.
 
 ## Demo and renewal testing
 
 - New signup: choose a plan, complete Checkout with test card `4242 4242 4242 4242`, and verify that the customer, active local subscription, Stripe subscription, paid invoice, payment, next billing date, and masked card appear.
 - New-customer card persistence: completion resolves the reusable payment method from the Stripe subscription, with the paid invoice PaymentIntent as a fallback, then idempotently sets both the Stripe Customer and subscription defaults before activating the local subscription.
-- Existing customer: use **Enable automatic payments**. Checkout runs in setup mode; Mero Telecom creates a Stripe subscription with a trial ending at the already-paid local period boundary, so the first automatic charge occurs on the next billing date.
+- Existing customer (including a staff-created account that joined later): pay all outstanding invoices and wait for the subscription to return to `ACTIVE`, then open **My subscription**, select a payment method, and use **Enable automatic payments**. Checkout runs in setup mode; Mero Telecom creates a Stripe subscription with a trial ending at the already-paid local period boundary, so the first automatic charge occurs on the next billing date.
 - Renewal: use a Stripe test clock for the Stripe Customer, advance it past the subscription item period end, and verify one new `STRIPE_RECURRING` invoice and one payment locally. Re-send the same `invoice.paid` event and confirm no duplicates.
 - Failure: use Stripe's recurring-payment failure test method, advance the test clock, and verify the mirrored invoice becomes overdue, the subscription enters the existing past-due/grace lifecycle, and the Customer Portal action is available.
 - Payment-method recovery: from **My subscription**, add a new test card or open the Stripe Customer Portal. Mero Telecom makes the selected card the Customer and subscription default, then asks Stripe to retry the same open invoice. The later `invoice.paid` webhook updates the existing local invoice/payment; it does not create a replacement invoice.

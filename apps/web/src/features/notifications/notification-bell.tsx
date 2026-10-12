@@ -9,6 +9,10 @@ import { apiRequest } from '../../lib/api/client';
 import { useAuth } from '../auth/auth-provider';
 import {
   formatNotificationTime,
+  collectionNotificationStage,
+  collectionNotificationLabel,
+  notificationActionLabel,
+  notificationDisplay,
   isSafeInternalNotificationAction,
   type AppNotification,
   type NotificationPage,
@@ -115,8 +119,14 @@ export function NotificationBell() {
             ) : null}
             {recent.data?.data.map((notification) => (
               <button
-                aria-label={notification.title + ': ' + notification.message}
+                aria-label={
+                  notificationDisplay(notification).title +
+                  ': ' +
+                  notificationDisplay(notification).message
+                }
                 className={[styles.item, notification.isRead ? '' : styles.unread].join(' ')}
+                data-collection-stage={collectionNotificationStage(notification) ?? undefined}
+                data-resolved={notification.invoiceResolution ? true : undefined}
                 key={notification.id}
                 onClick={() => void openNotification(notification)}
                 type="button"
@@ -124,14 +134,34 @@ export function NotificationBell() {
                 <span
                   aria-hidden="true"
                   className={styles.dot}
-                  data-severity={notification.severity}
+                  data-severity={notificationDisplay(notification).severity}
                 />
                 <span>
-                  <span className={styles.itemTitle}>{notification.title}</span>
-                  <span className={styles.message}>{notification.message}</span>
-                  <span className={styles.time}>
-                    {formatNotificationTime(notification.createdAt)}
+                  {collectionNotificationLabel(notification) ? (
+                    <span className={styles.stageLabel}>
+                      {collectionNotificationLabel(notification)}
+                    </span>
+                  ) : null}
+                  <span className={styles.itemTitle}>
+                    {notificationDisplay(notification).title}
                   </span>
+                  <span className={styles.message}>
+                    {notificationDisplay(notification).message}
+                  </span>
+                  <span className={styles.time}>
+                    {notification.invoiceResolution
+                      ? 'Resolved ' +
+                        formatNotificationTime(notification.invoiceResolution.resolvedAt)
+                      : formatNotificationTime(notification.createdAt)}
+                  </span>
+                  {(collectionNotificationStage(notification) ||
+                    notification.invoiceResolution ||
+                    notification.type === 'INVOICE_PAID') &&
+                  isSafeInternalNotificationAction(notification.actionUrl) ? (
+                    <span className={styles.collectionAction}>
+                      {notificationActionLabel(notification)}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             ))}

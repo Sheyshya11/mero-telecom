@@ -13,7 +13,13 @@ import {
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
-import { payableCents, suspensionDate } from './collection.service';
+import {
+  payableCents,
+  suspensionDate,
+  finalWarningAllowsSuspension,
+  collectionExtension,
+} from './collection-deadline';
+import { hasActiveCollectionHold } from './collection-hold.policy';
 import { CollectionPolicyService } from './collection-policy.service';
 
 @Injectable()
@@ -143,20 +149,20 @@ export class ProvisioningService {
             const policy = await this.policy!.get(tx);
             valid =
               !!invoice &&
-              !!invoice.firstReminderSentAt &&
-              !!invoice.secondReminderSentAt &&
-              !!invoice.finalWarningSentAt &&
-              payableCents(invoice) > 0 &&
-              suspensionDate(
+              finalWarningAllowsSuspension(
                 invoice,
-                sub.graceExtendedUntil,
-                policy,
-                this.policy!.dayMilliseconds,
-              ) <= now &&
+                suspensionDate(
+                  invoice,
+                  collectionExtension(sub.graceExtendedUntil, invoices),
+                  policy,
+                  this.policy!.dayMilliseconds,
+                ),
+                now,
+              ) &&
               [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE].some(
                 (status) => status === sub.status,
               ) &&
-              !sub.collectionHoldReason &&
+              !hasActiveCollectionHold(sub, now) &&
               !pending &&
               !unsettledCredits &&
               !invoices.some(

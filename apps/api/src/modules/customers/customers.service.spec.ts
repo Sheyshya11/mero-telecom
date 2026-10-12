@@ -140,7 +140,7 @@ describe('CustomersService', () => {
 
     expect(prisma.customer.update).toHaveBeenCalledWith({
       where: { id: customer.id },
-      data: { status: 'SUSPENDED', email: undefined, state: undefined },
+      data: { status: 'SUSPENDED', state: undefined },
     });
   });
 
@@ -361,4 +361,26 @@ describe('CustomersService', () => {
       eventId: 'profile-audit-id',
     });
   });
+  it.each([Role.ADMIN, Role.SUPER_ADMIN, Role.STAFF])(
+    'rejects an existing customer email change by %s before any write',
+    async (role) => {
+      const prisma = {
+        customer: { findUnique: jest.fn().mockResolvedValue(customer) },
+        $transaction: jest.fn(),
+      };
+      const service = new CustomersService(
+        prisma as never,
+        dashboardCache as never,
+        invitations as never,
+      );
+      await expect(
+        service.update(
+          customer.id,
+          { id: 'internal', email: 'internal@example.test', role } as never,
+          { email: 'replacement@example.test' },
+        ),
+      ).rejects.toThrow('Only the customer');
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    },
+  );
 });

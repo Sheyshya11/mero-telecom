@@ -7,6 +7,10 @@ import { useState } from 'react';
 import { useAuth } from '../../features/auth/auth-provider';
 import {
   formatNotificationTime,
+  collectionNotificationStage,
+  collectionNotificationLabel,
+  notificationActionLabel,
+  notificationDisplay,
   isSafeInternalNotificationAction,
   notificationSeverityLabel,
   notificationTypeOptions,
@@ -36,6 +40,7 @@ export default function NotificationsPage() {
     queryFn: () =>
       apiRequest<NotificationPage>('/notifications?' + parameters.toString(), {}, accessToken),
     enabled: Boolean(accessToken),
+    refetchInterval: 30_000,
   });
   const markRead = useMutation({
     mutationFn: ({ id }: { id: string; actionUrl?: string | null }) =>
@@ -76,7 +81,7 @@ export default function NotificationsPage() {
     <main className="workspace-page">
       <header>
         <div>
-          <p>ACCOUNT � NOTIFICATIONS</p>
+          <p>ACCOUNT / NOTIFICATIONS</p>
           <h1>Notifications</h1>
           <p>Important account, billing, service and support activity in one place.</p>
         </div>
@@ -148,23 +153,49 @@ export default function NotificationsPage() {
         {notifications.data?.data.map((notification) => (
           <article
             className={[
-              'rounded-xl border bg-card p-5 shadow-sm',
-              notification.isRead ? 'border-border' : 'border-primary/30',
+              'rounded-xl border p-5 shadow-sm',
+              collectionNotificationStage(notification) === 'FINAL_WARNING' ||
+              collectionNotificationStage(notification) === 'RECOVERY_FINAL_WARNING' ||
+              collectionNotificationStage(notification) === 'SERVICE_SUSPENDED'
+                ? 'border-destructive border-l-4 bg-destructive-subtle'
+                : collectionNotificationStage(notification) === 'SECOND_REMINDER'
+                  ? 'border-warning border-l-4 bg-warning-subtle'
+                  : notification.isRead
+                    ? 'bg-card border-border'
+                    : 'bg-card border-primary/30',
             ].join(' ')}
+            data-collection-stage={collectionNotificationStage(notification) ?? undefined}
+            data-resolved={notification.invoiceResolution ? true : undefined}
             key={notification.id}
           >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <span className={severityClasses(notification.severity)}>
-                  {notificationSeverityLabel(notification.severity)}
+                <span className={severityClasses(notificationDisplay(notification).severity)}>
+                  {collectionNotificationLabel(notification) ??
+                    notificationSeverityLabel(notificationDisplay(notification).severity)}
                 </span>
-                <h2 className="mt-2 text-base font-bold">{notification.title}</h2>
+                <h2 className="mt-2 text-base font-bold">
+                  {notificationDisplay(notification).title}
+                </h2>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {notification.message}
+                  {notificationDisplay(notification).message}
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {formatNotificationTime(notification.createdAt)}
+                  {notification.invoiceResolution
+                    ? 'Resolved ' +
+                      formatNotificationTime(notification.invoiceResolution.resolvedAt)
+                    : formatNotificationTime(notification.createdAt)}
                 </p>
+                {notification.invoiceResolution ? (
+                  <details className="mt-3 text-sm text-muted-foreground">
+                    <summary className="cursor-pointer">Original notice</summary>
+                    <p className="mt-2 font-medium">{notification.title}</p>
+                    <p className="mt-1">{notification.message}</p>
+                    <p className="mt-2 text-xs">
+                      Sent {formatNotificationTime(notification.createdAt)}
+                    </p>
+                  </details>
+                ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 {!notification.isRead ? (
@@ -186,8 +217,24 @@ export default function NotificationsPage() {
                     }
                     type="button"
                   >
-                    Open
+                    {notificationActionLabel(notification)}
                   </button>
+                ) : null}
+                {!notification.invoiceResolution &&
+                (notification.type === 'PAYMENT_REMINDER' ||
+                  notification.type === 'FINAL_PAYMENT_WARNING') ? (
+                  isSafeInternalNotificationAction(notification.actionUrl) ? (
+                    <button
+                      className="button-secondary"
+                      disabled={markRead.isPending}
+                      type="button"
+                      onClick={() =>
+                        markRead.mutate({ id: notification.id, actionUrl: notification.actionUrl })
+                      }
+                    >
+                      View Invoice
+                    </button>
+                  ) : null
                 ) : null}
                 <button
                   className="button-secondary"

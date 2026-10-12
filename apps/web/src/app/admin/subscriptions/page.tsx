@@ -12,6 +12,7 @@ import {
 
 import {
   CollectionControls,
+  type CollectionHoldState,
   CollectionPolicyControls,
 } from '../../../features/invoices/collection-controls';
 import { useAuth } from '../../../features/auth/auth-provider';
@@ -50,6 +51,7 @@ type Subscription = {
   provisioningStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | null;
   provisioningFailure: string | null;
   collectionHoldReason?: string | null;
+  collectionHold?: CollectionHoldState;
   remindersSent: number;
   invoices: Array<{
     id: string;
@@ -436,6 +438,7 @@ export default function AdminSubscriptionsPage() {
                   invoices={subscription.invoices}
                   graceEndsAt={subscription.gracePeriodEndsAt}
                   holdReason={subscription.collectionHoldReason}
+                  collectionHold={subscription.collectionHold}
                 />
               </div>
             </article>

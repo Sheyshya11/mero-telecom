@@ -106,3 +106,16 @@ export class UpdateOwnCustomerDto {
   @Matches(/^\d{4}$/, { message: 'Postcode must contain four digits.' })
   postcode?: string;
 }
+
+export class ChangeOwnEmailDto {
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail()
+  @MaxLength(320)
+  newEmail!: string;
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  currentPassword!: string;
+}

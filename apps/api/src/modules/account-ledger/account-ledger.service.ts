@@ -20,6 +20,7 @@ import {
   SubscriptionStatus,
 } from '@prisma/client';
 import type Stripe from 'stripe';
+import { payableCents } from '../subscriptions/collection-deadline';
 
 import { PrismaService } from '../../database/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -527,6 +528,72 @@ export class AccountLedgerService {
     };
   }
 
+  /** Read-only preview of the same applicable manual credits used by overdue reconciliation. */
+  async previewCollectionBalances(
+    database: Prisma.TransactionClient | PrismaService,
+    references: Array<{ customerId: string }>,
+    now = new Date(),
+  ): Promise<Map<string, number>> {
+    const balances = new Map<string, number>();
+    for (const customerId of [...new Set(references.map((i) => i.customerId))]) {
+      const invoices = await database.invoice.findMany({
+        where: {
+          customerId,
+          type: 'MANUAL',
+          status: { in: ['ISSUED', 'OVERDUE'] },
+          dueDate: { lt: now },
+        },
+        include: { payments: true },
+        orderBy: { id: 'asc' },
+      });
+      if (!invoices.length) continue;
+      const credits = await database.accountTransaction.findMany({
+        where: this.availableAdjustmentsWhere(
+          customerId,
+          AccountTransactionType.CREDIT,
+          StripeSyncStatus.NOT_REQUIRED,
+        ),
+        include: { applications: { select: { invoiceId: true } } },
+        orderBy: [{ approvedAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      });
+      const remaining = new Map(credits.map((c) => [c.id, c.remainingAmountCents]));
+      for (const invoice of invoices) {
+        let balance = payableCents(invoice);
+        if (
+          !invoice.payments.some(
+            (p) => p.status === PaymentStatus.PENDING || p.status === PaymentStatus.PROCESSING,
+          )
+        )
+          for (const credit of credits) {
+            if (
+              !invoice.subscriptionId ||
+              (credit.subscriptionId && credit.subscriptionId !== invoice.subscriptionId) ||
+              credit.applications.some((a) => a.invoiceId === invoice.id)
+            )
+              continue;
+            const applied = Math.min(balance, remaining.get(credit.id) ?? 0);
+            balance -= applied;
+            remaining.set(credit.id, (remaining.get(credit.id) ?? 0) - applied);
+            if (!balance) break;
+          }
+        balances.set(invoice.id, balance);
+      }
+    }
+    return balances;
+  }
+  private availableAdjustmentsWhere(
+    customerId: string,
+    type: AccountTransactionType,
+    syncStatus: StripeSyncStatus,
+  ): Prisma.AccountTransactionWhereInput {
+    return {
+      customerId,
+      type,
+      status: { in: type === AccountTransactionType.CREDIT ? creditStatuses : debitStatuses },
+      stripeSyncStatus: syncStatus,
+      remainingAmountCents: { gt: 0 },
+    };
+  }
   async applyOverdueInvoiceCredits(
     transaction: Prisma.TransactionClient,
     invoice: { id: string; customerId: string; subscriptionId: string | null; totalCents: number },
@@ -591,13 +658,7 @@ export class AccountLedgerService {
     let remaining = Math.max(0, input.requestedCents - (existing._sum.amountCents ?? 0));
     const adjustments = await transaction.accountTransaction.findMany({
       where: {
-        customerId: input.customerId,
-        type: input.type,
-        status: {
-          in: input.type === AccountTransactionType.CREDIT ? creditStatuses : debitStatuses,
-        },
-        stripeSyncStatus: input.syncStatus,
-        remainingAmountCents: { gt: 0 },
+        ...this.availableAdjustmentsWhere(input.customerId, input.type, input.syncStatus),
         applications: { none: { invoiceId: input.invoiceId } },
         ...(input.subscriptionId
           ? { OR: [{ subscriptionId: null }, { subscriptionId: input.subscriptionId }] }

@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BillingReports } from './billing-reports';
 
@@ -47,6 +47,11 @@ const countMetric = (count: number) => ({
 });
 
 describe('BillingReports', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     mocks.replace.mockReset();
     mocks.useQuery.mockImplementation(({ queryKey }: { queryKey: string[] }) => {
@@ -118,5 +123,74 @@ describe('BillingReports', () => {
     expect(screen.getByText('Not enough historical data to show a trend.')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'This financial year' })).toBeInTheDocument();
     expect(screen.getByText(/GST associated with collected payments/)).toBeInTheDocument();
+  });
+
+  it('downloads a PDF through the web origin and retains its Blob URL while the download starts', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('%PDF-1.3\nreport', {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-Report-Content-Type': 'application/pdf',
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const createObjectURL = vi.fn(() => 'blob:billing-report');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }));
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    render(<BillingReports />);
+    fireEvent.click(screen.getByRole('button', { name: 'PDF' }));
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/admin/billing/reports/revenue/export?preset=this_month&page=1&pageSize=25&format=pdf',
+      { headers: { Authorization: 'Bearer token' }, credentials: 'include' },
+    );
+    expect(createObjectURL).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'application/pdf' }),
+    );
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:billing-report'), {
+      timeout: 2000,
+    });
+  });
+
+  it.each([
+    ['', 'The exported report was empty. Please try again.'],
+    [
+      '<html>Service unavailable</html>',
+      'The exported report was not a valid PDF. Please try again.',
+    ],
+  ])('rejects a corrupt PDF response instead of downloading it', async (body, message) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body)));
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    render(<BillingReports />);
+    fireEvent.click(screen.getByRole('button', { name: 'PDF' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(click).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'PDF' })).toBeEnabled();
+  });
+
+  it('shows API permission errors and allows the export to be retried', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(
+            { message: 'You do not have permission to export billing reports.' },
+            { status: 403 },
+          ),
+        ),
+    );
+    render(<BillingReports />);
+    fireEvent.click(screen.getByRole('button', { name: 'PDF' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission');
+    expect(screen.getByRole('button', { name: 'PDF' })).toBeEnabled();
   });
 });

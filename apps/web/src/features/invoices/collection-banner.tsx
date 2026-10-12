@@ -10,6 +10,9 @@ export type CollectionSummary = {
   suspensionDate: string | null;
   invoiceId: string | null;
   restorationProcessing?: boolean;
+  collectionStage?: string;
+  recoveryFinalWarning?: boolean;
+  collectionOnHold?: boolean;
 };
 export function CollectionBanner() {
   const { accessToken } = useAuth();
@@ -40,37 +43,71 @@ export function CollectionBanner() {
     overdueCents / 100,
   );
   const href = `/customer/invoices?invoiceId=${invoiceId ?? ''}`;
+  const stage = suspended ? 'SUSPENDED' : query.data.collectionStage;
+  const recovery = Boolean(query.data.recoveryFinalWarning);
+  const final = recovery || stage === 'FINAL_WARNING' || stage === 'SUSPENSION_SCHEDULED';
+  const urgent = stage === 'SECOND_REMINDER';
+  const held = Boolean(query.data.collectionOnHold);
+  const critical = suspended || (final && !held);
+  const title = suspended
+    ? 'SERVICE SUSPENDED'
+    : held
+      ? 'Collection on hold'
+      : final
+        ? 'FINAL PAYMENT NOTICE'
+        : urgent
+          ? 'Payment required'
+          : 'Payment overdue';
   return (
     <section
-      className={`my-5 rounded-xl border p-5 ${suspended ? 'border-destructive bg-destructive-subtle text-destructive-foreground' : 'border-warning bg-warning-subtle text-foreground'}`}
+      className={`my-5 rounded-xl border p-5 ${critical ? 'border-destructive border-l-4 bg-destructive-subtle text-destructive-foreground' : urgent ? 'border-warning border-l-4 bg-warning-subtle text-warning-foreground' : 'border-warning bg-warning-subtle text-foreground'}`}
       aria-label="Overdue payment"
-      role={suspended ? 'alert' : 'status'}
+      data-collection-stage={stage ?? 'NONE'}
+      role={critical ? 'alert' : 'status'}
     >
-      <h2 className="font-semibold">{suspended ? 'Service suspended' : 'Payment overdue'}</h2>
+      <h2 className={critical ? 'text-lg font-bold' : 'font-semibold'}>{title}</h2>
       <p className="mt-2">
-        {suspended
-          ? 'Your service has been suspended because an overdue balance remains unpaid.'
-          : `${amount} is overdue.`}
+        {held && !suspended
+          ? `Your overdue balance of ${amount} remains outstanding. Automated collection reminders and billing suspension are paused.`
+          : suspended
+            ? `Your service has been suspended because of an outstanding balance of ${amount}. Make payment to begin service restoration.`
+            : final
+              ? `${amount} remains unpaid.`
+              : urgent
+                ? `Your ${amount} balance remains unpaid. Please pay promptly to avoid service interruption.`
+                : `${amount} is overdue.`}
       </p>
-      {suspended ? <p>Outstanding balance: {amount}</p> : null}
       {paymentProcessing ? (
         <p>Your payment or account is being reviewed before any suspension.</p>
-      ) : suspensionDate && !suspended ? (
+      ) : suspensionDate && !suspended && !held ? (
         <p>
-          Please pay by{' '}
+          {recovery
+            ? 'Your original payment grace period has ended. Your service will remain active until'
+            : final
+              ? 'Your service is scheduled for suspension on'
+              : urgent
+                ? 'Please pay by'
+                : 'Payment deadline:'}{' '}
           {new Intl.DateTimeFormat('en-AU', {
             dateStyle: 'long',
+            timeStyle: recovery ? 'short' : undefined,
             timeZone: 'Australia/Adelaide',
           }).format(new Date(suspensionDate))}{' '}
-          to avoid service suspension.
+          {recovery
+            ? 'Please pay before this deadline to avoid service suspension.'
+            : final
+              ? 'unless payment is received.'
+              : urgent
+                ? 'to avoid service interruption.'
+                : ''}
         </p>
       ) : null}
-      <div className="mt-3 flex gap-3">
+      <div className="mt-3 flex flex-wrap gap-3">
         <Link className="button-primary" href={href}>
-          Pay now
+          {suspended ? 'Pay Outstanding Balance' : 'Pay Now'}
         </Link>
         <Link className="button-secondary" href={href}>
-          View invoice
+          View Invoice
         </Link>
       </div>
     </section>

@@ -10,6 +10,15 @@ import { AccountInvitationStatus, StaffInvitationStatus } from '@prisma/client';
 import { Queue, Worker, type Job } from 'bullmq';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 
+import {
+  payableCents,
+  suspensionDate,
+  collectionSettingsFromConfig,
+  collectionExtension,
+} from '../subscriptions/collection-deadline';
+import { hasActiveCollectionHold } from '../subscriptions/collection-hold.policy';
+import { MERO_TELECOM_LOGO_PATH } from './templates/email-brand';
+import { renderOverdueEmail, type OverdueEmailEvent } from './templates/overdue-email.template';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../database/prisma.service';
 import { EmailProvider, type EmailSendResult } from './email-provider';
@@ -25,6 +34,7 @@ export type EmailPurpose =
   | 'FIRST_REMINDER'
   | 'SECOND_REMINDER'
   | 'FINAL_WARNING'
+  | 'RECOVERY_FINAL_WARNING'
   | 'MANUAL_REMINDER'
   | 'GRACE_PERIOD_EXTENDED'
   | 'SERVICE_RESTORED'
@@ -113,6 +123,7 @@ interface EmailJobContext {
   relocationRequestId?: string;
   subscriptionId?: string;
   invoiceId?: string;
+  collectionEmail?: { brandLogoUrl: string; dashboardUrl: string };
 }
 
 interface EmailJobPayload {
@@ -149,7 +160,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
   private worker?: Worker<EncryptedEmailJob, EmailJobResult, EmailPurpose>;
 
   constructor(
-    configService: ConfigService<AppConfig, true>,
+    private readonly configService: ConfigService<AppConfig, true>,
     private readonly emailProvider: EmailProvider,
     private readonly prisma: PrismaService,
   ) {
@@ -169,7 +180,9 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
       .digest();
   }
 
-  onModuleInit(): void {
+  /** Open only the producer connection for scripts; the running API owns delivery workers. */
+  initializeProducer(): void {
+    if (this.queue) return;
     this.queue = new Queue<EncryptedEmailJob, EmailJobResult, EmailPurpose>(this.queueName, {
       connection: { url: this.redisUrl, maxRetriesPerRequest: 1 },
       defaultJobOptions: {
@@ -179,6 +192,10 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         removeOnFail: { age: 7 * 24 * 60 * 60, count: 1_000 },
       },
     });
+  }
+
+  onModuleInit(): void {
+    this.initializeProducer();
     this.worker = new Worker<EncryptedEmailJob, EmailJobResult, EmailPurpose>(
       this.queueName,
       (job) => this.process(job),
@@ -235,6 +252,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
           'FIRST_REMINDER',
           'SECOND_REMINDER',
           'FINAL_WARNING',
+          'RECOVERY_FINAL_WARNING',
           'MANUAL_REMINDER',
           'GRACE_PERIOD_EXTENDED',
           'SERVICE_SUSPENDED',
@@ -256,20 +274,88 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
     const payload = this.decrypt(job.data.encryptedPayload);
     if (
       payload.context.invoiceId &&
-      ['FIRST_REMINDER', 'SECOND_REMINDER', 'FINAL_WARNING', 'MANUAL_REMINDER'].some(
-        (event) => event === payload.context.purpose,
-      )
+      [
+        'FIRST_REMINDER',
+        'SECOND_REMINDER',
+        'FINAL_WARNING',
+        'RECOVERY_FINAL_WARNING',
+        'MANUAL_REMINDER',
+        'GRACE_PERIOD_EXTENDED',
+      ].some((event) => event === payload.context.purpose)
     ) {
       const invoice = await this.prisma.invoice.findUnique({
         where: { id: payload.context.invoiceId },
+        include: { customer: true, payments: true, subscription: true },
       });
       if (
         !invoice ||
-        invoice.status === 'PAID' ||
-        invoice.status === 'CANCELLED' ||
-        invoice.totalCents <= 0
+        payableCents(invoice) <= 0 ||
+        invoice.status !== 'OVERDUE' ||
+        !invoice.subscription ||
+        !['ACTIVE', 'PAST_DUE'].includes(invoice.subscription.status)
       )
         return { messageId: 'skipped-resolved-collection', skipped: true };
+      const event = payload.context.purpose;
+      if (
+        ['FIRST_REMINDER', 'SECOND_REMINDER', 'FINAL_WARNING', 'RECOVERY_FINAL_WARNING'].includes(
+          event,
+        ) &&
+        hasActiveCollectionHold(invoice.subscription)
+      )
+        return { messageId: 'skipped-active-collection-hold', skipped: true };
+      const stages = [
+        'FIRST_REMINDER',
+        'SECOND_REMINDER',
+        'FINAL_WARNING',
+        'RECOVERY_FINAL_WARNING',
+      ];
+      const highest = invoice.recoveryFinalWarningSentAt
+        ? 'RECOVERY_FINAL_WARNING'
+        : invoice.finalWarningSentAt
+          ? 'FINAL_WARNING'
+          : invoice.secondReminderSentAt
+            ? 'SECOND_REMINDER'
+            : 'FIRST_REMINDER';
+      if (stages.includes(event) && stages.indexOf(event) < stages.indexOf(highest))
+        return { messageId: 'skipped-superseded-collection', skipped: true };
+      const settings = this.configService.getOrThrow('overdueLifecycle');
+      const policy =
+        (await this.prisma.collectionPolicy.findUnique({ where: { id: 'default' } })) ??
+        collectionSettingsFromConfig(settings);
+      const siblings = await this.prisma.invoice.findMany({
+        where: { subscriptionId: invoice.subscriptionId, status: { in: ['ISSUED', 'OVERDUE'] } },
+        include: { payments: true },
+      });
+      const deadline = suspensionDate(
+        invoice,
+        collectionExtension(invoice.subscription.graceExtendedUntil, siblings),
+        policy,
+        settings.dayMilliseconds,
+      );
+      if (
+        (event === 'FINAL_WARNING' ||
+          event === 'RECOVERY_FINAL_WARNING' ||
+          event === 'GRACE_PERIOD_EXTENDED') &&
+        deadline <= new Date()
+      )
+        return { messageId: 'skipped-expired-collection-deadline', skipped: true };
+      const branding = payload.context.collectionEmail ?? {
+        brandLogoUrl: `${this.configService.getOrThrow('app').frontendUrl}${MERO_TELECOM_LOGO_PATH}`,
+        dashboardUrl: `${this.configService.getOrThrow('app').frontendUrl}/customer/invoices?invoiceId=${invoice.id}`,
+      };
+      payload.message = {
+        to: payload.message.to,
+        ...renderOverdueEmail({
+          event: event as OverdueEmailEvent,
+          ...branding,
+          customerName: `${invoice.customer.firstName} ${invoice.customer.lastName}`,
+          invoiceNumber: invoice.invoiceNumber,
+          amountCents: payableCents(invoice),
+          currency: invoice.currency,
+          dueDate: invoice.dueDate,
+          gracePeriodEndsAt: deadline,
+        }),
+      };
     }
     if (payload.context.invitationId) {
       const invitation = await this.prisma.accountInvitation.findUnique({

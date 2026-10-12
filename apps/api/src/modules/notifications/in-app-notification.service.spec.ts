@@ -5,6 +5,8 @@ import { InAppNotificationService } from './in-app-notification.service';
 
 const userId = '11111111-1111-4111-8111-111111111111';
 const otherUserId = '22222222-2222-4222-8222-222222222222';
+const invoiceId = '44444444-4444-4444-8444-444444444444';
+const paymentId = '55555555-5555-4555-8555-555555555555';
 const notificationId = '33333333-3333-4333-8333-333333333333';
 
 function notification(overrides: Record<string, unknown> = {}) {
@@ -31,12 +33,14 @@ function createService() {
     user: {
       findMany: jest.fn().mockResolvedValue([{ id: userId }]),
     },
+    invoice: { findMany: jest.fn().mockResolvedValue([]) },
     notification: {
       createMany: jest.fn().mockResolvedValue({ count: 1 }),
       findUnique: jest.fn().mockResolvedValue(notification()),
       findFirst: jest.fn().mockResolvedValue(notification()),
       findMany: jest.fn().mockResolvedValue([notification()]),
       count: jest.fn().mockResolvedValue(1),
+      update: jest.fn().mockResolvedValue(notification()),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
@@ -107,6 +111,31 @@ describe('InAppNotificationService', () => {
     });
   });
 
+  it('refreshes a deduplicated collection retry with the current deadline without creating another notice', async () => {
+    const { prisma, service } = createService();
+    prisma.notification.createMany.mockResolvedValue({ count: 0 });
+    await service.createNotification({
+      userId,
+      type: 'FINAL_PAYMENT_WARNING',
+      severity: NotificationSeverity.CRITICAL,
+      title: 'Final payment notice',
+      message: 'Service remains active until the revised deadline.',
+      deduplicationKey: 'same-recovery',
+      refreshExisting: true,
+      metadata: { suspensionDate: '2100-01-12' },
+    });
+    expect(prisma.notification.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: notificationId },
+        data: expect.objectContaining({
+          message: 'Service remains active until the revised deadline.',
+          metadata: { suspensionDate: '2100-01-12' },
+        }),
+      }),
+    );
+    expect(prisma.notification.update.mock.calls[0][0].data).not.toHaveProperty('isRead');
+    expect(prisma.notification.update.mock.calls[0][0].data).not.toHaveProperty('createdAt');
+  });
   it('rejects external and protocol-relative action URLs', async () => {
     const { prisma, service } = createService();
 
@@ -174,6 +203,188 @@ describe('InAppNotificationService', () => {
       }),
     );
     expect(JSON.stringify(prisma.notification.findMany.mock.calls)).not.toContain(otherUserId);
+  });
+
+  it.each([
+    'INVOICE_CREATED',
+    'INVOICE_DUE',
+    'INVOICE_OVERDUE',
+    'PAYMENT_FAILED',
+    'PAYMENT_REMINDER',
+    'FINAL_PAYMENT_WARNING',
+    'PAYMENT_GRACE_PERIOD_EXTENDED',
+    'SERVICE_SUSPENSION_WARNING',
+    'SERVICE_SUSPENDED',
+  ])(
+    'resolves historical %s notices from the confirmed invoice status without marking them read',
+    async (type) => {
+      const { prisma, service } = createService();
+      const original = notification({
+        type,
+        severity: NotificationSeverity.CRITICAL,
+        entityType: 'Invoice',
+        entityId: invoiceId,
+      });
+      prisma.notification.findMany.mockResolvedValue([original]);
+      const paidAt = new Date('2026-10-10T01:00:00Z');
+      prisma.invoice.findMany.mockResolvedValue([
+        {
+          id: invoiceId,
+          invoiceNumber: 'INV-001',
+          status: 'PAID',
+          paidAt,
+          updatedAt: paidAt,
+          payments: [],
+        },
+      ]);
+
+      const result = await service.getUserNotifications(userId, query());
+      expect(result.data).toEqual([
+        {
+          ...original,
+          actionUrl: '/customer/invoices?invoiceId=' + invoiceId,
+          invoiceResolution: { status: 'PAID', invoiceId, resolvedAt: paidAt },
+        },
+      ]);
+      expect(prisma.invoice.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            customer: { userId },
+            status: { in: ['PAID', 'CANCELLED'] },
+          }),
+        }),
+      );
+      expect(prisma.notification.updateMany).not.toHaveBeenCalled();
+      expect(prisma.notification.deleteMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('only resolves the settled invoice in a page and keeps unrelated notices unchanged', async () => {
+    const { prisma, service } = createService();
+    const notices = [
+      notification({
+        id: 'paid',
+        type: 'FINAL_PAYMENT_WARNING',
+        entityType: 'Invoice',
+        entityId: invoiceId,
+      }),
+      notification({
+        id: 'unpaid',
+        type: 'PAYMENT_REMINDER',
+        entityType: 'Invoice',
+        entityId: 'INV-UNPAID',
+      }),
+      notification({
+        id: 'support',
+        type: 'SUPPORT_REPLY',
+        entityType: 'Invoice',
+        entityId: invoiceId,
+      }),
+    ];
+    prisma.notification.findMany.mockResolvedValue(notices);
+    prisma.invoice.findMany.mockResolvedValue([
+      {
+        id: invoiceId,
+        invoiceNumber: 'INV-001',
+        status: 'PAID',
+        paidAt: null,
+        updatedAt: new Date(),
+        payments: [],
+      },
+    ]);
+    const result = await service.getUserNotifications(userId, query());
+    expect(result.data[0]).toHaveProperty('invoiceResolution.status', 'PAID');
+    expect(result.data[1]).toEqual(notices[1]);
+    expect(result.data[2]).toEqual(notices[2]);
+    expect(prisma.invoice.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves overdue, partial, pending, missing and other-customer invoices actionable', async () => {
+    const { prisma, service } = createService();
+    const original = notification({
+      type: 'FINAL_PAYMENT_WARNING',
+      entityType: 'Invoice',
+      entityId: invoiceId,
+    });
+    prisma.notification.findMany.mockResolvedValue([original]);
+    // None of these invoices match the owner + PAID/CANCELLED database predicate.
+    prisma.invoice.findMany.mockResolvedValue([]);
+    expect((await service.getUserNotifications(userId, query())).data).toEqual([original]);
+    expect(prisma.invoice.findMany.mock.calls[0][0].where).toMatchObject({
+      customer: { userId },
+      status: { in: ['PAID', 'CANCELLED'] },
+    });
+  });
+
+  it('supports legacy invoice numbers and cancelled invoices without passing numbers as UUIDs', async () => {
+    const { prisma, service } = createService();
+    prisma.notification.findMany.mockResolvedValue([
+      notification({ type: 'PAYMENT_REMINDER', entityType: 'Invoice', entityId: 'INV-001' }),
+    ]);
+    const updatedAt = new Date();
+    prisma.invoice.findMany.mockResolvedValue([
+      {
+        id: invoiceId,
+        invoiceNumber: 'INV-001',
+        status: 'CANCELLED',
+        paidAt: null,
+        updatedAt,
+        payments: [],
+      },
+    ]);
+    expect((await service.getUserNotifications(userId, query())).data[0]).toHaveProperty(
+      'invoiceResolution',
+      { status: 'CANCELLED', invoiceId, resolvedAt: updatedAt },
+    );
+    expect(prisma.invoice.findMany.mock.calls[0][0].where.OR).toContainEqual({ id: { in: [] } });
+    expect(prisma.invoice.findMany.mock.calls[0][0].where.OR).toContainEqual({
+      invoiceNumber: { in: ['INV-001'] },
+    });
+  });
+
+  it('resolves linked failed payment notices and metadata invoice references in the same query', async () => {
+    const { prisma, service } = createService();
+    prisma.notification.findMany.mockResolvedValue([
+      notification({ id: 'payment', entityId: paymentId }),
+      notification({ id: 'metadata', entityType: null, entityId: null, metadata: { invoiceId } }),
+    ]);
+    prisma.invoice.findMany.mockResolvedValue([
+      {
+        id: invoiceId,
+        invoiceNumber: 'INV-001',
+        status: 'PAID',
+        paidAt: new Date(),
+        updatedAt: new Date(),
+        payments: [{ id: paymentId }],
+      },
+    ]);
+    const result = await service.getUserNotifications(userId, query());
+    expect(result.data.every((notice) => 'invoiceResolution' in notice)).toBe(true);
+    expect(prisma.invoice.findMany.mock.calls[0][0].where.OR).toContainEqual({
+      payments: { some: { id: { in: [paymentId] } } },
+    });
+    expect(prisma.invoice.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns current settlement state after marking a notice read', async () => {
+    const { prisma, service } = createService();
+    prisma.notification.findFirst.mockResolvedValue(
+      notification({ type: 'FINAL_PAYMENT_WARNING', entityType: 'Invoice', entityId: invoiceId }),
+    );
+    prisma.invoice.findMany.mockResolvedValue([
+      {
+        id: invoiceId,
+        invoiceNumber: 'INV-001',
+        status: 'PAID',
+        paidAt: new Date(),
+        updatedAt: new Date(),
+        payments: [],
+      },
+    ]);
+    expect(await service.markAsRead(notificationId, userId)).toHaveProperty(
+      'invoiceResolution.status',
+      'PAID',
+    );
   });
 
   it('returns an efficient unread count for the current user', async () => {

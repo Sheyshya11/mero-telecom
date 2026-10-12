@@ -5,6 +5,7 @@ export type OverdueEmailEvent =
   | 'FIRST_REMINDER'
   | 'SECOND_REMINDER'
   | 'FINAL_WARNING'
+  | 'RECOVERY_FINAL_WARNING'
   | 'MANUAL_REMINDER'
   | 'GRACE_PERIOD_EXTENDED'
   | 'SERVICE_RESTORED'
@@ -41,7 +42,7 @@ export function renderOverdueEmail(data: OverdueEmailData): RenderedEmailTemplat
       year: 'numeric',
       timeZone: 'Australia/Adelaide',
     }).format(value);
-  const content = copy[data.event];
+  const content = overdueCommunication(data);
   const details = [
     { label: 'Invoice', value: data.invoiceNumber },
     { label: 'Amount due', value: amount },
@@ -50,7 +51,14 @@ export function renderOverdueEmail(data: OverdueEmailData): RenderedEmailTemplat
   if (data.gracePeriodEndsAt) {
     details.push({
       label: 'Suspension date / grace period ends',
-      value: formatDate(data.gracePeriodEndsAt),
+      value:
+        data.event === 'RECOVERY_FINAL_WARNING'
+          ? new Intl.DateTimeFormat('en-AU', {
+              dateStyle: 'long',
+              timeStyle: 'short',
+              timeZone: 'Australia/Adelaide',
+            }).format(data.gracePeriodEndsAt)
+          : formatDate(data.gracePeriodEndsAt),
     });
   }
   if (data.suspendedAt) {
@@ -65,7 +73,8 @@ export function renderOverdueEmail(data: OverdueEmailData): RenderedEmailTemplat
     `Due date: ${formatDate(data.dueDate)}`,
     data.gracePeriodEndsAt ? `Grace period ends: ${formatDate(data.gracePeriodEndsAt)}` : '',
     '',
-    `Manage billing: ${data.dashboardUrl}`,
+    `${content.action}: ${data.dashboardUrl}`,
+    content.secondaryAction ? `View Invoice: ${data.dashboardUrl}` : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -83,8 +92,12 @@ export function renderOverdueEmail(data: OverdueEmailData): RenderedEmailTemplat
       reference: data.invoiceNumber,
       statusLabel: content.status,
       tone: content.tone,
+      emphasis: content.emphasis,
       details,
       action: { label: content.action, url: data.dashboardUrl },
+      secondaryAction: content.secondaryAction
+        ? { label: 'View Invoice', url: data.dashboardUrl }
+        : undefined,
       note: content.note,
     }),
   };
@@ -100,6 +113,8 @@ const copy: Record<
     intro: string;
     action: string;
     note: string;
+    emphasis?: 'strong' | 'critical';
+    secondaryAction?: boolean;
   }
 > = {
   FIRST_REMINDER: {
@@ -129,6 +144,17 @@ const copy: Record<
       'Please pay by the suspension date shown below to avoid suspension of your internet service.',
     action: 'Pay now',
     note: 'A processing payment will be checked before suspension.',
+  },
+  RECOVERY_FINAL_WARNING: {
+    subject: 'Final payment notice',
+    title: 'Final payment notice',
+    status: 'FINAL NOTICE',
+    tone: 'danger',
+    intro: 'Your original payment grace period has ended.',
+    action: 'Pay Now',
+    note: 'A processing payment will be checked before suspension.',
+    emphasis: 'critical',
+    secondaryAction: true,
   },
   MANUAL_REMINDER: {
     subject: 'Payment reminder from Mero Telecom',
@@ -225,3 +251,83 @@ const copy: Record<
     note: 'Provisioning can take additional processing time. We will retain the request if the provider needs a retry.',
   },
 };
+
+export function overdueCommunication(
+  data: Pick<
+    OverdueEmailData,
+    'event' | 'amountCents' | 'currency' | 'invoiceNumber' | 'gracePeriodEndsAt'
+  >,
+): (typeof copy)[OverdueEmailEvent] {
+  if (['FINAL_WARNING', 'RECOVERY_FINAL_WARNING'].includes(data.event) && !data.gracePeriodEndsAt) {
+    throw new Error('Final payment warnings require a calculated suspension date.');
+  }
+  const content = { ...copy[data.event] };
+  const amount = new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: data.currency,
+  }).format(data.amountCents / 100);
+  const date = data.gracePeriodEndsAt
+    ? new Intl.DateTimeFormat('en-AU', {
+        dateStyle: 'long',
+        timeStyle: data.event === 'RECOVERY_FINAL_WARNING' ? 'short' : undefined,
+        timeZone: 'Australia/Adelaide',
+      }).format(data.gracePeriodEndsAt)
+    : 'the updated payment deadline';
+  switch (data.event) {
+    case 'FIRST_REMINDER':
+      return {
+        ...content,
+        subject: `Payment reminder — Invoice ${data.invoiceNumber} is overdue`,
+        intro: `Your payment of ${amount} is overdue. Please make payment at your earliest convenience to keep your account up to date.`,
+        status: 'First reminder',
+        action: 'Pay Now',
+        secondaryAction: true,
+      };
+    case 'SECOND_REMINDER':
+      return {
+        ...content,
+        subject: 'Action required — your Mero Telecom payment is still overdue',
+        title: 'Payment required — invoice still overdue',
+        intro: `Your overdue balance of ${amount} is still unpaid. Please make payment promptly to avoid interruption to your Mero Telecom service.`,
+        status: 'Urgent payment reminder',
+        emphasis: 'strong',
+        action: 'Pay Now',
+        secondaryAction: true,
+      };
+    case 'FINAL_WARNING':
+      return {
+        ...content,
+        subject: `FINAL NOTICE — service suspension scheduled for ${date}`,
+        title: 'Final notice — service suspension approaching',
+        intro: `Your overdue balance of ${amount} remains unpaid. Your internet service is scheduled for suspension on ${date} unless payment is received. Pay now to avoid service interruption.`,
+        status: 'FINAL NOTICE',
+        emphasis: 'critical',
+        action: 'Pay Now',
+        secondaryAction: true,
+      };
+    case 'RECOVERY_FINAL_WARNING':
+      return {
+        ...content,
+        intro: `Your payment remains overdue and your original payment grace period has ended. To give you a final opportunity to make payment, your service will remain active until ${date}. Please make payment before this date to avoid service suspension.`,
+      };
+    case 'SERVICE_SUSPENDED':
+      return {
+        ...content,
+        intro: `Your Mero Telecom service has been suspended because your overdue balance of ${amount} remains unpaid. Make payment to begin service restoration.`,
+        status: 'SERVICE SUSPENDED',
+        emphasis: 'critical',
+        action: 'Pay Outstanding Balance',
+      };
+    case 'GRACE_PERIOD_EXTENDED':
+      return {
+        ...content,
+        subject: 'Payment deadline extended',
+        title: 'Payment deadline extended',
+        action: 'Pay Now',
+        secondaryAction: true,
+        intro: `Your payment deadline has been extended until ${date}. Your service will remain active until this deadline. Please make payment before this date to avoid service suspension.`,
+      };
+    default:
+      return content;
+  }
+}

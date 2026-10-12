@@ -26,6 +26,8 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.service';
 import { StripeClientService } from '../payments/stripe-client.service';
 import { NotificationService } from '../notifications/notification.service';
+import { CollectionPolicyService } from './collection-policy.service';
+import { payableCents, suspensionDate, collectionExtension } from './collection-deadline';
 import { CollectionService } from './collection.service';
 import { PaymentEligibilityService } from './payment-eligibility.service';
 import { ProvisioningService } from './provisioning.service';
@@ -75,6 +77,7 @@ export class SubscriptionLifecycleService {
     private readonly dashboardCache: AdminDashboardCacheService,
     stripeClient?: StripeClientService,
     @Optional() private readonly collections?: CollectionService,
+    @Optional() private readonly collectionPolicy?: CollectionPolicyService,
   ) {
     this.stripe = stripeClient?.client;
     const lifecycle = config.getOrThrow('overdueLifecycle');
@@ -331,6 +334,7 @@ export class SubscriptionLifecycleService {
       );
     const updated = await this.prisma.$transaction(
       async (transaction) => {
+        await transaction.$queryRaw`SELECT "id" FROM "Subscription" WHERE "id" = CAST(${id} AS uuid) FOR UPDATE`;
         const subscription = await transaction.subscription.findUnique({ where: { id } });
         if (!subscription) throw new NotFoundException('Subscription not found.');
         if (
@@ -343,11 +347,39 @@ export class SubscriptionLifecycleService {
             'Only an active service with an overdue grace period can have its grace extended.',
           );
         }
-        const gracePeriodEndsAt = addUtcDays(subscription.gracePeriodEndsAt, days);
-        const terminationOffsetDays = Math.max(0, this.terminationDays - this.gracePeriodDays);
-        const eligibleForTerminationAt = subscription.eligibleForTerminationAt
-          ? addUtcDays(subscription.eligibleForTerminationAt, days)
-          : addUtcDays(gracePeriodEndsAt, terminationOffsetDays);
+        const policy = await this.collectionPolicy!.get(transaction);
+        const overdueInvoices = (
+          await transaction.invoice.findMany({
+            where: {
+              subscriptionId: id,
+              status: { in: ['ISSUED', 'OVERDUE'] },
+              dueDate: { lt: new Date() },
+            },
+            include: { payments: true },
+          })
+        ).filter((invoice) => payableCents(invoice) > 0);
+        if (!overdueInvoices.length)
+          throw new BadRequestException(
+            'No outstanding overdue invoice requires a grace extension.',
+          );
+        const previousEndsAt = new Date(
+          Math.min(
+            ...overdueInvoices.map((invoice) =>
+              suspensionDate(
+                invoice,
+                collectionExtension(subscription.graceExtendedUntil, overdueInvoices),
+                policy,
+                this.collectionPolicy!.dayMilliseconds,
+              ).getTime(),
+            ),
+          ),
+        );
+        const gracePeriodEndsAt = addUtcDays(
+          new Date(Math.max(Date.now(), previousEndsAt.getTime())),
+          days,
+        );
+        const terminationOffsetDays = Math.max(0, this.terminationDays - policy.suspensionDays);
+        const eligibleForTerminationAt = addUtcDays(gracePeriodEndsAt, terminationOffsetDays);
         const changed = await transaction.subscription.updateMany({
           where: {
             id,
@@ -376,17 +408,34 @@ export class SubscriptionLifecycleService {
             metadata: {
               days,
               reason,
-              previousEndsAt: subscription.gracePeriodEndsAt,
+              previousEndsAt,
               gracePeriodEndsAt,
               previousEligibleForTerminationAt: subscription.eligibleForTerminationAt,
               eligibleForTerminationAt,
             },
           },
         });
-        const invoice = await transaction.invoice.findFirst({
-          where: { subscriptionId: id, status: InvoiceStatus.OVERDUE },
-          orderBy: { dueDate: 'asc' },
-        });
+        for (const current of overdueInvoices) {
+          const original =
+            current.originalSuspensionDeadline ??
+            new Date(
+              current.dueDate.getTime() +
+                policy.suspensionDays * this.collectionPolicy!.dayMilliseconds,
+            );
+          await transaction.invoice.update({
+            where: { id: current.id },
+            data: {
+              originalSuspensionDeadline: original,
+              suspensionScheduledAt: suspensionDate(
+                { ...current, originalSuspensionDeadline: original },
+                gracePeriodEndsAt,
+                policy,
+                this.collectionPolicy!.dayMilliseconds,
+              ),
+            },
+          });
+        }
+        const invoice = overdueInvoices[0];
         if (invoice)
           await transaction.auditLog.create({
             data: {

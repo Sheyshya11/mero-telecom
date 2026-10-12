@@ -79,6 +79,7 @@ export interface CreateInAppNotificationInput {
   entityId?: string | null;
   metadata?: Prisma.InputJsonValue;
   deduplicationKey?: string | null;
+  refreshExisting?: boolean;
 }
 
 const notificationSelect = {
@@ -97,6 +98,22 @@ const notificationSelect = {
   updatedAt: true,
 } satisfies Prisma.NotificationSelect;
 
+type NotificationRecord = Prisma.NotificationGetPayload<{ select: typeof notificationSelect }>;
+
+// Keep the original communication as history; settlement is a separate, live state.
+const invoicePaymentNoticeTypes = new Set([
+  'INVOICE_CREATED',
+  'INVOICE_DUE',
+  'INVOICE_OVERDUE',
+  'PAYMENT_FAILED',
+  'PAYMENT_REMINDER',
+  'FINAL_PAYMENT_WARNING',
+  'PAYMENT_GRACE_PERIOD_EXTENDED',
+  'SERVICE_SUSPENSION_WARNING',
+  'SERVICE_SUSPENDED',
+]);
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class InAppNotificationService {
   constructor(private readonly prisma: PrismaService) {}
@@ -114,6 +131,17 @@ export class InAppNotificationService {
         where: { userId: data.userId, deduplicationKey: data.deduplicationKey },
         select: notificationSelect,
       });
+      if (existing && input.refreshExisting)
+        return this.prisma.notification.update({
+          where: { id: existing.id },
+          data: {
+            title: data.title,
+            message: data.message,
+            actionUrl: data.actionUrl,
+            metadata: data.metadata,
+          },
+          select: notificationSelect,
+        });
       if (existing) return existing;
     }
     throw new BadRequestException('The notification could not be created.');
@@ -186,7 +214,10 @@ export class InAppNotificationService {
       }),
       this.prisma.notification.count({ where }),
     ]);
-    return { data, meta: buildPaginationMeta(query, total) };
+    return {
+      data: await this.withInvoiceResolution(data, userId),
+      meta: buildPaginationMeta(query, total),
+    };
   }
 
   async getUnreadCount(userId: string) {
@@ -230,6 +261,90 @@ export class InAppNotificationService {
       data: { isRead: true, readAt: resolvedAt },
     });
     return { updatedCount: updated.count };
+  }
+
+  private async withInvoiceResolution(notifications: NotificationRecord[], userId: string) {
+    const references = notifications
+      .filter((notification) => invoicePaymentNoticeTypes.has(notification.type))
+      .map((notification) => {
+        const metadata = notification.metadata;
+        const invoiceReference =
+          notification.entityType === 'Invoice'
+            ? notification.entityId
+            : metadata &&
+                typeof metadata === 'object' &&
+                !Array.isArray(metadata) &&
+                typeof metadata.invoiceId === 'string'
+              ? metadata.invoiceId
+              : null;
+        const paymentId =
+          notification.entityType === 'Payment' &&
+          notification.entityId &&
+          uuidPattern.test(notification.entityId)
+            ? notification.entityId
+            : null;
+        return { notificationId: notification.id, invoiceReference, paymentId };
+      })
+      .filter(({ invoiceReference, paymentId }) => invoiceReference || paymentId);
+    if (references.length === 0) return notifications;
+
+    const invoiceReferences = [
+      ...new Set(
+        references.flatMap(({ invoiceReference }) => (invoiceReference ? [invoiceReference] : [])),
+      ),
+    ];
+    const paymentIds = [
+      ...new Set(references.flatMap(({ paymentId }) => (paymentId ? [paymentId] : []))),
+    ];
+    // One owner-scoped query per page also repairs the display of historical notices.
+    // PAID is authoritative: partial/pending/failed payments do not resolve a notice.
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        customer: { userId },
+        status: { in: ['PAID', 'CANCELLED'] },
+        OR: [
+          { id: { in: invoiceReferences.filter((reference) => uuidPattern.test(reference)) } },
+          { invoiceNumber: { in: invoiceReferences } },
+          { payments: { some: { id: { in: paymentIds } } } },
+        ],
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        status: true,
+        paidAt: true,
+        updatedAt: true,
+        payments: { where: { id: { in: paymentIds } }, select: { id: true } },
+      },
+    });
+    const byReference = new Map(
+      invoices.flatMap((invoice) => [
+        [invoice.id, invoice] as const,
+        [invoice.invoiceNumber, invoice] as const,
+        ...invoice.payments.map((payment) => [payment.id, invoice] as const),
+      ]),
+    );
+    const resolutions = new Map(
+      references.map((reference) => [
+        reference.notificationId,
+        byReference.get(reference.invoiceReference ?? '') ??
+          byReference.get(reference.paymentId ?? ''),
+      ]),
+    );
+    return notifications.map((notification) => {
+      const invoice = resolutions.get(notification.id);
+      if (!invoice) return notification;
+      return {
+        ...notification,
+        actionUrl: '/customer/invoices?invoiceId=' + invoice.id,
+        invoiceResolution: {
+          status: invoice.status as 'PAID' | 'CANCELLED',
+          invoiceId: invoice.id,
+          resolvedAt:
+            invoice.status === 'PAID' ? (invoice.paidAt ?? invoice.updatedAt) : invoice.updatedAt,
+        },
+      };
+    });
   }
 
   private async assertRecipientsExist(userIds: readonly string[]): Promise<void> {
@@ -319,6 +434,6 @@ export class InAppNotificationService {
       select: notificationSelect,
     });
     if (!notification) throw new NotFoundException('Notification not found.');
-    return notification;
+    return (await this.withInvoiceResolution([notification], userId))[0];
   }
 }

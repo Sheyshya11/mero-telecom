@@ -26,7 +26,8 @@
     "db:recover-super-admin": "pnpm --filter @mero-telecom/api db:recover-super-admin",
     "db:recover-admin": "pnpm --filter @mero-telecom/api db:recover-admin",
     "db:seed:demo": "pnpm --filter @mero-telecom/api db:seed:demo",
-    "db:reset": "pnpm --filter @mero-telecom/api db:reset"
+    "db:reset": "pnpm --filter @mero-telecom/api db:reset",
+    "db:seed:overdue": "pnpm --filter @mero-telecom/api db:seed:overdue"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",

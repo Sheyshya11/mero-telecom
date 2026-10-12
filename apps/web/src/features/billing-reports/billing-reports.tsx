@@ -16,7 +16,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import { ApiError, absoluteApiUrl, apiRequest } from '../../lib/api/client';
+import { ApiError, apiRequest } from '../../lib/api/client';
 import { chartColors, chartTooltipStyle } from '../../lib/chart-theme';
 import { useAuth } from '../auth/auth-provider';
 
@@ -278,7 +278,7 @@ export function BillingReports() {
       const exportParams = new URLSearchParams(queryString);
       exportParams.set('format', format);
       const response = await fetch(
-        absoluteApiUrl(`/admin/billing/reports/${endpoint}/export?${exportParams}`),
+        `/api/admin/billing/reports/${endpoint}/export?${exportParams}`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
           credentials: 'include',
@@ -290,7 +290,17 @@ export function BillingReports() {
           | undefined;
         throw new ApiError(body?.message ?? 'The report could not be exported.', response.status);
       }
-      const blob = await response.blob();
+      const responseBlob = await response.blob();
+      const contentType = response.headers.get('X-Report-Content-Type');
+      const blob = contentType
+        ? responseBlob.slice(0, responseBlob.size, contentType)
+        : responseBlob;
+      if (blob.size === 0) {
+        throw new ApiError('The exported report was empty. Please try again.', 502);
+      }
+      if (format === 'pdf' && (await blob.slice(0, 5).text()) !== '%PDF-') {
+        throw new ApiError('The exported report was not a valid PDF. Please try again.', 502);
+      }
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -298,7 +308,7 @@ export function BillingReports() {
       document.body.append(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
     } catch (reason) {
       setExportError(
         reason instanceof ApiError

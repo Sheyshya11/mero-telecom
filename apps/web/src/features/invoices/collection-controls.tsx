@@ -1,7 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/api/client';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '../../components/ui/alert-dialog';
 import { useAuth } from '../auth/auth-provider';
 
 type Policy = {
@@ -114,31 +124,106 @@ type Invoice = {
   collectionStage?: string;
   suspensionScheduledAt?: string | null;
   outstandingCents?: number;
+  effectiveSuspensionDeadline?: string | null;
+  recoveryFinalWarningSentAt?: string | null;
+  recoverySuspensionDeadline?: string | null;
 };
+const collectionHistoryLabels: Record<string, string> = {
+  ORIGINAL_GRACE_EXPIRED: 'Original payment grace period expired',
+  FINAL_WARNING_MISSED: 'Final warning was missed',
+  RECOVERY_SAFETY_EXTENSION: 'One-time 48-hour safety extension granted',
+  RECOVERY_FINAL_WARNING_SENT: 'Recovery final payment notice sent',
+  COLLECTION_HOLD_CREATED: 'Collection placed on hold',
+  COLLECTION_HOLD_UPDATED: 'Collection hold updated',
+  COLLECTION_HOLD_RELEASED: 'Collection hold released',
+  COLLECTION_HOLD_EXPIRED: 'Collection hold expired',
+  COLLECTION_DATA_REVIEW_REQUIRED: 'Collection records require billing review',
+  FIRST_REMINDER_SENT: 'First payment reminder sent',
+  SECOND_REMINDER_SENT: 'Urgent payment reminder sent',
+  FINAL_WARNING_SENT: 'Final suspension warning sent',
+  SUSPENSION_SCHEDULED: 'Automatic suspension scheduled',
+  SERVICE_SUSPENDED_SENT: 'Service suspended notification sent',
+  MANUAL_PAYMENT_REMINDER_SENT: 'Manual payment reminder sent',
+  GRACE_PERIOD_EXTENDED: 'Payment grace period extended',
+  GRACE_PERIOD_EXTENSION_NOTIFICATION: 'Payment deadline extension notification',
+};
+const collectionDate = (value: string, includeTime = false) =>
+  new Intl.DateTimeFormat('en-AU', {
+    dateStyle: 'long',
+    timeStyle: includeTime ? 'short' : undefined,
+    timeZone: 'Australia/Adelaide',
+  }).format(new Date(value));
+function currentSuspensionDate(invoice: Invoice, graceEndsAt: string | null) {
+  if (invoice.effectiveSuspensionDeadline) return invoice.effectiveSuspensionDeadline;
+  const dates = [invoice.suspensionScheduledAt, graceEndsAt].filter((value): value is string =>
+    Boolean(value),
+  );
+  return dates.length
+    ? new Date(Math.max(...dates.map((value) => new Date(value).getTime()))).toISOString()
+    : null;
+}
 type History = {
   id: string;
   action: string;
   createdAt: string;
   actorUserId: string | null;
   notificationDeliveredAt?: string | null;
+  metadata?: {
+    notificationOutcome?: string;
+    reason?: string;
+    recoveryDeadline?: string;
+    originalDeadline?: string;
+    notes?: string | null;
+    holdReason?: string | null;
+    newDeadline?: string | null;
+    previousDeadline?: string | null;
+  };
 };
+export type CollectionHoldState = {
+  status: 'NONE' | 'ACTIVE' | 'ON_HOLD' | 'RESOLVED';
+  canPlace: boolean;
+  canUpdate: boolean;
+  canRelease: boolean;
+  active: boolean;
+  collectibleCents: number;
+  message: string;
+  reason?: string | null;
+  notes?: string | null;
+  until?: string | null;
+};
+const localHoldDate = (value?: string | null) =>
+  value
+    ? new Date(new Date(value).getTime() - new Date(value).getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16)
+    : '';
 export function CollectionControls({
   subscriptionId,
   invoices,
   graceEndsAt,
   holdReason,
+  collectionHold,
 }: {
   subscriptionId: string;
   invoices: Invoice[];
   graceEndsAt: string | null;
   holdReason?: string | null;
+  collectionHold?: CollectionHoldState;
 }) {
   const { accessToken, user } = useAuth();
   const client = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [days, setDays] = useState(3);
   const [reason, setReason] = useState('');
-  const [hold, setHold] = useState(holdReason ?? '');
+  const [hold, setHold] = useState(collectionHold?.reason ?? holdReason ?? '');
+  const [holdNotes, setHoldNotes] = useState(collectionHold?.notes ?? '');
+  const [holdUntil, setHoldUntil] = useState(localHoldDate(collectionHold?.until));
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  useEffect(() => {
+    setHold(collectionHold?.reason ?? holdReason ?? '');
+    setHoldNotes(collectionHold?.notes ?? '');
+    setHoldUntil(localHoldDate(collectionHold?.until));
+  }, [collectionHold?.reason, collectionHold?.notes, collectionHold?.until, holdReason]);
   const history = useQuery({
     queryKey: ['collection-history', subscriptionId],
     queryFn: () =>
@@ -156,6 +241,7 @@ export function CollectionControls({
       await Promise.all([
         client.invalidateQueries({ queryKey: ['subscriptions'] }),
         client.invalidateQueries({ queryKey: ['collection-history', subscriptionId] }),
+        client.invalidateQueries({ queryKey: ['customer-collections'] }),
       ]);
     },
   });
@@ -179,11 +265,25 @@ export function CollectionControls({
             )}{' '}
             days overdue
           </p>
-          <p>Collection stage: {(invoice.collectionStage ?? 'NONE').replaceAll('_', ' ')}</p>
+          <p>
+            Collection stage:{' '}
+            {invoice.recoveryFinalWarningSentAt
+              ? 'RECOVERY FINAL WARNING'
+              : (invoice.collectionStage ?? 'NONE').replaceAll('_', ' ')}
+          </p>
+          {invoice.recoverySuspensionDeadline ? (
+            <p>
+              Your original grace period expired. A one-time final payment opportunity has been
+              granted.
+            </p>
+          ) : null}
           {invoice.suspensionScheduledAt ? (
             <p>
               Suspension scheduled:{' '}
-              {new Date(invoice.suspensionScheduledAt).toLocaleDateString('en-AU')}
+              {collectionDate(
+                currentSuspensionDate(invoice, graceEndsAt)!,
+                Boolean(invoice.recoverySuspensionDeadline),
+              )}
             </p>
           ) : null}
           <button
@@ -250,40 +350,142 @@ export function CollectionControls({
             Extend grace period
           </button>
           <p className="w-full text-xs text-muted-foreground">
-            Current: {new Date(graceEndsAt).toLocaleDateString('en-AU')} · New:{' '}
-            {new Date(new Date(graceEndsAt).getTime() + days * 86_400_000).toLocaleDateString(
-              'en-AU',
+            Current: {collectionDate(graceEndsAt)} · New:{' '}
+            {collectionDate(
+              new Date(
+                Math.max(Date.now(), new Date(graceEndsAt).getTime()) + days * 86_400_000,
+              ).toISOString(),
             )}
           </p>
         </form>
       ) : null}
-      {admin ? (
-        <form
-          className="flex flex-wrap items-end gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            action.mutate({
-              url: `/collections/subscriptions/${subscriptionId}/hold`,
-              method: 'PUT',
-              body: { reason: hold },
-            });
-          }}
-        >
-          <label>
-            Collection hold reason (blank to release)
-            <input
-              aria-label="Collection hold reason"
-              className="block rounded border border-border bg-background p-2"
-              maxLength={1000}
-              value={hold}
-              onChange={(event) => setHold(event.target.value)}
-            />
-          </label>
-          <button className="button-secondary" disabled={action.isPending} type="submit">
-            Save hold
-          </button>
-        </form>
-      ) : null}
+      <section aria-label="Collection hold" className="rounded border border-border p-3">
+        <h3 className="font-semibold">Collection hold</h3>
+        <p>
+          {collectionHold?.active
+            ? 'On hold'
+            : collectionHold?.status === 'RESOLVED'
+              ? 'Collection resolved'
+              : collectionHold?.canPlace
+                ? 'Available'
+                : 'Unavailable'}
+        </p>
+        <p className="text-muted-foreground">
+          {collectionHold?.message ??
+            'Collection hold is only available when the account has an unresolved overdue balance.'}
+        </p>
+        {collectionHold?.active ? (
+          <>
+            <p>Reason: {collectionHold.reason}</p>
+            <p>
+              Until:{' '}
+              {collectionHold.until ? collectionDate(collectionHold.until, true) : 'Until released'}
+            </p>
+            {collectionHold.notes ? <p>Notes: {collectionHold.notes}</p> : null}
+          </>
+        ) : null}
+        {admin && (collectionHold?.canPlace || collectionHold?.canUpdate) ? (
+          <form
+            className="mt-3 flex flex-wrap items-end gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              action.mutate({
+                url: `/collections/subscriptions/${subscriptionId}/hold`,
+                method: 'PUT',
+                body: {
+                  reason: hold.trim(),
+                  notes: holdNotes.trim() || null,
+                  holdUntil: holdUntil ? new Date(holdUntil).toISOString() : null,
+                },
+              });
+            }}
+          >
+            <label>
+              Reason
+              <input
+                aria-label="Collection hold reason"
+                className="block rounded border border-border bg-background p-2"
+                required
+                minLength={3}
+                maxLength={1000}
+                value={hold}
+                onChange={(event) => setHold(event.target.value)}
+              />
+            </label>
+            <label>
+              Notes
+              <textarea
+                aria-label="Collection hold notes"
+                className="block rounded border border-border bg-background p-2"
+                maxLength={2000}
+                value={holdNotes}
+                onChange={(event) => setHoldNotes(event.target.value)}
+              />
+            </label>
+            <label>
+              Hold until (optional)
+              <input
+                aria-label="Hold until"
+                type="datetime-local"
+                className="block rounded border border-border bg-background p-2"
+                value={holdUntil}
+                onChange={(event) => setHoldUntil(event.target.value)}
+              />
+            </label>
+            <button
+              className="button-secondary"
+              disabled={
+                action.isPending ||
+                hold.trim().length < 3 ||
+                Boolean(holdUntil && new Date(holdUntil) <= new Date())
+              }
+              type="submit"
+            >
+              Save hold
+            </button>
+            <p className="w-full text-xs text-muted-foreground">
+              Pauses automated reminders and billing suspension. Service status and the outstanding
+              balance remain unchanged.
+            </p>
+          </form>
+        ) : null}
+        {admin && collectionHold?.canRelease ? (
+          <>
+            <button
+              type="button"
+              className="button-secondary mt-3"
+              disabled={action.isPending}
+              onClick={() => setReleaseOpen(true)}
+            >
+              Release hold
+            </button>
+            <AlertDialog open={releaseOpen} onOpenChange={setReleaseOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Release collection hold?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    The collection service will recheck the balance and safely resume overdue
+                    processing. Releasing this hold does not restore a suspended service.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep hold</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() =>
+                      action.mutate({
+                        url: `/collections/subscriptions/${subscriptionId}/hold/release`,
+                        body: { confirmed: true },
+                      })
+                    }
+                  >
+                    Confirm release
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        ) : null}
+      </section>
       {action.isError ? <p role="alert">{action.error.message}</p> : null}
       {action.isSuccess ? <p role="status">Collection action recorded.</p> : null}
       <button
@@ -300,14 +502,46 @@ export function CollectionControls({
           <ul className="space-y-1">
             {history.data?.map((entry) => (
               <li key={entry.id}>
-                {new Date(entry.createdAt).toLocaleString('en-AU')} ·{' '}
-                {entry.action.replaceAll('_', ' ')}
+                {entry.notificationDeliveredAt ? '✓ ' : '○ '}
+                {collectionDate(entry.notificationDeliveredAt ?? entry.createdAt)} ·{' '}
+                {entry.metadata?.notificationOutcome === 'SKIPPED'
+                  ? `${entry.action.replaceAll('_SENT', '').replaceAll('_', ' ')} skipped (${entry.metadata.reason?.replaceAll('_', ' ') ?? 'no longer applicable'})`
+                  : (collectionHistoryLabels[entry.action] ?? entry.action.replaceAll('_', ' '))}
+                {entry.metadata?.recoveryDeadline
+                  ? ` · Final deadline: ${collectionDate(entry.metadata.recoveryDeadline, true)}`
+                  : ''}
                 {entry.action.endsWith('_SENT') && !entry.notificationDeliveredAt
                   ? ' (delivery queued)'
                   : ''}
+                {entry.action.startsWith('COLLECTION_HOLD_') ? (
+                  <span className="block pl-4">
+                    {entry.metadata?.holdReason ?? entry.metadata?.reason}
+                    {entry.metadata?.notes ? ` · Notes: ${entry.metadata.notes}` : ''}
+                    {entry.metadata?.newDeadline
+                      ? ` · Until: ${collectionDate(entry.metadata.newDeadline, true)}`
+                      : ''}
+                  </span>
+                ) : null}
                 {entry.actorUserId ? ' · Staff action' : ' · Automated'}
               </li>
             ))}
+            {invoices
+              .filter((invoice) =>
+                ['FINAL_WARNING', 'SUSPENSION_SCHEDULED'].includes(invoice.collectionStage ?? ''),
+              )
+              .map((invoice) => {
+                const date = currentSuspensionDate(invoice, graceEndsAt);
+                return date ? (
+                  <li
+                    key={`schedule-${invoice.id}`}
+                    className="font-semibold text-warning-foreground"
+                  >
+                    ○ {collectionDate(date)} · Automatic suspension scheduled ·{' '}
+                    {invoice.invoiceNumber}
+                    {collectionHold?.active ? ' (paused by collection hold)' : ''}
+                  </li>
+                ) : null;
+              })}
           </ul>
         )
       ) : null}

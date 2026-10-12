@@ -21,6 +21,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 
 import { CustomerOwnership } from '../../common/decorators/customer-ownership.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -31,7 +32,11 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
-import { UpdateCustomerDto, UpdateOwnCustomerDto } from './dto/update-customer.dto';
+import {
+  ChangeOwnEmailDto,
+  UpdateCustomerDto,
+  UpdateOwnCustomerDto,
+} from './dto/update-customer.dto';
 import { CustomersService } from './customers.service';
 import type {
   CustomerCreationResponse,
@@ -95,6 +100,19 @@ export class CustomersController {
     @Body() input: UpdateOwnCustomerDto,
   ): Promise<CustomerResponse> {
     return this.customersService.updateOwn(user.id, input);
+  }
+
+  @Patch('me/email')
+  @Roles(Role.CUSTOMER)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Change your own customer and login email after password confirmation.',
+  })
+  changeOwnEmail(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() input: ChangeOwnEmailDto,
+  ): Promise<CustomerResponse> {
+    return this.customersService.changeOwnEmail(user, input);
   }
 
   @Get(':customerId')

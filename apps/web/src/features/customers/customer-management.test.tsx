@@ -98,4 +98,18 @@ describe('CustomerManagement', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Edit customer' })).not.toBeInTheDocument();
   });
+  it('keeps an existing email read-only while other admin fields remain editable', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    expect(screen.getByLabelText('Email')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('First name')).not.toHaveAttribute('readonly');
+    expect(screen.getByText(/Only the customer can change this email/)).toBeInTheDocument();
+  });
+  it('allows an initial email when creating a new customer', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'New customer' }));
+    expect(screen.getByLabelText('Email')).not.toHaveAttribute('readonly');
+  });
 });

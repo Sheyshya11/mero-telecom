@@ -688,3 +688,59 @@ describe('AccountLedgerService', () => {
     });
   });
 });
+
+describe('Collection balance credit preview', () => {
+  it('spends customer credit once, respects service scope and leaves pending payments untouched', async () => {
+    const invoices = [
+      {
+        id: 'a',
+        subscriptionId: 'one',
+        totalCents: 100,
+        payments: [{ status: PaymentStatus.SUCCEEDED, amountCents: 20 }],
+      },
+      { id: 'b', subscriptionId: 'one', totalCents: 100, payments: [] },
+      { id: 'c', subscriptionId: 'two', totalCents: 100, payments: [] },
+      {
+        id: 'd',
+        subscriptionId: 'one',
+        totalCents: 100,
+        payments: [{ status: PaymentStatus.PROCESSING, amountCents: 100 }],
+      },
+    ];
+    const prisma = {
+      invoice: { findMany: jest.fn().mockResolvedValue(invoices) },
+      accountTransaction: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'global', subscriptionId: null, remainingAmountCents: 100, applications: [] },
+          { id: 'scoped', subscriptionId: 'two', remainingAmountCents: 50, applications: [] },
+        ]),
+      },
+    };
+    const { service, createBalanceTransaction } = serviceWith(prisma);
+    const balances = await service.previewCollectionBalances(prisma as never, [
+      { customerId },
+      { customerId },
+    ]);
+    expect([...balances]).toEqual([
+      ['a', 0],
+      ['b', 80],
+      ['c', 50],
+      ['d', 100],
+    ]);
+    expect(prisma.invoice.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.invoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: 'MANUAL', status: { in: ['ISSUED', 'OVERDUE'] } }),
+      }),
+    );
+    expect(prisma.accountTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          stripeSyncStatus: StripeSyncStatus.NOT_REQUIRED,
+          remainingAmountCents: { gt: 0 },
+        }),
+      }),
+    );
+    expect(createBalanceTransaction).not.toHaveBeenCalled();
+  });
+});

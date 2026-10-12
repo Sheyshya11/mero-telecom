@@ -535,7 +535,7 @@ describe('NotificationService', () => {
       expect.objectContaining({
         type: 'INVOICE_PAID',
         severity: NotificationSeverity.SUCCESS,
-        actionUrl: '/customer/invoices',
+        actionUrl: '/customer/invoices?invoiceId=invoice-id',
       }),
     );
 
@@ -594,4 +594,58 @@ describe('NotificationService', () => {
     );
     expect(JSON.stringify(inApp.createForRoles.mock.calls)).not.toContain('Provider details');
   });
+});
+
+describe('Central overdue notification presentation', () => {
+  it.each([
+    ['FIRST_REMINDER', 'PAYMENT_REMINDER', 'WARNING', 'Payment overdue'],
+    ['SECOND_REMINDER', 'PAYMENT_REMINDER', 'WARNING', 'Payment required — invoice still overdue'],
+    [
+      'FINAL_WARNING',
+      'FINAL_PAYMENT_WARNING',
+      'CRITICAL',
+      'Final notice — service suspension approaching',
+    ],
+    ['SERVICE_SUSPENDED', 'SERVICE_SUSPENDED', 'CRITICAL', 'Service suspended'],
+  ] as const)(
+    'preserves the severity and distinct stage for %s',
+    async (event, type, severity, title) => {
+      const { service, emailQueue, inApp } = createService();
+      await service.sendOverdueLifecycleNotification({
+        event,
+        subscriptionId: 'subscription-1',
+        invoiceId: 'invoice-1',
+        userId: 'customer-1',
+        customerEmail: 'sam@mero.test',
+        customerName: 'Sam',
+        invoiceNumber: 'INV-001',
+        amountCents: 7990,
+        currency: 'AUD',
+        dueDate: new Date('2026-10-01T00:00:00Z'),
+        gracePeriodEndsAt: new Date('2026-10-08T00:00:00Z'),
+        idempotencySuffix: 'audit-1',
+      });
+      expect(inApp.createNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type,
+          severity,
+          title,
+          message: expect.stringContaining('$79.90'),
+          actionUrl: '/customer/invoices?invoiceId=invoice-1',
+          metadata: expect.objectContaining({
+            collectionStage: event,
+            suspensionDate: '2026-10-08T00:00:00.000Z',
+          }),
+        }),
+      );
+      expect(emailQueue.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: expect.stringContaining('$79.90'),
+          html: expect.stringContaining('invoiceId=invoice-1'),
+        }),
+        expect.objectContaining({ purpose: event, invoiceId: 'invoice-1' }),
+        expect.any(String),
+      );
+    },
+  );
 });

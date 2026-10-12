@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
+  UnauthorizedException,
   Injectable,
   NotFoundException,
   Optional,
@@ -15,6 +17,7 @@ import {
   UserStatus,
 } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
+import { verifyPassword } from '../../common/security/password';
 
 import { PrismaService } from '../../database/prisma.service';
 import { buildPaginationMeta, dateRange } from '../../common/pagination';
@@ -24,7 +27,11 @@ import { AdminDashboardCacheService } from '../cache/admin-dashboard-cache.servi
 import { NotificationService } from '../notifications/notification.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
-import { UpdateCustomerDto, UpdateOwnCustomerDto } from './dto/update-customer.dto';
+import {
+  ChangeOwnEmailDto,
+  UpdateCustomerDto,
+  UpdateOwnCustomerDto,
+} from './dto/update-customer.dto';
 import {
   type CustomerResponse,
   type CustomerCreationResponse,
@@ -274,6 +281,13 @@ export class CustomersService {
       include: { user: true },
     });
     if (!existing) throw new NotFoundException('Customer not found.');
+    if (
+      input.email !== undefined &&
+      (typeof input.email !== 'string' ||
+        this.normalizeEmail(input.email) !== this.normalizeEmail(existing.email))
+    ) {
+      throw new ForbiddenException('Only the customer can change their email from My profile.');
+    }
     const requestedData = this.getUpdateData(actor.role, input);
 
     try {
@@ -411,6 +425,80 @@ export class CustomersService {
     return toCustomerResponse(result.updated);
   }
 
+  async changeOwnEmail(
+    actor: AuthenticatedUser,
+    input: ChangeOwnEmailDto,
+  ): Promise<CustomerResponse> {
+    if (!(actor.roles ?? [actor.role]).includes(Role.CUSTOMER) || !actor.sessionId) {
+      throw new ForbiddenException('Only the customer can change their own email.');
+    }
+    const email = this.normalizeEmail(input.newEmail);
+    try {
+      const updated = await this.prisma.$transaction(
+        async (transaction) => {
+          // Share the password-change lock so concurrent credential changes cannot use a stale password.
+          await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${actor.id}))`;
+          const user = await transaction.user.findUnique({
+            where: { id: actor.id },
+            include: { roles: { select: { role: true } }, customer: true },
+          });
+          if (
+            !user?.customer ||
+            !user.isActive ||
+            user.status !== UserStatus.ACTIVE ||
+            !user.passwordHash ||
+            !user.roles.some((r) => r.role === Role.CUSTOMER)
+          ) {
+            throw new UnauthorizedException('Customer account is unavailable.');
+          }
+          if (!(await verifyPassword(input.currentPassword, user.passwordHash)))
+            throw new BadRequestException('Current password is incorrect.');
+          if (email === user.email && email === user.customer.email)
+            throw new BadRequestException('Enter a different email address.');
+          await transaction.user.update({
+            where: { id: user.id },
+            data: { email, emailVerifiedAt: null },
+          });
+          await transaction.customer.update({ where: { id: user.customer.id }, data: { email } });
+          const now = new Date();
+          await transaction.refreshSession.updateMany({
+            where: { userId: user.id, id: { not: actor.sessionId }, revokedAt: null },
+            data: { revokedAt: now },
+          });
+          await transaction.passwordResetToken.updateMany({
+            where: { userId: user.id, usedAt: null, revokedAt: null },
+            data: { revokedAt: now },
+          });
+          await transaction.auditLog.create({
+            data: {
+              actorUserId: user.id,
+              action: 'CUSTOMER_EMAIL_CHANGED',
+              entityType: 'Customer',
+              entityId: user.customer.id,
+              metadata: {
+                actorType: 'SELF_SERVICE',
+                previousEmail: user.customer.email,
+                newEmail: email,
+                currentSessionRetained: true,
+              },
+            },
+          });
+          return transaction.customer.findUniqueOrThrow({
+            where: { id: user.customer.id },
+            include: customerAccountInclude,
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      );
+      await this.dashboardCache.invalidate();
+      return toCustomerResponse(updated);
+    } catch (error) {
+      if (this.isUniqueConstraintError(error))
+        throw new ConflictException('This email address is already in use.');
+      throw error;
+    }
+  }
+
   private getUpdateData(role: Role, input: UpdateCustomerDto): Prisma.CustomerUpdateInput {
     if (role === Role.SUPER_ADMIN || role === Role.ADMIN) {
       return {
@@ -420,7 +508,6 @@ export class CustomersService {
             : this.requiredText(input.firstName, 'First name'),
         lastName:
           input.lastName === undefined ? undefined : this.requiredText(input.lastName, 'Last name'),
-        email: input.email ? this.normalizeEmail(input.email) : undefined,
         phone: input.phone?.trim(),
         addressLine1:
           input.addressLine1 === undefined
@@ -447,11 +534,10 @@ export class CustomersService {
   }
 
   private userUpdateForCustomer(
-    user: { passwordHash: string | null; emailVerifiedAt: Date | null },
+    user: { status: UserStatus; passwordHash: string | null; emailVerifiedAt: Date | null },
     input: UpdateCustomerDto,
-  ): { email?: string; status?: UserStatus; isActive?: boolean } {
-    const data: { email?: string; status?: UserStatus; isActive?: boolean } = {};
-    if (input.email) data.email = this.normalizeEmail(input.email);
+  ): { status?: UserStatus; isActive?: boolean } {
+    const data: { status?: UserStatus; isActive?: boolean } = {};
     if (input.status === CustomerStatus.SUSPENDED) {
       data.status = UserStatus.SUSPENDED;
       data.isActive = false;
@@ -462,7 +548,9 @@ export class CustomersService {
       data.status = UserStatus.INVITATION_PENDING;
       data.isActive = false;
     } else if (input.status === CustomerStatus.ACTIVE) {
-      const canActivate = Boolean(user.passwordHash && user.emailVerifiedAt);
+      const canActivate = Boolean(
+        user.passwordHash && (user.status === UserStatus.ACTIVE || user.emailVerifiedAt),
+      );
       data.status = canActivate ? UserStatus.ACTIVE : UserStatus.INVITATION_PENDING;
       data.isActive = canActivate;
     }

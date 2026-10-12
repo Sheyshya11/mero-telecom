@@ -167,3 +167,45 @@
     width: auto;
   }
 }
+
+.stageLabel {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: hsl(var(--warning-foreground));
+}
+.item[data-collection-stage='SECOND_REMINDER'] {
+  border-left: 4px solid hsl(var(--warning-foreground));
+  background: hsl(var(--warning-subtle));
+}
+.item:is([data-collection-stage='FINAL_WARNING'], [data-collection-stage='RECOVERY_FINAL_WARNING']),
+.item[data-collection-stage='SERVICE_SUSPENDED'] {
+  border-left: 4px solid hsl(var(--destructive));
+  background: hsl(var(--destructive-subtle));
+}
+.item:is([data-collection-stage='FINAL_WARNING'], [data-collection-stage='RECOVERY_FINAL_WARNING'])
+  .stageLabel,
+.item[data-collection-stage='SERVICE_SUSPENDED'] .stageLabel {
+  color: hsl(var(--destructive-foreground));
+}
+.item:is([data-collection-stage='FINAL_WARNING'], [data-collection-stage='RECOVERY_FINAL_WARNING'])
+  .message,
+.item[data-collection-stage='SERVICE_SUSPENDED'] .message {
+  display: block;
+  color: hsl(var(--foreground));
+}
+.collectionAction {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.4rem;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.item[data-resolved='true'] .stageLabel {
+  color: hsl(var(--muted-foreground));
+}

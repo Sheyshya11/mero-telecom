@@ -51,6 +51,7 @@ import {
 } from './templates/cancellation-email.template';
 import {
   renderOverdueEmail,
+  overdueCommunication,
   type OverdueEmailData,
   type OverdueEmailEvent,
 } from './templates/overdue-email.template';
@@ -443,6 +444,7 @@ export class NotificationService {
         `${this.configService.getOrThrow('app').frontendUrl}/customer/invoices?invoiceId=${input.invoiceId ?? ''}`,
     });
     if (input.userId) {
+      const content = overdueCommunication(input);
       const customerDetails: Partial<
         Record<
           OverdueEmailEvent,
@@ -452,14 +454,14 @@ export class NotificationService {
         FIRST_REMINDER: {
           type: 'PAYMENT_REMINDER',
           severity: NotificationSeverity.WARNING,
-          title: 'Payment overdue',
-          message: `Your invoice of ${formatCollectionAmount(input)} is overdue. Please make payment to keep your account up to date.`,
+          title: content.title,
+          message: content.intro,
         },
         SECOND_REMINDER: {
           type: 'PAYMENT_REMINDER',
           severity: NotificationSeverity.WARNING,
-          title: 'Payment reminder',
-          message: `Your invoice of ${formatCollectionAmount(input)} remains unpaid. Please make payment to avoid service interruption.`,
+          title: content.title,
+          message: content.intro,
         },
         MANUAL_REMINDER: {
           type: 'PAYMENT_REMINDER',
@@ -470,14 +472,20 @@ export class NotificationService {
         FINAL_WARNING: {
           type: 'FINAL_PAYMENT_WARNING',
           severity: NotificationSeverity.CRITICAL,
-          title: 'Final payment warning',
-          message: `Your invoice of ${formatCollectionAmount(input)} remains unpaid. Please pay by ${formatCollectionDate(input.gracePeriodEndsAt)} to avoid suspension of your internet service.`,
+          title: content.title,
+          message: content.intro,
+        },
+        RECOVERY_FINAL_WARNING: {
+          type: 'FINAL_PAYMENT_WARNING',
+          severity: NotificationSeverity.CRITICAL,
+          title: content.title,
+          message: content.intro,
         },
         GRACE_PERIOD_EXTENDED: {
           type: 'PAYMENT_GRACE_PERIOD_EXTENDED',
           severity: NotificationSeverity.INFO,
-          title: 'Payment grace period extended',
-          message: `Your payment grace period has been extended until ${formatCollectionDate(input.gracePeriodEndsAt)}.`,
+          title: content.title,
+          message: content.intro,
         },
         SERVICE_RESTORED: {
           type: 'SERVICE_RESTORED',
@@ -500,8 +508,8 @@ export class NotificationService {
         SERVICE_SUSPENDED: {
           type: 'SERVICE_SUSPENDED',
           severity: NotificationSeverity.CRITICAL,
-          title: 'Service suspended',
-          message: 'Your internet service has been suspended.',
+          title: content.title,
+          message: content.intro,
         },
         SERVICE_RESTORATION_REQUESTED: {
           type: 'PAYMENT_SUCCESS',
@@ -522,12 +530,19 @@ export class NotificationService {
           {
             userId: input.userId,
             ...details,
+            refreshExisting: true,
             actionUrl:
               input.event === 'PAYMENT_FAILED'
                 ? '/customer/subscription'
                 : `/customer/invoices?invoiceId=${input.invoiceId ?? ''}`,
             entityType: 'Invoice',
             entityId: input.invoiceId ?? input.invoiceNumber,
+            metadata: {
+              collectionStage: input.event,
+              invoiceId: input.invoiceId ?? null,
+              suspensionDate: input.gracePeriodEndsAt?.toISOString() ?? null,
+              actionLabel: content.action,
+            },
             deduplicationKey:
               'lifecycle-' +
               input.subscriptionId +
@@ -544,6 +559,12 @@ export class NotificationService {
       { to: recipient, ...template },
       {
         purpose: input.event,
+        collectionEmail: {
+          brandLogoUrl: this.brandLogoUrl(),
+          dashboardUrl:
+            input.actionUrl ??
+            `${this.configService.getOrThrow('app').frontendUrl}/customer/invoices?invoiceId=${input.invoiceId ?? ''}`,
+        },
         subscriptionId: input.subscriptionId,
         ...(input.invoiceId ? { invoiceId: input.invoiceId } : {}),
       },
@@ -868,7 +889,7 @@ export class NotificationService {
       severity: NotificationSeverity.SUCCESS,
       title: 'Invoice paid',
       message: 'Your invoice has been paid successfully.',
-      actionUrl: '/customer/invoices',
+      actionUrl: '/customer/invoices?invoiceId=' + input.invoiceId,
       entityType: 'Invoice',
       entityId: input.invoiceId,
       deduplicationKey: 'invoice-paid-' + input.idempotencyKey,
@@ -1596,12 +1617,4 @@ function formatCollectionAmount(input: { amountCents: number; currency: string }
   return new Intl.NumberFormat('en-AU', { style: 'currency', currency: input.currency }).format(
     input.amountCents / 100,
   );
-}
-function formatCollectionDate(value?: Date | null) {
-  return value
-    ? new Intl.DateTimeFormat('en-AU', {
-        timeZone: 'Australia/Adelaide',
-        dateStyle: 'long',
-      }).format(value)
-    : 'the date shown in your invoice';
 }

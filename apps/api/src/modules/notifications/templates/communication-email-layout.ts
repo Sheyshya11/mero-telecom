@@ -23,6 +23,8 @@ interface CommunicationEmailLayoutInput {
   details?: CommunicationEmailDetail[];
   message?: string;
   action?: CommunicationEmailAction;
+  secondaryAction?: CommunicationEmailAction;
+  emphasis?: 'strong' | 'critical';
   internal?: boolean;
   note?: string;
 }
@@ -36,6 +38,12 @@ const tones = {
 
 export function renderCommunicationEmail(input: CommunicationEmailLayoutInput): string {
   const tone = tones[input.tone ?? 'info'];
+  const emphasis = input.emphasis
+    ? `padding:18px;border-left:${input.emphasis === 'critical' ? 6 : 4}px solid ${tone.foreground};background:${tone.background};border-radius:8px;color:${tone.foreground};font-weight:600;`
+    : 'color:#334155;';
+  const secondaryAction = input.secondaryAction
+    ? `<p style="margin:16px 0 0"><a href="${escapeHtml(input.secondaryAction.url)}" style="display:inline-block;padding:10px 18px;border:1px solid #cbd5e1;border-radius:9px;color:#0369a1;font-size:14px;font-weight:700;text-decoration:none">${escapeHtml(input.secondaryAction.label)}</a></p>`
+    : '';
   const greeting = input.recipientName
     ? `<p style="margin:0 0 18px;font-size:15px;line-height:24px;color:#334155">Hi ${escapeHtml(input.recipientName)},</p>`
     : '';
@@ -92,8 +100,8 @@ export function renderCommunicationEmail(input: CommunicationEmailLayoutInput): 
           <h1 style="margin:0 0 14px;font-size:25px;line-height:33px;color:#0f172a;font-weight:800">${escapeHtml(input.title)}</h1>
           <div style="margin:0 0 22px">${status}${reference}</div>
           ${greeting}
-          <p style="margin:0;font-size:15px;line-height:24px;color:#334155">${escapeHtml(input.intro)}</p>
-          ${details}${message}${action}${note}
+          <p style="margin:0;font-size:15px;line-height:24px;${emphasis}">${escapeHtml(input.intro)}</p>
+          ${details}${message}${action}${secondaryAction}${note}
         </td></tr>
         <tr><td class="email-pad" style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e2e8f0">
           <p style="margin:0;font-size:11px;line-height:18px;color:#64748b">Mero Telecom · South Australia</p>

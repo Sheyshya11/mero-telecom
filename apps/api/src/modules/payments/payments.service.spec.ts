@@ -360,6 +360,14 @@ describe('PaymentsService', () => {
 
     const result = await service.getRecurringSetupStatus('cs_test_recurring_return', actor);
 
+    expect(stripe.subscriptions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [{ price: 'price_recurring' }],
+        trial_end: Math.floor(currentPeriodEnd.getTime() / 1_000),
+      }),
+      expect.objectContaining({ idempotencyKey: `recurring-subscription-${attemptId}` }),
+    );
+
     expect(result).toEqual({
       checkoutStatus: 'complete',
       setupStatus: 'enabled',
@@ -2604,5 +2612,232 @@ describe('PaymentsService', () => {
       expect.objectContaining({ idempotencyKey: expect.stringContaining(invoiceId) }),
     );
     expect(transaction.paymentWebhookEvent.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('manual subscription automatic payment setup', () => {
+  function setup() {
+    const plan = {
+      id: 'legacy-plan',
+      name: 'Staff-created home plan',
+      monthlyCents: 7900,
+      stripePriceId: null as string | null,
+      updatedAt: new Date('2026-09-01T00:00:00Z'),
+    };
+    const subscription = {
+      id: 'manual-subscription',
+      customerId,
+      planId: plan.id,
+      monthlyCents: plan.monthlyCents,
+      status: SubscriptionStatus.ACTIVE,
+      billingMode: BillingMode.MANUAL,
+      stripeSubscriptionId: null,
+      currentPeriodStart: new Date('2099-09-01T00:00:00Z'),
+      currentPeriodEnd: new Date('2099-10-01T00:00:00Z'),
+      updatedAt: new Date('2026-10-11T00:00:00Z'),
+      customer: { userId: 'joined-customer', stripeCustomerId: 'cus_joined_customer' },
+      plan,
+    };
+    const attempt = {
+      id: 'setup-attempt',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      stripeCheckoutSessionId: null,
+    };
+    const transaction = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      subscription: { findFirst: jest.fn().mockResolvedValue(subscription) },
+      invoice: { count: jest.fn().mockResolvedValue(0) },
+      internetPlan: {
+        updateMany: jest.fn().mockImplementation(({ data }) => {
+          plan.stripePriceId = data.stripePriceId;
+          return { count: 1 };
+        }),
+        findUnique: jest.fn().mockResolvedValue(plan),
+      },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      recurringSetupAttempt: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(attempt),
+        update: jest.fn().mockResolvedValue(attempt),
+      },
+    };
+    const service = makeService({
+      ...transaction,
+      $transaction: jest.fn((operation) => operation(transaction)),
+    } as never);
+    const stripe = (service as unknown as { stripe: Stripe }).stripe;
+    const price = {
+      id: 'price_legacy',
+      active: true,
+      currency: 'aud',
+      unit_amount: plan.monthlyCents,
+      recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' },
+    };
+    const listPrices = jest.spyOn(stripe.prices, 'list').mockResolvedValue({ data: [] } as never);
+    const createPrice = jest.spyOn(stripe.prices, 'create').mockResolvedValue(price as never);
+    const createCheckout = jest.spyOn(stripe.checkout.sessions, 'create').mockResolvedValue({
+      id: 'cs_setup',
+      url: 'https://checkout.stripe.test/setup',
+    } as never);
+    const createSubscription = jest.spyOn(stripe.subscriptions, 'create');
+    const actor = { id: 'joined-customer', role: Role.CUSTOMER } as never;
+    return {
+      service,
+      transaction,
+      subscription,
+      plan,
+      actor,
+      price,
+      listPrices,
+      createPrice,
+      createCheckout,
+      createSubscription,
+    };
+  }
+
+  it('configures a missing monthly price after arrears are paid and opens setup without charging', async () => {
+    const f = setup();
+    await expect(
+      f.service.createRecurringSetupSession(f.subscription.id, f.actor),
+    ).resolves.toEqual({
+      checkoutUrl: 'https://checkout.stripe.test/setup',
+    });
+    expect(f.transaction.subscription.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: f.subscription.id, customer: { userId: 'joined-customer' } },
+      }),
+    );
+    expect(f.createPrice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currency: 'aud',
+        unit_amount: 7900,
+        recurring: { interval: 'month', interval_count: 1 },
+        product_data: { name: f.plan.name, metadata: { meroPlanId: f.plan.id } },
+        lookup_key: 'mero_plan_legacy-plan_aud_month_7900',
+      }),
+      { idempotencyKey: 'recurring-plan-price-mero_plan_legacy-plan_aud_month_7900' },
+    );
+    expect(f.plan.stripePriceId).toBe('price_legacy');
+    expect(f.transaction.auditLog.create).toHaveBeenCalledTimes(1);
+    expect(f.transaction.recurringSetupAttempt.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          expectedStripePriceId: 'price_legacy',
+          expectedCurrentPeriodEnd: f.subscription.currentPeriodEnd,
+        }),
+      }),
+    );
+    expect(f.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'setup',
+        customer: 'cus_joined_customer',
+      }),
+      expect.anything(),
+    );
+    expect(f.createSubscription).not.toHaveBeenCalled();
+    expect(f.subscription.billingMode).toBe(BillingMode.MANUAL);
+  });
+
+  it('reuses an existing configured plan price', async () => {
+    const f = setup();
+    f.plan.stripePriceId = 'price_already_configured';
+    await f.service.createRecurringSetupSession(f.subscription.id, f.actor);
+    expect(f.listPrices).not.toHaveBeenCalled();
+    expect(f.createPrice).not.toHaveBeenCalled();
+    expect(f.transaction.recurringSetupAttempt.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ expectedStripePriceId: 'price_already_configured' }),
+      }),
+    );
+  });
+
+  it('reuses a Stripe price after an interrupted local save, even after idempotency expiry', async () => {
+    const f = setup();
+    f.listPrices.mockResolvedValue({ data: [f.price] } as never);
+    await f.service.createRecurringSetupSession(f.subscription.id, f.actor);
+    expect(f.createPrice).not.toHaveBeenCalled();
+    expect(f.plan.stripePriceId).toBe(f.price.id);
+  });
+
+  it('accepts the same mapping saved by a concurrent setup without duplicate audit entries', async () => {
+    const f = setup();
+    f.transaction.internetPlan.updateMany.mockImplementation(() => {
+      f.plan.stripePriceId = f.price.id;
+      return { count: 0 };
+    });
+    await f.service.createRecurringSetupSession(f.subscription.id, f.actor);
+    expect(f.transaction.auditLog.create).not.toHaveBeenCalled();
+    expect(f.createCheckout).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not overwrite a different mapping configured while Stripe was responding', async () => {
+    const f = setup();
+    f.transaction.internetPlan.updateMany.mockImplementation(() => {
+      f.plan.stripePriceId = 'price_staff_selected';
+      return { count: 0 };
+    });
+    await expect(f.service.createRecurringSetupSession(f.subscription.id, f.actor)).rejects.toThrow(
+      'This plan changed.',
+    );
+    expect(f.plan.stripePriceId).toBe('price_staff_selected');
+    expect(f.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it('requires outstanding manual invoices to be paid before configuring Stripe', async () => {
+    const f = setup();
+    f.transaction.invoice.count.mockResolvedValue(1);
+    await expect(f.service.createRecurringSetupSession(f.subscription.id, f.actor)).rejects.toThrow(
+      'Pay outstanding invoices',
+    );
+    expect(f.listPrices).not.toHaveBeenCalled();
+    expect(f.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it('requires the recovered subscription to be active', async () => {
+    const f = setup();
+    f.subscription.status = SubscriptionStatus.PAST_DUE;
+    await expect(f.service.createRecurringSetupSession(f.subscription.id, f.actor)).rejects.toThrow(
+      'Only an active subscription',
+    );
+    expect(f.listPrices).not.toHaveBeenCalled();
+    expect(f.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it('rejects setup when the paid period has ended', async () => {
+    const f = setup();
+    f.subscription.currentPeriodEnd = new Date('2000-01-01T00:00:00Z');
+    await expect(f.service.createRecurringSetupSession(f.subscription.id, f.actor)).rejects.toThrow(
+      'The current billing period has ended',
+    );
+    expect(f.createPrice).not.toHaveBeenCalled();
+    expect(f.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { unit_amount: 9900 },
+    { currency: 'usd' },
+    { active: false },
+    { recurring: { interval: 'year', interval_count: 1, usage_type: 'licensed' } },
+    { recurring: { interval: 'month', interval_count: 1, usage_type: 'metered' } },
+  ])('rejects a mismatched recovered Stripe price: %j', async (changes) => {
+    const f = setup();
+    f.listPrices.mockResolvedValue({ data: [{ ...f.price, ...changes }] } as never);
+    await expect(f.service.createRecurringSetupSession(f.subscription.id, f.actor)).rejects.toThrow(
+      'does not match this plan',
+    );
+    expect(f.transaction.internetPlan.updateMany).not.toHaveBeenCalled();
+    expect(f.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it('leaves manual billing intact if Stripe price setup fails', async () => {
+    const f = setup();
+    f.createPrice.mockRejectedValue(new Error('Stripe unavailable'));
+    await expect(f.service.createRecurringSetupSession(f.subscription.id, f.actor)).rejects.toThrow(
+      'Stripe unavailable',
+    );
+    expect(f.plan.stripePriceId).toBeNull();
+    expect(f.subscription.billingMode).toBe(BillingMode.MANUAL);
+    expect(f.createCheckout).not.toHaveBeenCalled();
   });
 });

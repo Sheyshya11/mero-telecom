@@ -49,11 +49,13 @@ export function updateCustomer(
   customerId: string,
   input: CustomerFormValues,
 ): Promise<Customer> {
+  const editable: Partial<CustomerFormValues> = { ...input };
+  delete editable.email;
   return apiRequest<Customer>(
     `/customers/${customerId}`,
     {
       method: 'PATCH',
-      body: JSON.stringify({ ...input, addressLine2: input.addressLine2?.trim() || null }),
+      body: JSON.stringify({ ...editable, addressLine2: input.addressLine2?.trim() || null }),
     },
     accessToken,
   );

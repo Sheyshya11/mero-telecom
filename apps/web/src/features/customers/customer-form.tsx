@@ -79,10 +79,17 @@ export function CustomerForm({
         <Field label="Email" error={form.formState.errors.email?.message}>
           <input
             className="field"
-            readOnly={!canEditIdentity}
+            readOnly={Boolean(customer) || !canEditIdentity}
+            aria-label="Email"
+            aria-describedby={customer ? 'customer-email-help' : undefined}
             type="email"
             {...form.register('email')}
           />
+          {customer ? (
+            <span id="customer-email-help" className="text-xs font-normal text-muted-foreground">
+              Only the customer can change this email from My profile.
+            </span>
+          ) : null}
         </Field>
         <Field label="Mobile" error={form.formState.errors.phone?.message}>
           <input className="field" placeholder="0400 000 000" {...form.register('phone')} />
@@ -140,7 +147,9 @@ function Field({
     <label className="grid gap-1.5 text-sm font-medium text-foreground">
       {label}
       {children}
-      {error ? <span className="text-xs font-normal text-destructive-foreground">{error}</span> : null}
+      {error ? (
+        <span className="text-xs font-normal text-destructive-foreground">{error}</span>
+      ) : null}
     </label>
   );
 }

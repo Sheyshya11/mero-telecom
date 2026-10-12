@@ -9,6 +9,7 @@ import { CollectionPolicyService } from './collection-policy.service';
 import { CollectionService } from './collection.service';
 import {
   CollectionHoldDto,
+  ReleaseCollectionHoldDto,
   CollectionReminderDto,
   UpdateCollectionPolicyDto,
 } from './dto/collection.dto';
@@ -48,6 +49,13 @@ export class CollectionController {
     @Body() input: CollectionHoldDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.collections.setHold(id, input.reason, actor);
+    return this.collections.setHold(id, input.reason, actor, input);
+  }
+  @Post('subscriptions/:id/hold/release') @Roles(Role.ADMIN) releaseHold(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: ReleaseCollectionHoldDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.collections.releaseHold(id, actor, input.confirmed);
   }
 }

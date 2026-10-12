@@ -25,9 +25,15 @@ Stages persisted on the existing Invoice model:
 | Day 7                       | Request suspension if all safety checks pass                                                      |
 | Confirmed settlement        | Resolve invoice collection; restore eligible billing suspension once all required debt is cleared |
 
-The automated warning timestamps are persisted independently. Missed scheduler runs do not send all warnings at once or immediately suspend a historically overdue account. Each warning respects the configured gap after the previous actual notification acceptance. The final warning gives at least the configured final-to-suspension interval. Suspension dates also respect extensions and previously announced dates; policy changes never shorten a persisted announced deadline.
+The original deadline is persisted once as `dueDate + suspensionDays × dayMilliseconds`. The shared `collection-deadline.ts` helper calculates the effective deadline as the latest of that original date, explicit administrative extension, persisted recovery date, and a legacy date actually announced by a final warning. Speculative first/second-reminder dates cannot postpone it. Reading or retrying never grants extra time. Final warning scheduling is `effectiveDeadline - (suspensionDays - finalWarningDays) × dayMilliseconds`; existing strictly ordered settings remain valid.
 
-`FINAL_WARNING` changes to `SUSPENSION_SCHEDULED` on a subsequent reconciliation, without changing actual service status. Previously sent warning timestamps remain available for history after resolution.
+A normal run sends reminders on days 1/3/5 and suspends at day 7 after rechecking payment. Catch-up sends one highest currently due warning: a first run on day 4 sends the second reminder, then the final on day 5. Normal catch-up notices are at least one policy day apart. Earlier missed reminders are skipped rather than sent together; earlier reminder timestamps are not suspension prerequisites.
+
+An unpaid eligible service past its effective grace deadline without an issued final warning enters recovery directly. The processor persists `recoverySuspensionDeadline = detectionTime + 48 actual hours` once, then issues the critical `RECOVERY_FINAL_WARNING` via the existing outbox. `recoveryFinalWarningSentAt` records acceptance separately from the normal final timestamp; the existing enum reaches `SUSPENSION_SCHEDULED` immediately on successful acceptance. No expired-date final warning is sent and no immediate suspension occurs. Repeated/concurrent runs and expired admin extensions cannot slide or recreate the recovery window. The default recovery window stays 48 hours even with an accelerated demo clock.
+
+A recovery safety window covers the subscription across other unpaid invoices, including already queued suspension requests, because its notice promises continued service. Later authorized admin grace takes precedence. Extending an expired deadline starts from the current time; extending a future deadline adds calendar days to it. Extension notifications state the actual revised deadline, without repeating an already issued final warning. An unissued final warning moves relative to the extended deadline. If enqueueing recovery fails until its immutable deadline expires, suspension remains blocked and a deduplicated operational review is raised. A later explicit admin extension may permit retrying that same intent, without changing the original recovery date. Deduplicated customer notices refresh their deadline on retry.
+
+Staff subscription headers, invoice cards and customer summaries use the same effective deadline. Recovery banners have distinct copy and recovery deadline times are shown in Adelaide time. Original expiry, missed warning, one-time extension, accepted recovery notice and scheduled suspension are auditable. Historical accepted notices remain in history; superseded outbox entries are explicitly marked skipped.
 
 ## Scheduler and configuration
 
@@ -64,13 +70,13 @@ All messages use the existing centralized `NotificationService`, persisted in-ap
 
 Routine warning notifications are directed to the customer. They do not flood operational users. Messages contain the customer/invoice reference, outstanding amount, original due date, current status and suspension/grace date where appropriate, with authenticated invoice links. Date formatting uses Australia/Adelaide. No payment credentials are added to messages.
 
-Collection AuditLog rows also form a durable notification outbox. Warning timestamps advance only after in-app persistence and email queue acceptance succeed. Queue outages retain the intent for retry. Email acceptance is not proof of SMTP delivery: the existing email worker owns delivery retries and final-failure reporting. It reloads the invoice before sending a queued reminder and skips paid/cancelled invoices. SMTP transport retains its existing at-least-once behavior.
+Collection AuditLog rows also form a durable notification outbox. Warning timestamps advance only after in-app persistence and email queue acceptance succeed. Queue outages retain the intent for retry. Email acceptance is not proof of SMTP delivery: the existing email worker owns delivery retries and final-failure reporting. It reloads the invoice and confirmed balance before sending a queued reminder, skips settled/superseded messages, suppresses expired final deadlines, and re-renders current deadline and balance even for legacy jobs. SMTP transport retains its existing at-least-once behavior.
 
 ## Suspension and restoration rules
 
 Automatic suspension creates an existing `ServiceProvisioningRequest`; it does not preemptively change the subscription to suspended. Completion is required before writing `SUSPENDED`, `suspendedAt`, the existing `NON_PAYMENT` reason, invoice collection stage and success notification intent. Pending/failed provisioning leaves the actual automatic service state unchanged.
 
-Suspension requires three accepted automatic warnings, an expired effective deadline, a positive current overdue balance, an active/legacy past-due service, no grace extension covering the action, no collection hold, no pending/processing payment on any unpaid invoice for the subscription, no future Stripe retry, and no blocking relocation/cancellation or unresolved recurring credit.
+Suspension requires an accepted normal or recovery final warning issued before the effective deadline, an expired effective deadline, a positive current overdue balance, an active/legacy past-due service, no grace extension covering the action, no collection hold, no pending/processing payment on any unpaid invoice for the subscription, no future Stripe retry, and no blocking relocation/cancellation or unresolved recurring credit.
 
 Restoration requires confirmed settlement and zero payable balance across **all issued/overdue invoices already due for the affected subscription**, not merely the invoice that triggered the webhook. Future invoices do not block restoration. Other subscriptions are managed independently. Restoration additionally requires the existing `SUSPENDED` status and `NON_PAYMENT` suspension reason, and provider completion. Manual administrative, fraud, compliance and other suspension reasons are not automatically restored.
 
@@ -156,3 +162,37 @@ Added coverage includes the full day 0–7 timeline and duplicates; payment befo
 2. **Legacy manual service actions update local state before provider completion.** Those unrelated manual workflows were preserved. The new automatic collection path waits for provider success and checks suspension reasons before restoring.
 3. **Finalized recurring Stripe credit reconciliation needs review.** Automation protects such accounts rather than inventing a new credit-note or Stripe invoice editing system. Existing manual full-invoice Checkout also has no general partial-payment settlement UI; imported/manual partial payments require reconciliation before using that full-invoice payment path.
 4. **Email queue acceptance and external delivery are distinct.** Warning history means accepted in-app plus email queue delivery intent. Real SMTP/Stripe/network-provider execution and browser visual QA were not exercised by the local automated checks.
+
+## Deadline correction verification (7 October 2026)
+
+Passed: 547 API unit tests (77 suites), 166 frontend tests (38 files), and 31 isolated PostgreSQL collection/notification integration tests. Additional regression coverage includes day-4 catch-up, direct post-expiry recovery, immutable 48-hour deadlines, payment during recovery, later explicit grace, pre-final grace, recovery queue outage/manual review, concurrent scheduler execution, pending direct debit versus failed payment, multiple invoices and stale provisioning, and refreshing deduplicated notices without altering read state/history. Desktop/mobile recovery email previews use the actual rendered template; mobile has no horizontal overflow at 390px.
+
+Commands run:
+
+```powershell
+pnpm --filter @mero-telecom/api exec prisma format
+pnpm --filter @mero-telecom/api exec prisma validate
+pnpm --filter @mero-telecom/api exec prisma generate
+pnpm --filter @mero-telecom/api exec prisma migrate deploy
+pnpm --filter @mero-telecom/api exec prisma migrate status
+pnpm --filter @mero-telecom/api exec prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script
+pnpm --filter @mero-telecom/api test
+pnpm --filter @mero-telecom/web test
+pnpm typecheck
+pnpm lint
+git diff --check
+```
+
+Integration run used explicit isolated test connections, without the reset wrapper:
+
+```powershell
+$env:DATABASE_URL='postgresql://mero_telecom:mero_telecom_test_password@localhost:5433/mero_telecom_test'
+$env:REDIS_URL='redis://localhost:6380'
+pnpm --filter @mero-telecom/api test:e2e:run --runTestsByPath test/collections.e2e-spec.ts test/notifications.e2e-spec.ts
+```
+
+The two additive migrations preserve existing records: the first adds original/recovery state and the second makes the timestamp check respect a later authorized effective deadline. Client generation succeeded; development and test migrations are applied with no schema diff. The local API was restarted and health checked. Its startup reconciliation recovered the previously shown `INV-2026-000003`: the warning was accepted at `2026-10-07T11:25:50.532Z`, the immutable recovery deadline is `2026-10-09T11:25:50.532Z`, and subscription grace plus invoice schedule agree (9 October, 9:55 pm Adelaide). The service remains `PAST_DUE`, with no premature suspension. Screenshots are rendered fixture previews, rather than evidence of live email delivery.
+
+Provisioning retains the existing mock adapter: passing tests and local state are not confirmation of a real circuit disconnect. Notification acceptance remains in-app persistence plus queue acceptance; the existing email worker separately records SMTP delivery/failure.
+
+Changed source and documentation files pass Prettier and `git diff --check`. Repository-wide `pnpm format:check` also ran and reports existing formatting issues in unrelated web screens, lockfile and older generated evidence artifacts; those files were preserved.

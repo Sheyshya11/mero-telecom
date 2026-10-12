@@ -908,6 +908,12 @@ model Subscription {
   graceExtendedBy           String?                      @db.Uuid
   graceExtendedAt           DateTime?
   collectionHoldReason      String?                      @db.VarChar(1000)
+  collectionHoldNotes       String?                      @db.VarChar(2000)
+  collectionHoldUntil       DateTime?
+  collectionHoldCreatedBy   String?                      @db.Uuid
+  collectionHoldCreatedAt   DateTime?
+  collectionHoldReleasedBy  String?                      @db.Uuid
+  collectionHoldReleasedAt  DateTime?
   provisioningStatus        ServiceProvisioningStatus?
   provisioningFailure       String?                      @db.VarChar(500)
   currentServiceAddressId   String?                      @db.Uuid
@@ -1173,6 +1179,9 @@ model Invoice {
   firstReminderSentAt        DateTime?
   secondReminderSentAt       DateTime?
   finalWarningSentAt         DateTime?
+  originalSuspensionDeadline DateTime?
+  recoverySuspensionDeadline DateTime?
+  recoveryFinalWarningSentAt DateTime?
   suspensionScheduledAt      DateTime?
   collectionStatus           InvoiceCollectionStatus @default(NONE)
   stripeAttemptCount         Int                     @default(0)

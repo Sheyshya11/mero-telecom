@@ -615,9 +615,6 @@ export class PaymentsService {
     if (subscription.billingMode === BillingMode.STRIPE_RECURRING) {
       throw new ConflictException('Automatic recurring payments are already enabled.');
     }
-    if (!subscription.plan.stripePriceId) {
-      throw new BadRequestException('Automatic billing is not configured for this plan yet.');
-    }
     if (subscription.currentPeriodEnd <= new Date()) {
       throw new ConflictException('The current billing period has ended. Refresh and try again.');
     }
@@ -630,6 +627,8 @@ export class PaymentsService {
     if (outstanding) {
       throw new ConflictException('Pay outstanding invoices before enabling automatic payments.');
     }
+
+    await this.ensureRecurringPlanPrice(subscription.plan, actor);
 
     let stripeCustomerId = subscription.customer.stripeCustomerId;
     if (!stripeCustomerId) {
@@ -3612,6 +3611,67 @@ export class PaymentsService {
     return Array.from(createHash('sha256').update(value).digest().subarray(0, 8), (byte) =>
       String.fromCharCode(97 + (byte % 26)),
     ).join('');
+  }
+
+  private async ensureRecurringPlanPrice(
+    plan: RecurringSetupSubscription['plan'],
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    if (plan.stripePriceId) return;
+
+    // A lookup key survives Stripe's idempotency-key retention window, including
+    // a retry after Stripe succeeded but the local mapping could not be saved.
+    const lookupKey = `mero_plan_${plan.id}_aud_month_${plan.monthlyCents}`;
+    const existing = await this.stripe.prices.list({ lookup_keys: [lookupKey], limit: 1 });
+    const price =
+      existing.data[0] ??
+      (await this.stripe.prices.create(
+        {
+          currency: 'aud',
+          unit_amount: plan.monthlyCents,
+          recurring: { interval: 'month', interval_count: 1 },
+          product_data: { name: plan.name, metadata: { meroPlanId: plan.id } },
+          metadata: { meroPlanId: plan.id },
+          lookup_key: lookupKey,
+        },
+        { idempotencyKey: `recurring-plan-price-${lookupKey}` },
+      ));
+    if (
+      !price.active ||
+      price.currency !== 'aud' ||
+      price.unit_amount !== plan.monthlyCents ||
+      price.recurring?.interval !== 'month' ||
+      price.recurring.interval_count !== 1 ||
+      price.recurring.usage_type !== 'licensed'
+    ) {
+      throw new BadRequestException('The recurring Stripe Price does not match this plan.');
+    }
+
+    await this.prisma.$transaction(async (transaction) => {
+      const saved = await transaction.internetPlan.updateMany({
+        where: { id: plan.id, stripePriceId: null, updatedAt: plan.updatedAt },
+        data: { stripePriceId: price.id },
+      });
+      if (saved.count === 0) {
+        const current = await transaction.internetPlan.findUnique({ where: { id: plan.id } });
+        if (current?.stripePriceId === price.id && current.monthlyCents === plan.monthlyCents) {
+          return;
+        }
+        throw new ConflictException(
+          'This plan changed. Refresh and enable automatic payments again.',
+        );
+      }
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          action: 'INTERNET_PLAN_RECURRING_PRICE_CONFIGURED',
+          entityType: 'InternetPlan',
+          entityId: plan.id,
+          metadata: { stripePriceId: price.id, monthlyCents: plan.monthlyCents },
+        },
+      });
+    });
+    await this.dashboardCache.invalidate();
   }
 
   private assertRecurringSetupEligible(

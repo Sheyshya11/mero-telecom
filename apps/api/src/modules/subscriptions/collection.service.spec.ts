@@ -37,23 +37,34 @@ describe('Collection policy and warning timing', () => {
       suspensionDate({ ...invoice, suspensionScheduledAt: null }, null, policy, dayMs),
     ).toEqual(day(7));
   });
-  it('does not collapse missed warnings into immediate suspension', () => {
-    const invoice = {
-      dueDate,
-      firstReminderSentAt: day(10),
-      secondReminderSentAt: null,
-      finalWarningSentAt: null,
-    };
-    expect(nextWarning(invoice, day(10), policy, dayMs)).toBeNull();
-    expect(nextWarning(invoice, day(12), policy, dayMs)).toBe('SECOND_REMINDER');
+  it('skips missed earlier notices and recovers directly after expiry', () => {
+    const invoice = { dueDate };
+    expect(nextWarning(invoice, day(4), policy, dayMs)).toBe('SECOND_REMINDER');
+    expect(nextWarning(invoice, day(5), policy, dayMs)).toBe('FINAL_WARNING');
+    expect(nextWarning(invoice, day(10), policy, dayMs)).toBe('RECOVERY_FINAL_WARNING');
+    expect(suspensionDate(invoice, null, policy, dayMs)).toEqual(day(7));
+  });
+  it('uses a persisted recovery deadline and a later explicit extension without sliding', () => {
+    const invoice = { dueDate, recoverySuspensionDeadline: day(12) };
+    expect(suspensionDate(invoice, null, policy, dayMs)).toEqual(day(12));
+    expect(nextWarning(invoice, day(11), policy, dayMs)).toBe('RECOVERY_FINAL_WARNING');
+    expect(nextWarning(invoice, day(13), policy, dayMs)).toBeNull();
+    expect(suspensionDate(invoice, day(10), policy, dayMs)).toEqual(day(12));
+    expect(suspensionDate(invoice, day(15), policy, dayMs)).toEqual(day(15));
+  });
+  it('moves an unissued final warning relative to an explicit extension', () => {
     expect(
-      suspensionDate(
-        { dueDate, finalWarningSentAt: day(14), suspensionScheduledAt: null },
-        null,
+      nextWarning(
+        { dueDate, firstReminderSentAt: day(1), secondReminderSentAt: day(3) },
+        day(5),
         policy,
         dayMs,
+        day(10),
       ),
-    ).toEqual(day(16));
+    ).toBeNull();
+    expect(
+      nextWarning({ dueDate, secondReminderSentAt: day(3) }, day(8), policy, dayMs, day(10)),
+    ).toBe('FINAL_WARNING');
   });
   it('honors extensions and never shortens a previously announced suspension date', () => {
     expect(

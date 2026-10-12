@@ -544,25 +544,38 @@ export class BillingReportPdfService {
       this.number(row.grossBilledCents),
       this.number(row.netCashCollectedCents),
     ]);
-    const max = Math.max(1, ...values);
+    // Refunds can make net cash negative. Include both ends of the domain so
+    // those points remain inside the plot instead of crossing the sections below.
+    const minimumValue = Math.min(0, ...values);
+    const maximumValue = Math.max(minimumValue + 100, 0, ...values);
+    const rawStep = (maximumValue - minimumValue) / 4;
+    const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+    const step =
+      [1, 2, 2.5, 5, 10].find((multiple) => multiple >= rawStep / magnitude)! * magnitude;
+    const minimum = Math.floor(minimumValue / step) * step;
+    const maximum = Math.ceil(maximumValue / step) * step;
     const plotX = x + 48;
     const plotY = y + 20;
     const plotWidth = width - 68;
     const plotHeight = height - 52;
-    for (let line = 0; line <= 4; line += 1) {
-      const lineY = plotY + (plotHeight * line) / 4;
+    const pointY = (value: number) =>
+      plotY + ((maximum - value) / (maximum - minimum)) * plotHeight;
+    const tickCount = Math.round((maximum - minimum) / step);
+    for (let tick = 0; tick <= tickCount; tick += 1) {
+      const value = minimum + tick * step;
+      const lineY = pointY(value);
       document
         .save()
         .moveTo(plotX, lineY)
         .lineTo(plotX + plotWidth, lineY)
-        .lineWidth(0.35)
-        .stroke(COLOURS.line)
+        .lineWidth(value === 0 ? 0.7 : 0.35)
+        .stroke(value === 0 ? COLOURS.muted : COLOURS.line)
         .restore();
       document
         .font('Helvetica')
         .fontSize(6.4)
         .fillColor(COLOURS.muted)
-        .text(this.compactMoney(max * (1 - line / 4)), x + 3, lineY - 3, {
+        .text(step < 100 ? this.money(value) : this.compactMoney(value), x + 3, lineY - 3, {
           width: 40,
           align: 'right',
         });
@@ -573,26 +586,45 @@ export class BillingReportPdfService {
       document.save().lineWidth(1.7).strokeColor(colour);
       rows.forEach((row, index) => {
         const px = pointX(index);
-        const py = plotY + plotHeight - (this.number(row[key]) / max) * plotHeight;
+        const py = pointY(this.number(row[key]));
         if (index === 0) document.moveTo(px, py);
         else document.lineTo(px, py);
       });
       document.stroke().restore();
+      if (rows.length <= 31) {
+        rows.forEach((row, index) => {
+          document
+            .save()
+            .circle(pointX(index), pointY(this.number(row[key])), 2)
+            .fill(colour)
+            .restore();
+        });
+      }
     };
     drawSeries('grossBilledCents', COLOURS.brand);
     drawSeries('netCashCollectedCents', COLOURS.positive);
-    const labelStep = Math.max(1, Math.ceil(rows.length / 6));
+    const labelCount = Math.min(6, rows.length);
+    const labelIndices = new Set(
+      Array.from({ length: labelCount }, (_, index) =>
+        labelCount === 1 ? 0 : Math.round((index * (rows.length - 1)) / (labelCount - 1)),
+      ),
+    );
     rows.forEach((row, index) => {
-      if (index % labelStep !== 0 && index !== rows.length - 1) return;
+      if (!labelIndices.has(index)) return;
       document
         .font('Helvetica')
         .fontSize(6.2)
         .fillColor(COLOURS.muted)
-        .text(String(row.period ?? ''), pointX(index) - 24, plotY + plotHeight + 8, {
-          width: 48,
-          align: 'center',
-          ellipsis: true,
-        });
+        .text(
+          String(row.period ?? ''),
+          Math.max(x + 8, Math.min(pointX(index) - 30, x + width - 68)),
+          plotY + plotHeight + 8,
+          {
+            width: 60,
+            align: 'center',
+            ellipsis: true,
+          },
+        );
     });
     this.legend(
       document,

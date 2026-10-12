@@ -21,6 +21,11 @@ const profileSchema = z.object({
   postcode: z.string().regex(/^\d{4}$/, 'Enter a four-digit postcode.'),
 });
 
+const emailSchema = z.object({
+  newEmail: z.string().trim().toLowerCase().pipe(z.email('Enter a valid email address.').max(320)),
+  currentPassword: z.string().min(1, 'Current password is required.').max(128),
+});
+
 type ProfileValues = z.infer<typeof profileSchema>;
 
 export function CustomerProfile() {
@@ -55,6 +60,24 @@ export function CustomerProfile() {
       postcode: address.postcode,
     });
   }, [form, profile.data]);
+
+  const emailForm = useForm<z.infer<typeof emailSchema>>({
+    resolver: zodResolver(emailSchema),
+    defaultValues: { newEmail: '', currentPassword: '' },
+  });
+  const changeEmail = useMutation({
+    mutationFn: (values: z.infer<typeof emailSchema>) =>
+      apiRequest<Customer>(
+        '/customers/me/email',
+        { method: 'PATCH', body: JSON.stringify(values) },
+        accessToken,
+      ),
+    onSuccess: async (customer) => {
+      emailForm.reset();
+      queryClient.setQueryData(['customer-profile'], customer);
+      await queryClient.invalidateQueries({ queryKey: ['customer-dashboard'] });
+    },
+  });
 
   const update = useMutation({
     mutationFn: (values: ProfileValues) =>
@@ -152,6 +175,55 @@ export function CustomerProfile() {
               type="submit"
             >
               {update.isPending ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        </form>
+      </section>
+      <section
+        className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm"
+        aria-label="Change email"
+      >
+        <h2 className="text-lg font-semibold">Change email</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your email is used for sign-in and account messages. Only you can change it. Confirm your
+          current password to save a new email.
+        </p>
+        <form
+          className="mt-4 grid gap-4"
+          onSubmit={emailForm.handleSubmit((values) => changeEmail.mutate(values))}
+        >
+          <Field label="New email" error={emailForm.formState.errors.newEmail?.message}>
+            <input
+              className="field"
+              type="email"
+              autoComplete="email"
+              {...emailForm.register('newEmail')}
+            />
+          </Field>
+          <Field
+            label="Current password"
+            error={emailForm.formState.errors.currentPassword?.message}
+          >
+            <input
+              className="field"
+              type="password"
+              autoComplete="current-password"
+              {...emailForm.register('currentPassword')}
+            />
+          </Field>
+          {changeEmail.isSuccess ? (
+            <p role="status">Email changed. Use your new email next time you sign in.</p>
+          ) : null}
+          {changeEmail.error ? (
+            <p role="alert" className="text-sm text-destructive-foreground">
+              {changeEmail.error instanceof ApiError
+                ? changeEmail.error.message
+                : 'Unable to change your email.'}
+            </p>
+          ) : null}
+          <div className="flex justify-end">
+            <button className="button-primary" type="submit" disabled={changeEmail.isPending}>
+              {changeEmail.isPending ? 'Saving...' : 'Change email'}
             </button>
           </div>
         </form>

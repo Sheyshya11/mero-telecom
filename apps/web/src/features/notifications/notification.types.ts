@@ -12,6 +12,11 @@ export interface AppNotification {
   entityType: string | null;
   entityId: string | null;
   metadata: unknown;
+  invoiceResolution?: {
+    status: 'PAID' | 'CANCELLED';
+    invoiceId: string;
+    resolvedAt: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -62,6 +67,9 @@ export const notificationTypeOptions = [
   ['PROVISIONING_COMPLETED', 'Provisioned services'],
   ['PROVISIONING_FAILED', 'Provisioning failures'],
   ['SERVICE_DELAYED', 'Service delays'],
+  ['PAYMENT_REMINDER', 'Payment reminders'],
+  ['FINAL_PAYMENT_WARNING', 'Final payment notices'],
+  ['PAYMENT_GRACE_PERIOD_EXTENDED', 'Payment deadline extensions'],
   ['SERVICE_SUSPENDED', 'Suspended services'],
   ['SERVICE_RESTORED', 'Restored services'],
   ['PROFILE_UPDATED', 'Account updates'],
@@ -93,4 +101,71 @@ export function formatNotificationTime(value: string, now = Date.now()): string 
   const days = Math.round(hours / 24);
   if (Math.abs(days) < 7) return formatter.format(days, 'day');
   return new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium' }).format(new Date(timestamp));
+}
+
+export function notificationDisplay(notification: AppNotification): {
+  title: string;
+  message: string;
+  severity: NotificationSeverity;
+} {
+  if (!notification.invoiceResolution) return notification;
+  const paid = notification.invoiceResolution.status === 'PAID';
+  return {
+    title: paid ? 'Invoice paid — notice resolved' : 'Invoice cancelled — notice resolved',
+    message: paid
+      ? 'This invoice has been paid. No further payment is required for this notice.'
+      : 'This invoice has been cancelled. No payment is required for this notice.',
+    severity: 'INFO',
+  };
+}
+
+export function collectionNotificationStage(notification: AppNotification): string | null {
+  if (notification.invoiceResolution) return null;
+  if (notification.type === 'FINAL_PAYMENT_WARNING')
+    return notification.metadata &&
+      typeof notification.metadata === 'object' &&
+      'collectionStage' in notification.metadata &&
+      notification.metadata.collectionStage === 'RECOVERY_FINAL_WARNING'
+      ? 'RECOVERY_FINAL_WARNING'
+      : 'FINAL_WARNING';
+  if (notification.type === 'SERVICE_SUSPENDED') return 'SERVICE_SUSPENDED';
+  if (notification.type !== 'PAYMENT_REMINDER') return null;
+  const metadata = notification.metadata;
+  if (
+    metadata &&
+    typeof metadata === 'object' &&
+    'collectionStage' in metadata &&
+    typeof metadata.collectionStage === 'string'
+  )
+    return metadata.collectionStage;
+  return 'PAYMENT_REMINDER';
+}
+
+export function collectionNotificationLabel(notification: AppNotification): string | null {
+  if (notification.invoiceResolution) return 'Resolved';
+  switch (collectionNotificationStage(notification)) {
+    case 'FIRST_REMINDER':
+      return 'First payment reminder';
+    case 'SECOND_REMINDER':
+      return 'Urgent payment reminder';
+    case 'RECOVERY_FINAL_WARNING':
+      return 'RECOVERY FINAL NOTICE';
+    case 'FINAL_WARNING':
+      return 'FINAL NOTICE';
+    case 'SERVICE_SUSPENDED':
+      return 'SERVICE SUSPENDED';
+    case 'MANUAL_REMINDER':
+    case 'PAYMENT_REMINDER':
+      return 'Payment reminder';
+    default:
+      return null;
+  }
+}
+
+export function notificationActionLabel(notification: AppNotification): string {
+  if (notification.invoiceResolution || notification.type === 'INVOICE_PAID') return 'View Invoice';
+  if (notification.type === 'PAYMENT_GRACE_PERIOD_EXTENDED') return 'Pay Now';
+  if (notification.type === 'SERVICE_STATE_CHANGE_FAILED') return 'Review Account';
+  const stage = collectionNotificationStage(notification);
+  return stage === 'SERVICE_SUSPENDED' ? 'Pay Outstanding Balance' : stage ? 'Pay Now' : 'Open';
 }
