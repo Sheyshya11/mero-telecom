@@ -38,6 +38,58 @@ describe('CustomerSubscriptionPage', () => {
     });
   });
 
+  it.each([
+    ['2026-09-01T00:00:00Z', true],
+    ['2099-10-01T00:00:00Z', false],
+  ])('gates automatic payment setup for billing end %s', async (currentPeriodEnd, expired) => {
+    apiRequestMock.mockImplementation(async (path) => {
+      if (path === '/subscriptions/me')
+        return [
+          {
+            id: 'manual-subscription',
+            status: 'ACTIVE',
+            billingMode: 'MANUAL',
+            monthlyCents: 6900,
+            startDate: '2026-01-01T00:00:00Z',
+            currentPeriodStart: '2026-08-01T00:00:00Z',
+            currentPeriodEnd,
+            plan: {
+              id: 'plan-id',
+              name: 'Essential 50',
+              downloadMbps: 50,
+              uploadMbps: 20,
+              monthlyCents: 6900,
+              highlights: [],
+            },
+          },
+        ] as never;
+      if (path === '/plan-change-requests/me?limit=1') return { data: [] } as never;
+      if (path === '/payments/payment-methods') return { paymentMethods: [] } as never;
+      if (path === '/account-ledger/me/finance')
+        return { outstandingCents: 0, availableCreditCents: 0 } as never;
+      return [] as never;
+    });
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <CustomerSubscriptionPage />
+      </QueryClientProvider>,
+    );
+    const button = await screen.findByRole('button', { name: 'Enable automatic payments' });
+    if (expired) {
+      expect(button).toBeDisabled();
+      expect(screen.getByText(/Your billing period needs updating/)).toBeInTheDocument();
+    } else {
+      expect(button).toBeEnabled();
+      expect(screen.queryByText(/Your billing period needs updating/)).not.toBeInTheDocument();
+    }
+    expect(apiRequestMock).not.toHaveBeenCalledWith(
+      '/payments/recurring-setup-session',
+      expect.anything(),
+    );
+  });
+
   it('allows a multi-role customer to view their subscription workspace', async () => {
     render(
       <QueryClientProvider

@@ -21,7 +21,8 @@
     "db:recover-admin": "node -e \"console.warn('db:recover-admin is deprecated; use db:recover-super-admin')\" && pnpm db:recover-super-admin",
     "db:seed:demo": "prisma db seed",
     "db:reset": "tsx src/scripts/reset-database.ts",
-    "db:seed:overdue": "tsx src/scripts/seed-overdue-customers.ts"
+    "db:seed:overdue": "tsx src/scripts/seed-overdue-customers.ts",
+    "db:repair-demo-billing": "tsx src/scripts/repair-demo-billing.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1111.0",

@@ -1138,13 +1138,15 @@ export class DashboardService {
         : null,
       billing: {
         nextPaymentAmountCents:
-          currentSubscription?.status === SubscriptionStatus.ACTIVE ||
-          currentSubscription?.status === SubscriptionStatus.PAST_DUE
+          (currentSubscription?.status === SubscriptionStatus.ACTIVE ||
+            currentSubscription?.status === SubscriptionStatus.PAST_DUE) &&
+          currentSubscription.currentPeriodEnd > new Date()
             ? currentSubscription.monthlyCents
             : null,
         nextBillingDate:
-          currentSubscription?.status === SubscriptionStatus.ACTIVE ||
-          currentSubscription?.status === SubscriptionStatus.PAST_DUE
+          (currentSubscription?.status === SubscriptionStatus.ACTIVE ||
+            currentSubscription?.status === SubscriptionStatus.PAST_DUE) &&
+          currentSubscription.currentPeriodEnd > new Date()
             ? currentSubscription.currentPeriodEnd.toISOString()
             : null,
         outstandingInvoiceCents,

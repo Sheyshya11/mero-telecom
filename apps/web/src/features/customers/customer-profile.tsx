@@ -9,11 +9,13 @@ import { z } from 'zod';
 import { ApiError, apiRequest } from '../../lib/api/client';
 import { hasRole } from '../auth/auth-navigation';
 import { useAuth } from '../auth/auth-provider';
-import { australianStates } from './customer.schemas';
+import { australianMobileSchema, australianStates, customerSchema } from './customer.schemas';
 import type { Customer } from './customer.types';
 
 const profileSchema = z.object({
-  phone: z.string().regex(/^(?:\+61|0)4\d{8}$/, 'Enter an Australian mobile number.'),
+  firstName: customerSchema.shape.firstName,
+  lastName: customerSchema.shape.lastName,
+  phone: australianMobileSchema,
   addressLine1: z.string().trim().min(1, 'Address is required.').max(255),
   addressLine2: z.string().trim().max(255),
   suburb: z.string().trim().min(1, 'Suburb is required.').max(100),
@@ -39,6 +41,8 @@ export function CustomerProfile() {
   const form = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
+      firstName: '',
+      lastName: '',
       phone: '',
       addressLine1: '',
       addressLine2: '',
@@ -52,6 +56,8 @@ export function CustomerProfile() {
     if (!profile.data) return;
     const address = profile.data.contactAddress ?? profile.data;
     form.reset({
+      firstName: profile.data.firstName,
+      lastName: profile.data.lastName,
       phone: profile.data.phone,
       addressLine1: address.addressLine1,
       addressLine2: address.addressLine2 ?? '',
@@ -123,8 +129,16 @@ export function CustomerProfile() {
           className="mt-6 grid gap-4"
           onSubmit={form.handleSubmit((values) => update.mutate(values))}
         >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="First name" error={form.formState.errors.firstName?.message}>
+              <input className="field" autoComplete="given-name" {...form.register('firstName')} />
+            </Field>
+            <Field label="Last name" error={form.formState.errors.lastName?.message}>
+              <input className="field" autoComplete="family-name" {...form.register('lastName')} />
+            </Field>
+          </div>
           <Field label="Mobile" error={form.formState.errors.phone?.message}>
-            <input className="field" {...form.register('phone')} />
+            <input className="field" type="tel" autoComplete="tel" {...form.register('phone')} />
           </Field>
           <Field
             label="Contact / billing address"

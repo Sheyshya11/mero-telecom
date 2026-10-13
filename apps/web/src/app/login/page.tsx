@@ -145,11 +145,6 @@ function LoginContent() {
                 ) : null}
               </div>
 
-              <label className={styles.rememberRow} htmlFor="remember-device">
-                <input id="remember-device" type="checkbox" />
-                <span>Remember me on this device</span>
-              </label>
-
               {error ? (
                 <p aria-live="polite" className={styles.formError}>
                   {error}

@@ -291,6 +291,55 @@ describe('CustomersService', () => {
     );
   });
 
+  it('updates only the authenticated customer name and mobile and audits the changes', async () => {
+    const updated = {
+      ...customer,
+      firstName: 'Sam',
+      lastName: 'Lee',
+      phone: '0400000000',
+      addresses: [],
+      subscriptions: [],
+    };
+    const tx = {
+      customer: { update: jest.fn(), findUniqueOrThrow: jest.fn().mockResolvedValue(updated) },
+      customerAddress: { upsert: jest.fn() },
+      auditLog: { create: jest.fn().mockResolvedValue({ id: 'name-audit' }) },
+    };
+    const prisma = {
+      customer: { findUnique: jest.fn().mockResolvedValue({ ...customer, addresses: [] }) },
+      $transaction: jest.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
+    };
+    const notifications = { sendProfileUpdated: jest.fn() };
+    const service = new CustomersService(
+      prisma as unknown as PrismaService,
+      dashboardCache as never,
+      invitations as never,
+      notifications as never,
+    );
+    const result = await service.updateOwn('customer-user', {
+      firstName: ' Sam ',
+      lastName: ' Lee ',
+      phone: '(0400) 000-000',
+    });
+    expect(prisma.customer.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'customer-user' } }),
+    );
+    expect(tx.customer.update).toHaveBeenCalledWith({
+      where: { id: customer.id },
+      data: { firstName: 'Sam', lastName: 'Lee', phone: '0400000000' },
+    });
+    expect(tx.customerAddress.upsert).not.toHaveBeenCalled();
+    expect(tx.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: { changedFields: ['firstName', 'lastName', 'phone'] },
+        }),
+      }),
+    );
+    expect(result).toMatchObject({ firstName: 'Sam', lastName: 'Lee', phone: '0400000000' });
+    expect(dashboardCache.invalidate).toHaveBeenCalled();
+  });
+
   it('updates the contact and billing address without changing the service address', async () => {
     const billingAddress = {
       addressLine1: '1 Old Service Road',

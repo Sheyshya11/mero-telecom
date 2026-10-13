@@ -1,0 +1,352 @@
+{
+  "screens": [
+    {
+      "path": "dashboard",
+      "url": "http://localhost:3000/control-centre/dashboard",
+      "headings": [
+        "Operations overview",
+        "Action required",
+        "Admin action requests",
+        "Request Admin action",
+        "Support requests",
+        "Customers",
+        "Services",
+        "Coverage",
+        "Refunds"
+      ],
+      "buttons": [],
+      "text": "STAFF CONTROL CENTRE\n\nOperations overview\n\nAccess the customer and service workflows assigned to staff.\n\nAction required\n\nRequests awaiting employee review. Reading a notification does not review the request.\n\nCancellation\n0\nMove home\n0\nRefund\n0\n\nNEW REQUESTS\n\n0\n\nASSIGNED TO ME\n\n0\n\nWAITING FOR CUSTOMER\n\n0\n\nRESOLVED TODAY\n\n0\n\nAdmin action requests\n\nPrivate requests you have raised for Administrator review.\n\nView Internal Requests\n\nMY OPEN REQUESTS\n\n0\n\nNEEDS MY RESPONSE\n\n0\n\nESCALATED\n\n0\n\nRECENTLY RESOLVED\n\n0\n\nRequest Admin action\n\nEscalate work that needs Administrator review or authorisation.\n\nSupport requests\n\nTake customer requests and follow conversations through resolution.\n\nCustomers\n\nFind customer accounts and service details.\n\nServices\n\nReview subscriptions and plan-change requests.\n\nCoverage\n\nCheck and manage service availability.\n\nRefunds\n\nReview customer refund requests.",
+      "failures": []
+    },
+    {
+      "path": "support",
+      "url": "http://localhost:3000/control-centre/support",
+      "headings": [
+        "Support requests"
+      ],
+      "buttons": [
+        "More filters & sorting",
+        "Previous",
+        "Next"
+      ],
+      "text": "CONTROL CENTRE · SUPPORT\n\nSupport requests\n\nHandle customer tickets and pre-sales enquiries in one operational queue.\n\nOPEN CUSTOMER TICKETS\n\n1\n\nOPEN ENQUIRIES\n\n0\n\nASSIGNED TO ME\n\n0\n\nUNASSIGNED ENQUIRIES\n\n0\n\nSearch and filters\n\nResults update automatically as you refine them.\n\nMore filters & sorting\nSearch\nSupport type\nAll support types\nCustomer tickets\nEnquiries\nStatus\nAll statuses\nOpen\nIn progress\nWaiting for customer\nResolved\nClosed\nREFERENCE\tCONTACT\tCATEGORY\tSUBJECT\tSTATUS\tASSIGNED TO\tLAST UPDATED\tACTION\nSUP-2026-00001\t\n\nfoyoh38352 foyoh38352\n\nfoyoh38352@deertees.com\n\n\t\nAccount\nCustomer ticket\tHack\tIn progress\tadmin@merotelecom.test\t1 Oct 2026, 11:31 am\tOpen\nShowing 1–1 of 1 requests\nRows per page \n10\n20\n50\n100\nPrevious\nPage 1 of 1\nNext",
+      "failures": []
+    },
+    {
+      "path": "internal-requests",
+      "url": "http://localhost:3000/control-centre/internal-requests",
+      "headings": [
+        "Internal requests"
+      ],
+      "buttons": [
+        "My open requests0",
+        "Needs my response0",
+        "Approved0",
+        "Escalated0",
+        "Open",
+        "In Review",
+        "Needs My Response",
+        "Escalated",
+        "Resolved",
+        "All",
+        "More filters & sorting",
+        "Previous",
+        "Next"
+      ],
+      "text": "CONTROL CENTRE · INTERNAL\n\nInternal requests\n\nAsk an Administrator to review work that needs higher authority.\n\nNew Internal Request\n\nMY OPEN REQUESTS\n\n0\n\nNEEDS MY RESPONSE\n\n0\n\nAPPROVED\n\n0\n\nESCALATED\n\n0\n\nOpen\nIn Review\nNeeds My Response\nEscalated\nResolved\nAll\n\nSearch and filters\n\nResults update automatically as you refine them.\n\nMore filters & sorting\nSearch\nStatus\nAll statuses\nPending\nIn Review\nNeeds Information\nApproved\nRejected\nResolved\nClosed\nType\nAll types\nRefund Review\nBilling Review\nSubscription Action\nCustomer Account Action\nPlan Change Review\nRelocation Review\nSupport Assistance\nOther\n\nYou haven't submitted any internal requests.\n\nShowing 0–0 of 0 requests\nRows per page \n10\n20\n50\n100\nPrevious\nPage 1 of 1\nNext",
+      "failures": []
+    },
+    {
+      "path": "customers",
+      "url": "http://localhost:3000/control-centre/customers",
+      "headings": [
+        "Staff workspace",
+        "Customer accounts"
+      ],
+      "buttons": [
+        "More filters & sorting",
+        "Customer ↕",
+        "Contact ↕",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Details",
+        "Edit",
+        "Previous",
+        "Next"
+      ],
+      "text": "CUSTOMER OPERATIONS · STAFF\n\nStaff workspace\n\nSearch and update customer account records.\n\nCustomer accounts\n\nFind a customer to review or update their details.\n\n12 total\n\nSearch and filters\n\nResults update automatically as you refine them.\n\nMore filters & sorting\nSearch\nAccount status\nAll account statuses\nActive\nDeactivated\nSuspended\nInvitation pending\nSubscription status\nAll subscription statuses\nActive\nPast due\nPending\nSuspended\nTerminated\nCancelled\nNo subscription\nCustomer ↕\tContact ↕\tADDRESS\tSUBSCRIPTION\tACCOUNT\t\n\n\nRecovery Overdue Demo\n\nCUST-OD-contacts-RECOVERY\n\n\t\n\n5hvunoq2af@ooynib.com\n\n0400000099\n\n\tAdelaide, SA 5000\t\n\nOverdue warning fixture plan\n\nSUSPENDED\n\n\tACTIVE\t\nDetails\nEdit\n\n\n\nsubham500 Demo\n\nCUST-OD-contacts-SECOND\n\n\t\n\nsubhamshrestha500@gmail.com\n\n0400000099\n\n\tAdelaide, SA 5000\t\n\nOverdue warning fixture plan\n\nACTIVE\n\n\tACTIVE\t\nDetails\nEdit\n\n\n\nRecovery Overdue Demo\n\nCUST-OD-demo-RECOVERY\n\n\t\n\noverdue-demo-recovery@merotelecom.test\n\n0400000099\n\n\tAdelaide, SA 5000\t\n\nOverdue warning fixture plan\n\nSUSPENDED\n\n\tACTIVE\t\nDetails\nEdit\n\n\n\nFinal Overdue Demo\n\nCUST-OD-demo-FINAL\n\n\t\n\noverdue-demo-final@merotelecom.test\n\n0400000099\n\n\tAdelaide, SA 5000\t\n\nOverdue warning fixture plan\n\nSUSPENDED\n\n\tACTIVE\t\nDetails\nEdit\n\n\n\nSecond Overdue Demo\n\nCUST-OD-demo-SECOND\n\n\t\n\noverdue-demo-second@merotelecom.test\n\n0400000099\n\n\tAdelaide, SA 5000\t\n\nOverdue warning fixture plan\n\nSUSPENDED\n\n\tACTIVE\t\nDetails\nEdit\n\n\n\nheyebav950 heyebav950\n\nCUST-20261007-C58897\n\n\t\n\nheyebav950@copytosh.com\n\n0466590848\n\n\tSeacombe Gardens, SA 5047\t\n\nFamily 100\n\nSUSPENDED\n\n\tACTIVE\n\nInvitation accepted\n\n\t\nDetails\nEdit\n\n\n\nfoyoh38352 foyoh38352\n\nCUST-20260930-DBD95B\n\n\t\n\nfoyoh38352@deertees.com\n\n0466590848\n\n\tSeacombe Gardens, SA 5047\tNot assigned\tACTIVE\n\nInvitation accepted\n\n\t\nDetails\nEdit\n\n\n\njigelo4524 shrestha\n\nCUST-20260928-296E3D\n\n\t\n\njigelo4524@maxtanie.com\n\n0466590848\n\n\tSeacombe Gardens, SA 5047\t\n\nFamily 100\n\nACTIVE\n\n\tACTIVE\n\nInvitation accepted\n\n\t\nDetails\nEdit\n\n\n\nMaya Patel\n\nCUST-000004\n\n\t\n\nnewcustomer@merotelecom.test\n\n0400 000 004\n\n\tGlenelg, SA 5045\t\n\nFamily 100\n\nACTIVE\n\n\tACTIVE\t\nDetails\nEdit\n\n\n\nAnika Singh\n\nCUST-000001\n\n\t\n\ncustomer@merotelecom.test\n\n0400 000 001\n\n\tAdelaide, SA 5000\t\n\nEssential 50\n\nACTIVE\n\n\tACTIVE\t\nDetails\nEdit\n\n\n\nOlivia Chen\n\nCUST-000003\n\n\t\n\nolivia.chen@merotelecom.test\n\n0400 000 003\n\n\tNorwood, SA 5067\t\n\nBusiness 250\n\nPENDING\n\n\tACTIVE\t\nDetails\nEdit\n\n\n\nNoah Martinez\n\nCUST-000002\n\n\t\n\nwexini1652@herclan.com\n\n0466590848\n\n\tProspect, SA 5082\t\n\nFamily 100\n\nSUSPENDED\n\n\tACTIVE\t\nDetails\nEdit\nShowing 1–12 of 12 customers\nRows per page \n10\n20\n50\n100\nPrevious\nPage 1 of 1\nNext",
+      "failures": []
+    },
+    {
+      "path": "services",
+      "url": "http://localhost:3000/control-centre/services",
+      "headings": [
+        "Subscriptions",
+        "Subscription history",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Collection hold",
+        "Plan-change requests"
+      ],
+      "buttons": [
+        "More filters & sorting",
+        "Send payment reminder",
+        "Collection history",
+        "Collection history",
+        "Send payment reminder",
+        "Collection history",
+        "Send payment reminder",
+        "Collection history",
+        "Send payment reminder",
+        "Collection history",
+        "Send payment reminder",
+        "Collection history",
+        "Collection history",
+        "Collection history",
+        "Collection history",
+        "Collection history",
+        "Collection history",
+        "Collection history",
+        "Collection history",
+        "Send payment reminder",
+        "Collection history",
+        "Previous",
+        "Next",
+        "Previous",
+        "Next"
+      ],
+      "text": "ADMIN · OPERATIONS\n\nSubscriptions\n\nReview service history, lifecycle status, and customer-requested plan changes.\n\nSubscription history\n\nSearch and filters\n\nResults update automatically as you refine them.\n\nMore filters & sorting\nSearch\nStatus\nAll statuses\nPending\nActive\nPast due\nCancellation pending\nDisconnection pending\nSuspended\nCancelled\nTerminated\nPlan\nAll plans\nOverdue warning fixture plan\nTest\nEssential 50\nFamily 100\nBusiness 250\n\nRecovery Overdue Demo SUSPENDED\n\nOverdue warning fixture plan · 100/20 Mbps · starts 16/09/2026\n\nManage cancellation\nInvoice\nINV-OD-contacts-RECOVERY\nAmount due\n$79.00\nDue date\n30/09/2026\nDays overdue\n12\nGrace ends\n10 Oct 2026, 8:30 pm\nProvisioning\nCOMPLETED\nPayment attempts\n0\nReminders sent\n3\nSupport cases\nNone\n\nINV-OD-contacts-RECOVERY · $79.00 outstanding\n\nDue 30/09/2026 · 12 days overdue\n\nCollection stage: RECOVERY FINAL WARNING\n\nYour original grace period expired. A one-time final payment opportunity has been granted.\n\nSuspension scheduled: 10 October 2026 at 8:30 pm\n\nSend payment reminderView invoice\nCollection hold\n\nAvailable\n\nAn unresolved overdue balance can be placed on collection hold.\n\nCollection history\n\nsubham500 Demo ACTIVE\n\nOverdue warning fixture plan · 100/20 Mbps · starts 21/09/2026\n\nManage cancellation\nCollection hold\n\nCollection resolved\n\nCollection resolved. No collection action is required.\n\nCollection history\n\nRecovery Overdue Demo SUSPENDED\n\nOverdue warning fixture plan · 100/20 Mbps · starts 16/09/2026\n\nManage cancellation\nInvoice\nINV-OD-demo-RECOVERY\nAmount due\n$79.00\nDue date\n30/09/2026\nDays overdue\n12\nGrace ends\n10 Oct 2026, 8:13 pm\nProvisioning\nCOMPLETED\nPayment attempts\n0\nReminders sent\n3\nSupport cases\nNone\n\nINV-OD-demo-RECOVERY · $79.00 outstanding\n\nDue 30/09/2026 · 12 days overdue\n\nCollection stage: RECOVERY FINAL WARNING\n\nYour original grace period expired. A one-time final payment opportunity has been granted.\n\nSuspension scheduled: 10 October 2026 at 8:13 pm\n\nSend payment reminderView invoice\nCollection hold\n\nAvailable\n\nAn unresolved overdue balance can be placed on collection hold.\n\nCollection history\n\nFinal Overdue Demo SUSPENDED\n\nOverdue warning fixture plan · 100/20 Mbps · starts 20/09/2026\n\nManage cancellation\nInvoice\nINV-OD-demo-FINAL\nAmount due\n$79.00\nDue date\n04/10/2026\nDays overdue\n8\nGrace ends\n11 Oct 2026, 10:30 am\nProvisioning\nCOMPLETED\nPayment attempts\n0\nReminders sent\n3\nSupport cases\nNone\n\nINV-OD-demo-FINAL · $79.00 outstanding\n\nDue 04/10/2026 · 8 days overdue\n\nCollection stage: SUSPENDED\n\nSuspension scheduled: 11 October 2026\n\nSend payment reminderView invoice\nCollection hold\n\nAvailable\n\nAn unresolved overdue balance can be placed on collection hold.\n\nCollection history\n\nSecond Overdue Demo SUSPENDED\n\nOverdue warning fixture plan · 100/20 Mbps · starts 21/09/2026\n\nManage cancellation\nInvoice\nINV-OD-demo-SECOND\nAmount due\n$79.00\nDue date\n05/10/2026\nDays overdue\n7\nGrace ends\n12 Oct 2026, 10:30 am\nProvisioning\nCOMPLETED\nPayment attempts\n0\nReminders sent\n3\nSupport cases\nNone\n\nINV-OD-demo-SECOND · $79.00 outstanding\n\nDue 05/10/2026 · 7 days overdue\n\nCollection stage: SUSPENDED\n\nSuspension scheduled: 12 October 2026\n\nSend payment reminderView invoice\nCollection hold\n\nAvailable\n\nAn unresolved overdue balance can be placed on collection hold.\n\nCollection history\n\nheyebav950 heyebav950 SUSPENDED\n\nFamily 100 · 100/20 Mbps · starts 07/10/2026\n\nManage cancellation\nInvoice\nINV-OD-contacts-FINAL\nAmount due\n$79.00\nDue date\n04/10/2026\nDays overdue\n8\nGrace ends\n11 Oct 2026, 10:30 am\nProvisioning\nCOMPLETED\nPayment attempts\n0\nReminders sent\n3\nSupport cases\nNone\n\nINV-OD-contacts-FINAL · $79.00 outstanding\n\nDue 04/10/2026 · 8 days overdue\n\nCollection stage: SUSPENDED\n\nSuspension scheduled: 11 October 2026\n\nSend payment reminderView invoice\nCollection hold\n\nAvailable\n\nAn unresolved overdue balance can be placed on collection hold.\n\nCollection history\n\nfoyoh38352 foyoh38352 CANCELLED\n\nFamily 100 · 100/20 Mbps · starts 30/09/2026\n\nCollection hold\n\nUnavailable\n\nCollection hold is only available when the account has an unresolved overdue balance.\n\nCollection history\n\nMaya Patel ACTIVE\n\nFamily 100 · 100/20 Mbps · starts 28/09/2026\n\nManage cancellation\nCollection hold\n\nUnavailable\n\nCollection hold is only available when the account has an unresolved overdue balance.\n\nCollection history\n\njigelo4524 shrestha ACTIVE\n\nFamily 100 · 100/20 Mbps · starts 28/09/2026\n\nManage cancellation\nCollection hold\n\nUnavailable\n\nCollection hold is only available when the account has an unresolved overdue balance.\n\nCollection history\n\njigelo4524 shrestha CANCELLED\n\nFamily 100 · 100/20 Mbps · starts 28/09/2026\n\nCollection hold\n\nUnavailable\n\nCollection hold is only available when the account has an unresolved overdue balance.\n\nCollection history\n\njigelo4524 shrestha CANCELLED\n\nFamily 100 · 100/20 Mbps · starts 28/09/2026\n\nCollection hold\n\nUnavailable\n\nCollection hold is only available when the account has an unresolved overdue balance.\n\nCollection history\n\nOlivia Chen PENDING\n\nBusiness 250 · 250/25 Mbps · starts 01/09/2026\n\nManage cancellation\nCollection hold\n\nUnavailable\n\nCollection hold is unavailable because there is no active overdue collection case.\n\nCollection history\n\nAnika Singh ACTIVE\n\nEssential 50 · 50/20 Mbps · starts 01/01/2026\n\nManage cancellation\nCollection hold\n\nUnavailable\n\nCollection hold is only available when the account has an unresolved overdue balance.\n\nCollection history\n\nNoah Martinez SUSPENDED\n\nFamily 100 · 100/20 Mbps · starts 01/11/2025\n\nManage cancellation\nInvoice\nINV-2026-000003\nAmount due\n$79.00\nDue date\n15/07/2026\nDays overdue\n89\nGrace ends\n9 Oct 2026, 9:55 pm\nProvisioning\nCOMPLETED\nPayment attempts\n0\nReminders sent\n4\nSupport cases\nNone\n\nINV-2026-000003 · $79.00 outstanding\n\nDue 15/07/2026 · 89 days overdue\n\nCollection stage: RECOVERY FINAL WARNING\n\nYour original grace period expired. A one-time final payment opportunity has been granted.\n\nSuspension scheduled: 9 October 2026 at 9:55 pm\n\nSend payment reminderView invoice\nCollection hold\n\nAvailable\n\nAn unresolved overdue balance can be placed on collection hold.\n\nCollection history\nShowing 1–14 of 14 subscriptions\nRows per page \n10\n20\n50\n100\nPrevious\nPage 1 of 1\nNext\nPlan-change requests\n\nPayment, scheduling, application, and failure visibility for operations.\n\nSearch and filters\n\nResults update automatically as you refine them.\n\nStatus\nAll statuses\nPending\nCheckout created\nProcessing\nScheduled\nApplied\nFailed\nCancelled\nExpired\nType\nAll types\nUpgrade\nDowngrade\n\nfoyoh38352 foyoh38352\n\nFamily 100 → Essential 50\n\nRequest fc416a54 · Source subscription fd3f2f10\n\nRequested 30 Sept 2026, 4:10 pm · effective 30 Oct 2026, 5:10 pm\n\nNo immediate charge\n\nInvoice: —\n\nInvoice status: —\n\nPayment: Not required\n\nAudit history (4)\nDOWNGRADE\nCANCELLED\n\nAnika Singh\n\nEssential 50 → Family 100\n\nRequest 5c388aa0 · Source subscription c257b3bd\n\nRequested 30 Sept 2026, 7:20 pm · effective 30 Sept 2026, 7:20 pm\n\n$0.19 AUD\n\nReason: The previous billing period ended\n\nInvoice: INV-2026-000009\n\nInvoice status: CANCELLED\n\nPayment: Awaiting Checkout\n\nAudit history (1)\nUPGRADE\nEXPIRED\nInvoice history\nShowing 1–2 of 2 plan changes\nRows per page \n10\n20\n50\n100\nPrevious\nPage 1 of 1\nNext",
+      "failures": []
+    },
+    {
+      "path": "relocations",
+      "url": "http://localhost:3000/control-centre/relocations",
+      "headings": [
+        "Relocations"
+      ],
+      "buttons": [
+        "Previous",
+        "Next"
+      ],
+      "text": "SERVICE OPERATIONS\n\nRelocations\n\nManage qualification, new-service activation and old-service disconnection separately.\n\nSearch\nStatus\nAll statuses\nAwaiting review\nNot approved\nProvisioning\nScheduled\nPartially completed\nManual review\nFailed\nCompleted\nCancelled\nForce closed\nProvisioning\nAll provisioning\nPending\nActive\nFailed\nDisconnection\nAll disconnections\nPending\nCompleted\nFailed\nManual review\nCreated from\nCreated to\nRELOCATION\tCUSTOMER\tCURRENT ADDRESS\tNEW ADDRESS\tPLAN\tOVERALL\tQUALIFICATION\tNEW SERVICE\tOLD SERVICE\tREQUESTED\tCREATED\t\n686A8014\tfoyoh38352 foyoh38352\nfoyoh38352@deertees.com\n\t8 Brigalow Avenue, Seacombe Gardens, SA, 5047\t10 Brigalow Avenue, Seacombe Gardens, SA, 5047\tFamily 100\tCancelled\tAvailable\tNot started\tNot started\t3 Oct 2026\t1 Oct 2026\tOpen\n2CFAC30C\tfoyoh38352 foyoh38352\nfoyoh38352@deertees.com\n\t8 Brigalow Avenue, Seacombe Gardens, SA, 5047\t10 Brigalow Avenue, Seacombe Gardens, SA, 5047\tFamily 100\tCancelled\tAvailable\tNot started\tNot started\t2 Oct 2026\t1 Oct 2026\tOpen\n021FA252\tfoyoh38352 foyoh38352\nfoyoh38352@deertees.com\n\t3 Brigalow Avenue, Seacombe Gardens, SA, 5047\t8 Brigalow Avenue, Seacombe Gardens, SA, 5047\tFamily 100\tCompleted\tAvailable\tActive\tCompleted\t30 Sept 2026\t30 Sept 2026\tOpen\n19D871D1\tjigelo4524 shrestha\njigelo4524@maxtanie.com\n\tAdelaide SA 5000, Adelaide, SA, 5000\t1 Brigalow Avenue, Seacombe Gardens, SA, 5047\tFamily 100\tCompleted\tAvailable\tActive\tCompleted\t29 Sept 2026\t28 Sept 2026\tOpen\n248A1FD7\tjigelo4524 shrestha\njigelo4524@maxtanie.com\n\tAdelaide SA 5000, Adelaide, SA, 5000\tAdelaide SA 5000, Adelaide, SA, 5000\tFamily 100\tCancelled\tAvailable\tNot started\tNot started\t30 Sept 2026\t28 Sept 2026\tOpen\n5 relocations\nPrevious\nPage 1 of 1\nNext",
+      "failures": []
+    },
+    {
+      "path": "cancellations",
+      "url": "http://localhost:3000/control-centre/cancellations",
+      "headings": [
+        "Service cancellations",
+        "Cancellation requests"
+      ],
+      "buttons": [
+        "More filters & sorting",
+        "Review",
+        "Review",
+        "Review",
+        "Review",
+        "Review",
+        "Previous",
+        "Next"
+      ],
+      "text": "SERVICE OPERATIONS\n\nService cancellations\n\nTrack customer requests, provider processing, failures and service completion.\n\nMock wholesale provider is active. These provider results are internal simulations and do not represent real NBN disconnections.\n\nOpen requests\n\n0\n\nFailed / review\n\n0\n\nImmediate\n\n3\n\nEnd of period\n\n2\n\nCancellation requests\n\nSearch and filters\n\nResults update automatically as you refine them.\n\nMore filters & sorting\nSearch\nStatus\nAll statuses\nPending review\nRejected\nRequested\nScheduled\nProcessing\nDisconnection pending\nCompleted\nFailed\nRevoked\nType\nAll types\nEnd of period\nImmediate\n\nCAN-2026-00005\n\nImmediate\n\nfoyoh38352 foyoh38352\n\nfoyoh38352@deertees.com\n\nCUST-20260930-DBD95B\n\nFamily 100\n\n$79.00/month\n\nfd3f2f10\n\nRequested 1 Oct 2026, 3:13 pm\n\nEffective 1 Oct 2026, 3:15 pm\n\nProvider: Completed\n\nCompleted\nReview\n\nCAN-2026-00004\n\nEnd of period\n\njigelo4524 shrestha\n\njigelo4524@maxtanie.com\n\nCUST-20260928-296E3D\n\nFamily 100\n\n$79.00/month\n\n6b4b4faa\n\nRequested 28 Sept 2026, 6:00 pm\n\nEffective 28 Oct 2026, 6:31 pm\n\nProvider: Not submitted\n\nRevoked\nReview\n\nCAN-2026-00003\n\nEnd of period\n\njigelo4524 shrestha\n\njigelo4524@maxtanie.com\n\nCUST-20260928-296E3D\n\nFamily 100\n\n$79.00/month\n\n6b4b4faa\n\nRequested 28 Sept 2026, 6:00 pm\n\nEffective 28 Oct 2026, 6:31 pm\n\nProvider: Not submitted\n\nRevoked\nReview\n\nCAN-2026-00002\n\nImmediate\n\njigelo4524 shrestha\n\njigelo4524@maxtanie.com\n\nCUST-20260928-296E3D\n\nFamily 100\n\n$79.00/month\n\n131c4ad1\n\nRequested 28 Sept 2026, 5:19 pm\n\nEffective 28 Sept 2026, 5:19 pm\n\nProvider: Completed\n\nCompleted\nReview\n\nCAN-2026-00001\n\nImmediate\n\njigelo4524 shrestha\n\njigelo4524@maxtanie.com\n\nCUST-20260928-296E3D\n\nFamily 100\n\n$79.00/month\n\n6465a964\n\nRequested 28 Sept 2026, 5:16 pm\n\nEffective 28 Sept 2026, 5:16 pm\n\nProvider: Completed\n\nCompleted\nReview\nShowing 1–5 of 5 cancellations\nRows per page \n10\n20\n50\n100\nPrevious\nPage 1 of 1\nNext",
+      "failures": []
+    },
+    {
+      "path": "invoices",
+      "url": "http://localhost:3000/control-centre/invoices",
+      "headings": [
+        "Invoices",
+        "Generate monthly invoice",
+        "Invoice register"
+      ],
+      "buttons": [
+        "Generate invoice",
+        "Refresh",
+        "More filters & sorting",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "PDF",
+        "Email",
+        "Previous",
+        "Next"
+      ],
+      "text": "BILLING · INVOICES\n\nInvoices\n\nGenerate, review, deliver, and download invoices.\n\nGenerate monthly invoice\n\nFind a manual-billing customer, select their active service, and choose the billing date. Stripe recurring subscriptions are invoiced automatically and cannot be selected here.\n\nActive subscription\nType to search, then choose one active service.\nBilling date\nGenerate invoice\n\nShowing the first 1 matches. Refine the customer search to find another subscription.\n\nInvoice register\nRefresh\n\nSearch and filters\n\nResults update automatically as you refine them.\n\nMore filters & sorting\nSearch\nStatus\nAll statuses\nDraft\nIssued\nPaid\nOverdue\nCancelled\nUnpaid\nRefunded\nPartially refunded\nInvoice date from\nINVOICE\tCUSTOMER\tISSUED\tTOTAL\tSTATUS\tACTIONS\nINV-OD-contacts-RECOVERY\t\n\nRecovery Overdue Demo\n\nCUST-OD-contacts-RECOVERY\n\n\t16/09/2026\t$79.00\tOVERDUE\t\nPDF\nEmail\n\nINV-OD-contacts-FINAL\t\n\nheyebav950 heyebav950\n\nCUST-20261007-C58897\n\n\t20/09/2026\t$79.00\tOVERDUE\t\nPDF\nEmail\n\nINV-OD-contacts-SECOND\t\n\nsubham500 Demo\n\nCUST-OD-contacts-SECOND\n\n\t21/09/2026\t$79.00\tPAID\t\nPDF\nEmail\n\nINV-OD-demo-RECOVERY\t\n\nRecovery Overdue Demo\n\nCUST-OD-demo-RECOVERY\n\n\t16/09/2026\t$79.00\tOVERDUE\t\nPDF\nEmail\n\nINV-OD-demo-FINAL\t\n\nFinal Overdue Demo\n\nCUST-OD-demo-FINAL\n\n\t20/09/2026\t$79.00\tOVERDUE\t\nPDF\nEmail\n\nINV-OD-demo-SECOND\t\n\nSecond Overdue Demo\n\nCUST-OD-demo-SECOND\n\n\t21/09/2026\t$79.00\tOVERDUE\t\nPDF\nEmail\n\nINV-2026-000010\t\n\nheyebav950 heyebav950\n\nCUST-20261007-C58897\n\n\t07/10/2026\t$79.00\tPAID\t\nPDF\nEmail\n\nINV-2026-000009\t\n\nAnika Singh\n\nCUST-000001\n\n\t30/09/2026\t$0.19\tCANCELLED\t\nPDF\n\nINV-2026-000008\t\n\nfoyoh38352 foyoh38352\n\nCUST-20260930-DBD95B\n\n\t30/09/2026\t$79.00\tPAID\n\nRefunded: $76.47\n\n\t\nPDF\nEmail\n\nINV-2026-000007\t\n\nMaya Patel\n\nCUST-000004\n\n\t28/09/2026\t$79.00\tPAID\t\nPDF\nEmail\n\nINV-2026-000006\t\n\njigelo4524 shrestha\n\nCUST-20260928-296E3D\n\n\t28/09/2026\t$79.00\tPAID\t\nPDF\nEmail\n\nINV-2026-000005\t\n\njigelo4524 shrestha\n\nCUST-20260928-296E3D\n\n\t28/09/2026\t$79.00\tPAID\n\nRefunded: $79.00\n\n\t\nPDF\nEmail\n\nINV-2026-000004\t\n\njigelo4524 shrestha\n\nCUST-20260928-296E3D\n\n\t28/09/2026\t$79.00\tPAID\n\nRefunded: $78.98\n\n\t\nPDF\nEmail\n\nINV-2026-000003\t\n\nNoah Martinez\n\nCUST-000002\n\n\t01/07/2026\t$79.00\tOVERDUE\t\nPDF\nEmail\n\nINV-2026-000002\t\n\nAnika Singh\n\nCUST-000001\n\n\t01/08/2026\t$69.00\tPAID\t\nPDF\nEmail\n\nINV-2026-000001\t\n\nAnika Singh\n\nCUST-000001\n\n\t01/01/2026\t$69.00\tPAID\t\nPDF\nEmail\nShowing 1–16 of 16 invoices\nRows per page \n10\n20\n50\n100\nPrevious\nPage 1 of 1\nNext",
+      "failures": []
+    },
+    {
+      "path": "billing",
+      "url": "http://localhost:3000/control-centre/billing",
+      "headings": [],
+      "buttons": [],
+      "text": "Administrator access is required to view billing reports.",
+      "failures": []
+    },
+    {
+      "path": "refunds",
+      "url": "http://localhost:3000/control-centre/refunds",
+      "headings": [
+        "Refund management"
+      ],
+      "buttons": [
+        "More filters & sorting",
+        "Previous",
+        "Next"
+      ],
+      "text": "BILLING · REFUNDS\n\nRefund management\n\nReview requests, approve controlled amounts, and reconcile Stripe results.\n\nSearch and filters\n\nResults update automatically as you refine them.\n\nMore filters & sorting\nSearch\nStatus\nAll statuses\nDraft\nRequested\nUnder review\nMore information required\nApproved\nProcessing\nSucceeded\nFailed\nRejected\nCancelled\nReason\nAll reasons\nDuplicate payment\nService not activated\nBilling error\nCancelled before activation\nService issue\nGoodwill\nOther\nREFUND\tCUSTOMER\tINVOICE\tAMOUNT\tREASON\tSTATUS\tREQUESTED\tACTION\n2758b0b6\t\n\nsubham500 Demo\n\nsubhamshrestha500@gmail.com\n\n\tINV-OD-contacts-SECOND\t$79.00\tService unavailable\tApproved\t12/10/2026\tView\n71df9fa7\t\n\nfoyoh38352 foyoh38352\n\nfoyoh38352@deertees.com\n\n\tINV-2026-000008\t$76.47\tCancellation proration\tSucceeded\t01/10/2026\tView\nac33290e\t\n\nfoyoh38352 foyoh38352\n\nfoyoh38352@deertees.com\n\n\tINV-2026-000008\t$79.00\tBilling error\tRejected\t30/09/2026\tView\nabf9cd09\t\n\njigelo4524 shrestha\n\njigelo4524@maxtanie.com\n\n\tINV-2026-000004\t$0.02\tBilling error\tRejected\t28/09/2026\tView\n230f39ae\t\n\njigelo4524 shrestha\n\njigelo4524@maxtanie.com\n\n\tINV-2026-000005\t$79.00\tCancellation proration\tSucceeded\t28/09/2026\tView\nf628f338\t\n\njigelo4524 shrestha\n\njigelo4524@maxtanie.com\n\n\tINV-2026-000004\t$78.98\tCancellation proration\tSucceeded\t28/09/2026\tView\nShowing 1–6 of 6 refunds\nRows per page \n10\n20\n50\n100\nPrevious\nPage 1 of 1\nNext",
+      "failures": []
+    },
+    {
+      "path": "plans",
+      "url": "http://localhost:3000/login?returnTo=%2Fcontrol-centre%2Fplans",
+      "headings": [
+        "Manage your Mero Telecom service, anytime.",
+        "Sign In"
+      ],
+      "buttons": [
+        "",
+        "Sign In"
+      ],
+      "text": "Manage your Mero Telecom service, anytime.\n\nSign in to view your plan, check your billing, update your details and get support — all in one place.\n\nSecure account access\nManage billing online\nAustralian-based support\n\n© 2026 Mero Telecom. All rights reserved.\n\nSign In\n\nSign in to manage your service, billing and account.\n\nEmail\nPassword\nForgot password?\nSign In\nOR\n\nDon't have an account? Get connected\n\nBack to home",
+      "failures": [
+        {
+          "url": "http://localhost:3001/api/v1/auth/refresh",
+          "status": 429
+        }
+      ]
+    },
+    {
+      "path": "coverage",
+      "url": "http://localhost:3000/login?returnTo=%2Fcontrol-centre%2Fcoverage",
+      "headings": [
+        "Manage your Mero Telecom service, anytime.",
+        "Sign In"
+      ],
+      "buttons": [
+        "",
+        "Sign In"
+      ],
+      "text": "Manage your Mero Telecom service, anytime.\n\nSign in to view your plan, check your billing, update your details and get support — all in one place.\n\nSecure account access\nManage billing online\nAustralian-based support\n\n© 2026 Mero Telecom. All rights reserved.\n\nSign In\n\nSign in to manage your service, billing and account.\n\nEmail\nPassword\nForgot password?\nSign In\nOR\n\nDon't have an account? Get connected\n\nBack to home",
+      "failures": [
+        {
+          "url": "http://localhost:3001/api/v1/auth/refresh",
+          "status": 429
+        }
+      ]
+    },
+    {
+      "path": "staff",
+      "url": "http://localhost:3000/login?returnTo=%2Fcontrol-centre%2Fstaff",
+      "headings": [
+        "Manage your Mero Telecom service, anytime.",
+        "Sign In"
+      ],
+      "buttons": [
+        "",
+        "Sign In"
+      ],
+      "text": "Manage your Mero Telecom service, anytime.\n\nSign in to view your plan, check your billing, update your details and get support — all in one place.\n\nSecure account access\nManage billing online\nAustralian-based support\n\n© 2026 Mero Telecom. All rights reserved.\n\nSign In\n\nSign in to manage your service, billing and account.\n\nEmail\nPassword\nForgot password?\nSign In\nOR\n\nDon't have an account? Get connected\n\nBack to home",
+      "failures": [
+        {
+          "url": "http://localhost:3001/api/v1/auth/refresh",
+          "status": 429
+        }
+      ]
+    },
+    {
+      "path": "audit-logs",
+      "url": "http://localhost:3000/login?returnTo=%2Fcontrol-centre%2Faudit-logs",
+      "headings": [
+        "Manage your Mero Telecom service, anytime.",
+        "Sign In"
+      ],
+      "buttons": [
+        "",
+        "Sign In"
+      ],
+      "text": "Manage your Mero Telecom service, anytime.\n\nSign in to view your plan, check your billing, update your details and get support — all in one place.\n\nSecure account access\nManage billing online\nAustralian-based support\n\n© 2026 Mero Telecom. All rights reserved.\n\nSign In\n\nSign in to manage your service, billing and account.\n\nEmail\nPassword\nForgot password?\nSign In\nOR\n\nDon't have an account? Get connected\n\nBack to home",
+      "failures": [
+        {
+          "url": "http://localhost:3001/api/v1/auth/refresh",
+          "status": 429
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "networkFailures": [
+    {
+      "url": "http://localhost:3001/api/v1/auth/refresh",
+      "status": 429
+    },
+    {
+      "url": "http://localhost:3001/api/v1/auth/refresh",
+      "status": 429
+    },
+    {
+      "url": "http://localhost:3001/api/v1/auth/refresh",
+      "status": 429
+    },
+    {
+      "url": "http://localhost:3001/api/v1/auth/refresh",
+      "status": 429
+    }
+  ]
+}

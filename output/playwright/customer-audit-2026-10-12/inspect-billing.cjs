@@ -1,0 +1,2 @@
+const {createRequire}=require('node:module');const req=createRequire(process.cwd()+'/apps/api/package.json');req('dotenv').config({path:'.env',quiet:true});const {PrismaClient}=req('@prisma/client');const p=new PrismaClient();(async()=>{const c=await p.customer.findUnique({where:{email:'customer@merotelecom.test'},select:{id:true,userId:true,subscriptions:{include:{sourcePlanChanges:{include:{invoice:{include:{payments:true}}}}}}}});console.log(JSON.stringify(c,null,2));})().catch(e=>{console.error(e.message);process.exitCode=1}).finally(()=>p.$disconnect());
+

@@ -15,6 +15,18 @@ const validCustomer = {
 };
 
 describe('customerSchema', () => {
+  it.each([
+    ['0400 000 000', '0400000000'],
+    ['(0400) 000-000', '0400000000'],
+    [' +61 400 000 000 ', '+61400000000'],
+  ])('accepts mobile %s without requiring a format', (phone, expected) => {
+    expect(customerSchema.parse({ ...validCustomer, phone }).phone).toBe(expected);
+  });
+
+  it.each(['not a number', '0400', '0400abc000000'])('rejects invalid mobile %s', (phone) => {
+    expect(customerSchema.safeParse({ ...validCustomer, phone }).success).toBe(false);
+  });
+
   it('trims customer identity and address text', () => {
     const result = customerSchema.parse({
       ...validCustomer,

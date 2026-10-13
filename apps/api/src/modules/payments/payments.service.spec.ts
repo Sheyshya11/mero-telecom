@@ -4,6 +4,7 @@ import {
   CheckoutApplicationStatus,
   CustomerStatus,
   InvoiceStatus,
+  InvoiceType,
   PaymentMethodType,
   PaymentStatus,
   RecurringSetupAttemptStatus,
@@ -1351,6 +1352,37 @@ describe('PaymentsService', () => {
         line_items: [expect.objectContaining({ price: 'price_test_home_plus' })],
       }),
       { idempotencyKey: `plan-checkout-${invoiceId}` },
+    );
+  });
+
+  it('routes an upgrade invoice to its plan-change checkout before the new-purchase guard', async () => {
+    const prisma = {
+      invoice: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: invoiceId,
+          type: InvoiceType.PLAN_CHANGE,
+          purchasePlanId: 'target-plan-id',
+          status: InvoiceStatus.ISSUED,
+        }),
+      },
+    };
+    const service = makeService(prisma);
+    const actor = { id: 'customer-user-id', email: 'customer@example.test', role: Role.CUSTOMER };
+    const resume = jest
+      .fn()
+      .mockResolvedValue({ checkoutUrl: 'https://checkout.stripe.test/upgrade' });
+    Reflect.set(service, 'planChanges', { resumeInvoiceCheckout: resume });
+    const newPurchase = jest.spyOn(service, 'createPlanCheckoutSession');
+
+    await expect(service.createCheckoutSession(invoiceId, actor)).resolves.toEqual({
+      checkoutUrl: 'https://checkout.stripe.test/upgrade',
+    });
+    expect(resume).toHaveBeenCalledWith(invoiceId, actor);
+    expect(newPurchase).not.toHaveBeenCalled();
+    expect(prisma.invoice.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: invoiceId, customer: { userId: actor.id } },
+      }),
     );
   });
 

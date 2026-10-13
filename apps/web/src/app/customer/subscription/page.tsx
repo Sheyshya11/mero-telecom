@@ -284,6 +284,11 @@ export default function CustomerSubscriptionPage() {
     [subscriptions.data],
   );
   const automaticPaymentsActive = currentSubscription?.billingMode === 'STRIPE_RECURRING';
+  const manualBillingPeriodExpired = Boolean(
+    currentSubscription &&
+    !automaticPaymentsActive &&
+    new Date(currentSubscription.currentPeriodEnd).getTime() <= Date.now(),
+  );
   const showPaymentMethodManagement =
     automaticPaymentsActive || (!currentSubscription && Boolean(endedSubscription));
   const paymentMethods = useQuery({
@@ -781,6 +786,15 @@ export default function CustomerSubscriptionPage() {
                 This is an existing manual-payment subscription. Add a payment method to enable
                 automatic monthly charges from your next billing date.
               </p>
+              {manualBillingPeriodExpired ? (
+                <p className="mt-3 text-sm" role="alert">
+                  Your billing period needs updating before you can enable automatic payments.{' '}
+                  <Link className="font-medium underline" href="/customer/support">
+                    Contact support
+                  </Link>
+                  .
+                </p>
+              ) : null}
               <div className="mt-5 flex flex-wrap items-end gap-3">
                 <label className="text-sm font-medium text-foreground">
                   Payment method
@@ -797,7 +811,7 @@ export default function CustomerSubscriptionPage() {
                 </label>
                 <button
                   className="button-primary"
-                  disabled={enableRecurring.isPending}
+                  disabled={enableRecurring.isPending || manualBillingPeriodExpired}
                   onClick={() =>
                     enableRecurring.mutate({
                       subscriptionId: currentSubscription.id,

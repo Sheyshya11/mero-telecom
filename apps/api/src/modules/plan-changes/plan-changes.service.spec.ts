@@ -265,6 +265,7 @@ describe('PlanChangesService', () => {
 
   it('keeps a pending upgrade retryable when Stripe Checkout is unavailable', async () => {
     const request = planChangeRecord({
+      currentPeriodEndSnapshot: new Date(Date.now() + 86_400_000),
       status: PlanChangeStatus.PENDING,
       invoiceId: 'invoice-id',
       invoice: {
@@ -292,6 +293,116 @@ describe('PlanChangesService', () => {
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(create).toHaveBeenCalledTimes(1);
     expect(request.status).toBe(PlanChangeStatus.PENDING);
+  });
+
+  it('resumes the owned upgrade session from its invoice without creating another payment', async () => {
+    const request = planChangeRecord({
+      status: PlanChangeStatus.CHECKOUT_CREATED,
+      stripeCheckoutSessionId: 'cs_upgrade',
+    });
+    const findFirst = jest.fn().mockResolvedValue(request);
+    const retrieve = jest
+      .fn()
+      .mockResolvedValue({ status: 'open', url: 'https://checkout.stripe.test/upgrade' });
+    const create = jest.fn();
+    const { service } = makeService(
+      {},
+      { planChangeRequest: { findFirst, findUnique: jest.fn().mockResolvedValue(request) } },
+      { client: { checkout: { sessions: { retrieve, create } } } },
+    );
+    await expect(service.resumeInvoiceCheckout('invoice-id', actor)).resolves.toEqual({
+      checkoutUrl: 'https://checkout.stripe.test/upgrade',
+      reconciled: false,
+    });
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { invoiceId: 'invoice-id', customer: { userId: actor.id } },
+      }),
+    );
+    expect(retrieve).toHaveBeenCalledWith('cs_upgrade');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back to a purchase when an invoice has no owned plan change', async () => {
+    const create = jest.fn();
+    const { service } = makeService(
+      {},
+      { planChangeRequest: { findFirst: jest.fn().mockResolvedValue(null) } },
+      { client: { checkout: { sessions: { create } } } },
+    );
+    await expect(service.resumeInvoiceCheckout('other-invoice', actor)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an expired unsubmitted quote before contacting Stripe', async () => {
+    const request = planChangeRecord({
+      invoice: { id: 'invoice-id' },
+      currentPeriodEndSnapshot: new Date(0),
+    });
+    const create = jest.fn();
+    const { service } = makeService(
+      {},
+      {
+        planChangeRequest: {
+          findFirst: jest.fn().mockResolvedValue(request),
+          findUnique: jest.fn().mockResolvedValue(request),
+        },
+      },
+      { client: { checkout: { sessions: { create } } } },
+    );
+    await expect(service.resumeInvoiceCheckout('invoice-id', actor)).rejects.toThrow(
+      'quote has expired',
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('creates an upgrade-specific session when payment is resumed from an invoice', async () => {
+    const request = planChangeRecord({
+      invoiceId: 'invoice-id',
+      invoice: { id: 'invoice-id' },
+      currentPeriodEndSnapshot: new Date(Date.now() + 86_400_000),
+    });
+    const transaction = {
+      $executeRaw: jest.fn(),
+      planChangeRequest: { findUnique: jest.fn().mockResolvedValue(request), update: jest.fn() },
+      payment: { upsert: jest.fn().mockResolvedValue({ id: 'payment-id' }) },
+      auditLog: { create: jest.fn() },
+    };
+    const create = jest
+      .fn()
+      .mockResolvedValue({ id: 'cs_upgrade', url: 'https://checkout.stripe.test/upgrade' });
+    const { service } = makeService(
+      transaction,
+      {
+        planChangeRequest: {
+          findFirst: jest.fn().mockResolvedValue(request),
+          findUnique: jest.fn().mockResolvedValue(request),
+        },
+      },
+      { client: { checkout: { sessions: { create } } } },
+    );
+    await service.resumeInvoiceCheckout('invoice-id', actor);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: {
+          checkoutKind: 'plan_change',
+          planChangeRequestId: request.id,
+          sourceSubscriptionId: subscriptionId,
+          targetPlanId: targetPlan.id,
+        },
+        line_items: [
+          expect.objectContaining({ price_data: expect.objectContaining({ unit_amount: 1500 }) }),
+        ],
+      }),
+      { idempotencyKey: 'plan-change-checkout-' + request.id },
+    );
+    expect(transaction.payment.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ invoiceId: 'invoice-id', amountCents: 1500 }),
+      }),
+    );
   });
 
   it('reconciles a paid completed Checkout instead of returning a reuse conflict', async () => {

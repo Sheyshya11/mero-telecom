@@ -372,7 +372,15 @@ export class CustomersService {
       await transaction.customer.update({
         where: { id: customer.id },
         data: {
-          phone: input.phone?.trim(),
+          firstName:
+            input.firstName === undefined
+              ? undefined
+              : this.requiredText(input.firstName, 'First name'),
+          lastName:
+            input.lastName === undefined
+              ? undefined
+              : this.requiredText(input.lastName, 'Last name'),
+          phone: input.phone?.replace(/[\s()-]/g, ''),
           ...(addressChanged
             ? {
                 addressLine1: contactAddress.addressLine1,
@@ -404,6 +412,8 @@ export class CustomersService {
           entityId: customer.id,
           metadata: {
             changedFields: [
+              ...(input.firstName !== undefined ? ['firstName'] : []),
+              ...(input.lastName !== undefined ? ['lastName'] : []),
               ...(input.phone !== undefined ? ['phone'] : []),
               ...(addressChanged ? ['contactAddress'] : []),
             ],
@@ -418,6 +428,7 @@ export class CustomersService {
       return { updated, notificationEventId: audit.id };
     });
 
+    await this.dashboardCache.invalidate();
     await this.notifications?.sendProfileUpdated({
       userId,
       eventId: result.notificationEventId,

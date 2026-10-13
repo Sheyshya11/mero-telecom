@@ -1,11 +1,15 @@
 import type { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { GET } from './route';
+import { GET as customerGET } from './route';
+import { GET as staffGET } from '../../../[invoiceId]/pdf/route';
 
 const invoiceId = '6b34d995-21a6-4d36-8e28-1f465f93cc66';
 
-describe('customer invoice PDF proxy', () => {
+describe.each([
+  ['customer', customerGET, 'invoices/me'],
+  ['staff', staffGET, 'invoices'],
+] as const)('%s invoice PDF proxy', (_label, GET, endpoint) => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -29,18 +33,32 @@ describe('customer invoice PDF proxy', () => {
     const response = await GET(request, { params: Promise.resolve({ invoiceId }) });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `http://localhost:3001/api/v1/invoices/me/${invoiceId}/pdf`,
+      `http://localhost:3001/api/v1/${endpoint}/${invoiceId}/pdf`,
       {
         headers: { Accept: 'application/pdf', Authorization: 'Bearer customer-token' },
         cache: 'no-store',
       },
     );
     expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toBe('application/pdf');
-    expect(response.headers.get('content-disposition')).toBe(
-      'attachment; filename="INV-2026-000001.pdf"',
-    );
+    expect(response.headers.get('content-type')).toBe('application/octet-stream');
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('vary')).toBe('Authorization');
+    expect(response.headers.get('content-disposition')).toBeNull();
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(pdf);
+  });
+
+  it('preserves authorization failures as JSON errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(Response.json({ message: 'Forbidden' }, { status: 403 })),
+    );
+    const response = await GET(
+      { headers: new Headers({ Authorization: 'Bearer token' }) } as NextRequest,
+      { params: Promise.resolve({ invoiceId }) },
+    );
+    expect(response.status).toBe(403);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    await expect(response.json()).resolves.toEqual({ message: 'Forbidden' });
   });
 
   it('rejects requests without an access token before calling the API', async () => {

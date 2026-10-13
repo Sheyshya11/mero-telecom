@@ -24,10 +24,13 @@ export async function GET(
   });
   const headers = new Headers({
     'Cache-Control': 'private, no-store',
-    'Content-Type': upstream.headers.get('content-type') ?? 'application/octet-stream',
+    // The client restores the PDF MIME type after validating the bytes.
+    // Binary transport avoids download extensions intercepting the authenticated fetch.
+    'Content-Type': upstream.ok
+      ? 'application/octet-stream'
+      : (upstream.headers.get('content-type') ?? 'application/json'),
+    Vary: 'Authorization',
   });
-  const disposition = upstream.headers.get('content-disposition');
-  if (disposition) headers.set('Content-Disposition', disposition);
 
   return new Response(upstream.body, { status: upstream.status, headers });
 }

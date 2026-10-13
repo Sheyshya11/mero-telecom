@@ -482,6 +482,9 @@ export class PaymentsService {
         'Stripe manages payment collection for this recurring invoice. Update the saved payment method from My subscription.',
       );
     }
+    if (invoice.type === InvoiceType.PLAN_CHANGE) {
+      return this.planChanges.resumeInvoiceCheckout(invoice.id, actor);
+    }
     if (invoice.purchasePlanId) {
       return this.createPlanCheckoutSession(invoice.purchasePlanId, actor);
     }

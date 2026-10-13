@@ -9,6 +9,7 @@ import {
   MaxLength,
   Matches,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { CustomerStatus } from '@prisma/client';
 import { AUSTRALIAN_STATES } from '../../../common/dto/address.dto';
@@ -72,7 +73,24 @@ export class UpdateCustomerDto {
 }
 
 export class UpdateOwnCustomerDto {
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  firstName?: string;
+
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  lastName?: string;
+
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.replace(/[\s()-]/g, '') : value,
+  )
   @IsPhoneNumber('AU')
   phone?: string;
 

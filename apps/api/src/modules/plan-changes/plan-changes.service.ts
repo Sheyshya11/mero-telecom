@@ -277,6 +277,22 @@ export class PlanChangesService {
     return { planChange: this.toResponse(refreshed), checkoutUrl };
   }
 
+  async resumeInvoiceCheckout(invoiceId: string, actor: AuthenticatedUser) {
+    const request = await this.prisma.planChangeRequest.findFirst({
+      where:
+        actor.role === Role.CUSTOMER
+          ? { invoiceId, customer: { userId: actor.id } }
+          : { invoiceId },
+      include: planChangeInclude,
+    });
+    if (!request) throw new NotFoundException('Plan change request not found.');
+    // Keep the existing upgrade's payment metadata and reconciliation path.
+    const checkoutUrl = await this.ensureUpgradeCheckout(request.id);
+    const refreshed = await this.loadRequest(request.id);
+    await this.dashboardCache.invalidate();
+    return { checkoutUrl, reconciled: refreshed.status === PlanChangeStatus.APPLIED };
+  }
+
   async latestForSubscription(subscriptionId: string, actor: AuthenticatedUser) {
     await this.requireOwnedSubscription(subscriptionId, actor);
     const request = await this.prisma.planChangeRequest.findFirst({
@@ -783,6 +799,11 @@ export class PlanChangesService {
     }
     if (request.status !== PlanChangeStatus.PENDING || !request.invoice) {
       throw new ConflictException('This upgrade is not ready for Checkout.');
+    }
+    if (request.currentPeriodEndSnapshot <= new Date()) {
+      throw new ConflictException(
+        'This upgrade quote has expired. Contact support to refresh your billing period and plan change.',
+      );
     }
     const metadata = {
       checkoutKind: 'plan_change',

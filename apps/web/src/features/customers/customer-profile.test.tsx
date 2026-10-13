@@ -85,6 +85,80 @@ describe('CustomerProfile', () => {
     expect(screen.getByLabelText('Postcode')).toHaveValue('5067');
     expect(screen.queryByDisplayValue('20 Service Street')).not.toBeInTheDocument();
   });
+  it('saves the customer name with a formatted mobile and refreshes the displayed name', async () => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    apiRequestMock.mockImplementation(async (_path, options) =>
+      options?.method === 'PATCH'
+        ? { ...customer, ...JSON.parse(options.body as string) }
+        : ({ ...customer, phone: '0400 000 000' } as never),
+    );
+    render(
+      <QueryClientProvider client={queryClient}>
+        <CustomerProfile />
+      </QueryClientProvider>,
+    );
+    const firstName = await screen.findByLabelText('First name');
+    await waitFor(() => expect(firstName).toHaveValue('Alex'));
+    await user.clear(firstName);
+    await user.type(firstName, '  Sam  ');
+    await user.clear(screen.getByLabelText('Last name'));
+    await user.type(screen.getByLabelText('Last name'), '  Lee  ');
+    await user.clear(screen.getByLabelText('Mobile'));
+    await user.type(screen.getByLabelText('Mobile'), '+61 (400) 000-000');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(apiRequestMock).toHaveBeenCalledWith(
+        '/customers/me',
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            firstName: 'Sam',
+            lastName: 'Lee',
+            phone: '+61400000000',
+            addressLine1: '1 Billing Road',
+            addressLine2: 'Unit 4',
+            suburb: 'Norwood',
+            state: 'SA',
+            postcode: '5067',
+          }),
+        },
+        'token',
+      ),
+    );
+    expect(await screen.findByText('Sam Lee')).toBeInTheDocument();
+    expect(await screen.findByText('Profile updated successfully.')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled(),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['customer-dashboard'] });
+  });
+
+  it('rejects a blank name without submitting the profile', async () => {
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <CustomerProfile />
+      </QueryClientProvider>,
+    );
+    const firstName = await screen.findByLabelText('First name');
+    await waitFor(() => expect(firstName).toHaveValue('Alex'));
+    await user.clear(firstName);
+    await user.type(firstName, '   ');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('First name is required.')).toBeInTheDocument();
+    expect(apiRequestMock).not.toHaveBeenCalledWith(
+      '/customers/me',
+      expect.objectContaining({ method: 'PATCH' }),
+      expect.anything(),
+    );
+  });
+
   it('lets the owner change email with password confirmation without editing another account', async () => {
     const user = userEvent.setup();
     apiRequestMock.mockImplementation(async (path) =>

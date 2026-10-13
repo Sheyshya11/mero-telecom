@@ -326,6 +326,13 @@ describe('DashboardService Super Admin summary', () => {
 });
 
 describe('DashboardService customer summary', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-10T00:00:00Z'));
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   const actor = { id: 'user-1', email: 'customer@example.test', role: Role.CUSTOMER };
   const customer = {
     id: 'customer-1',
@@ -440,6 +447,19 @@ describe('DashboardService customer summary', () => {
     expect(summary.recentActivity.map((activity) => activity.title)).toEqual(
       expect.arrayContaining(['Payment received', 'Invoice generated']),
     );
+  });
+
+  it('does not advertise an expired billing period as an upcoming payment', async () => {
+    jest.setSystemTime(new Date('2026-10-12T00:00:00Z'));
+    const prisma = createCustomerPrisma();
+    const service = new DashboardService(
+      prisma as unknown as PrismaService,
+      { get: jest.fn(), set: jest.fn() } as unknown as AdminDashboardCacheService,
+      createHealth(),
+    );
+    const summary = await service.getCustomerSummary(actor);
+    expect(summary.billing.nextBillingDate).toBeNull();
+    expect(summary.billing.nextPaymentAmountCents).toBeNull();
   });
 
   it('handles a customer without a current service or activity', async () => {
